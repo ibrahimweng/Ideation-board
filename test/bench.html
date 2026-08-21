@@ -1,0 +1,352 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Ideation Board — pipeline benchmark</title>
+<body style="font:13px ui-monospace,Menlo,monospace;padding:16px;background:#e9e8e4">
+<div id="out">running…</div>
+<div id="cards" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:12px"></div>
+<script>
+/* Isolates the three pipeline changes between the old and new architectures.
+ * Both paths run on the main thread with the same shader and the same images,
+ * so the difference measured is the pipeline itself, not threading. The real
+ * app additionally moves path B into a worker.
+ *
+ *   Path A (old): single-slot texture cache, monotonically growing drawing
+ *                 buffer, preserveDrawingBuffer, and a drawImage() blit from
+ *                 the GL canvas into a per-card 2D canvas.
+ *
+ *   Path B (new): byte-budgeted LRU texture cache, job-sized drawing buffer,
+ *                 and transferToImageBitmap() into a per-card bitmaprenderer
+ *                 canvas.
+ */
+const VERT = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv = vec2(aPos.x*0.5+0.5, 0.5-aPos.y*0.5); gl_Position = vec4(aPos,0.0,1.0); }`;
+
+/* A halftone-ish shader: representative fill cost, not trivial. */
+const FRAG = `#version 300 es
+precision highp float;
+uniform sampler2D uTex; uniform vec2 uRes; in vec2 vUv; out vec4 o;
+float luma(vec3 c){ return dot(c, vec3(0.2126,0.7152,0.0722)); }
+vec2 rot(vec2 v, float a){ float s=sin(a), c=cos(a); return vec2(v.x*c-v.y*s, v.x*s+v.y*c); }
+void main(){
+  float cs = 6.0; float a = radians(45.0);
+  vec2 r = rot(vUv*uRes, a), cell = floor(r/cs), f = fract(r/cs)-0.5;
+  vec3 src = texture(uTex, clamp(rot((cell+0.5)*cs, -a)/uRes, 0.001, 0.999)).rgb;
+  float v = clamp((luma(src)-0.5)*1.5+0.5, 0.0, 1.0);
+  float rad = sqrt(1.0-v)*1.25;
+  float ink = 1.0-smoothstep(rad-0.16, rad+0.16, length(f)*2.0);
+  o = vec4(mix(vec3(0.96,0.95,0.92), vec3(0.08), ink), 1.0);
+}`;
+
+function mkProgram(gl, frag) {
+  const mk = (t, s) => { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); return sh; };
+  const p = gl.createProgram();
+  gl.attachShader(p, mk(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(p, mk(gl.FRAGMENT_SHADER, frag));
+  gl.bindAttribLocation(p, 0, 'aPos');
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+function setupGL(canvas, preserve) {
+  const gl = canvas.getContext('webgl2', {
+    premultipliedAlpha: false, preserveDrawingBuffer: preserve,
+    antialias: false, depth: false, stencil: false,
+  });
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  const prog = mkProgram(gl, FRAG);
+  return { gl, prog };
+}
+
+function mkTex(gl) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  return t;
+}
+
+/* ---------------- Path A: the previous architecture ---------------- */
+class OldEngine {
+  constructor() {
+    this.cv = document.createElement('canvas');
+    this.cv.width = this.cv.height = 256;
+    this.bufW = 256; this.bufH = 256;
+    const { gl, prog } = setupGL(this.cv, true);   // preserveDrawingBuffer
+    this.gl = gl; this.prog = prog;
+    this.tex = mkTex(gl);
+    this.texKey = null;                            // <- exactly one cached texture
+    this.uTex = gl.getUniformLocation(prog, 'uTex');
+    this.uRes = gl.getUniformLocation(prog, 'uRes');
+  }
+  ensureBuf(w, h) {                                // <- grows, never shrinks
+    const nw = Math.max(this.bufW, w), nh = Math.max(this.bufH, h);
+    if (nw === this.bufW && nh === this.bufH) return;
+    this.bufW = nw; this.bufH = nh;
+    this.cv.width = nw; this.cv.height = nh;
+  }
+  upload(source, key) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    if (key && this.texKey === key) return;        // <- single-slot: any other image evicts
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    this.texKey = key;
+  }
+  paint(dest, source, key, w, h) {
+    const gl = this.gl;
+    this.ensureBuf(w, h);
+    this.outW = w; this.outH = h;
+    this.upload(source, key);
+    gl.useProgram(this.prog);
+    gl.viewport(0, 0, w, h);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.uniform1i(this.uTex, 0);
+    gl.uniform2f(this.uRes, w, h);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    /* the readback: GPU -> CPU -> GPU, once per card */
+    const ctx = dest.getContext('2d');
+    ctx.clearRect(0, 0, dest.width, dest.height);
+    ctx.drawImage(this.cv, 0, this.bufH - this.outH, this.outW, this.outH, 0, 0, dest.width, dest.height);
+  }
+}
+
+/* ---------------- Path B: the new architecture ---------------- */
+class NewEngine {
+  constructor() {
+    this.cv = new OffscreenCanvas(256, 256);
+    const { gl, prog } = setupGL(this.cv, false);  // no preserveDrawingBuffer
+    this.gl = gl; this.prog = prog;
+    this.cache = new Map();                        // <- LRU, many textures resident
+    this.pool = new Map();                         // <- freed texture objects, by size
+    this.bytes = 0; this.poolBytes = 0; this.clock = 0;
+    this.budget = 220 * 1024 * 1024;
+    this.poolBudget = 64 * 1024 * 1024;
+    this.misses = 0; this.evictions = 0; this.reuses = 0;
+    this.uTex = gl.getUniformLocation(prog, 'uTex');
+    this.uRes = gl.getUniformLocation(prog, 'uRes');
+    this.w = 0; this.h = 0;
+  }
+  evict(incoming) {
+    if (this.bytes + incoming <= this.budget) return;
+    const es = [...this.cache.entries()].sort((a, b) => a[1].used - b[1].used);
+    for (const [k, e] of es) {
+      if (this.bytes + incoming <= this.budget) break;
+      this.cache.delete(k); this.bytes -= e.bytes; this.evictions++;
+      /* recycle rather than delete */
+      if (this.poolBytes + e.bytes > this.poolBudget) { this.gl.deleteTexture(e.tex); continue; }
+      const sk = e.w + 'x' + e.h;
+      let list = this.pool.get(sk);
+      if (!list) this.pool.set(sk, list = []);
+      list.push(e.tex); this.poolBytes += e.bytes;
+    }
+  }
+  upload(source, key) {
+    const gl = this.gl;
+    if (this.singleSlot) {
+      if (!this.slot) this.slot = mkTex(gl);
+      gl.bindTexture(gl.TEXTURE_2D, this.slot);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      return this.slot;
+    }
+    const hit = this.cache.get(key);
+    if (hit) { hit.used = ++this.clock; gl.bindTexture(gl.TEXTURE_2D, hit.tex); return hit.tex; }
+    this.misses++;
+    const sw = source.width, sh = source.height;
+    const bytes = sw * sh * 4;
+    this.evict(bytes);
+    const sk = sw + 'x' + sh;
+    const free = this.pool.get(sk);
+    const reused = free && free.length ? free.pop() : null;
+    if (reused) {
+      this.reuses++; this.poolBytes -= bytes;
+      gl.bindTexture(gl.TEXTURE_2D, reused);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      this.cache.set(key, { tex: reused, w: sw, h: sh, bytes, used: ++this.clock });
+      this.bytes += bytes;
+      return reused;
+    }
+    const t = mkTex(gl);
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    this.cache.set(key, { tex: t, w: sw, h: sh, bytes, used: ++this.clock });
+    this.bytes += bytes;
+    return t;
+  }
+  reset() {
+    for (const e of this.cache.values()) this.gl.deleteTexture(e.tex);
+    for (const list of this.pool.values()) for (const t of list) this.gl.deleteTexture(t);
+    this.cache.clear(); this.pool.clear();
+    this.bytes = 0; this.poolBytes = 0;
+  }
+  paint(dest, source, key, w, h) {
+    const gl = this.gl;
+    if (this.w !== w || this.h !== h) {            // <- sized to the job
+      this.cv.width = w; this.cv.height = h; this.w = w; this.h = h;
+    }
+    const tex = this.upload(source, key);
+    gl.useProgram(this.prog);
+    gl.viewport(0, 0, w, h);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(this.uTex, 0);
+    gl.uniform2f(this.uRes, w, h);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    /* zero-copy handoff */
+    if (this.skipTransfer) return;
+    dest.__ctx = dest.__ctx || dest.getContext('bitmaprenderer');
+    dest.__ctx.transferFromImageBitmap(this.cv.transferToImageBitmap());
+  }
+}
+
+function barrier(gl) {
+  const px = new Uint8Array(4);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  return px[0];
+}
+
+/* ---------------- harness ---------------- */
+async function makeImages(n, size) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const c = new OffscreenCanvas(size, size * 0.66 | 0);
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, c.width, c.height);
+    g.addColorStop(0, `hsl(${(i * 37) % 360} 65% 30%)`);
+    g.addColorStop(1, `hsl(${(i * 37 + 90) % 360} 70% 72%)`);
+    x.fillStyle = g; x.fillRect(0, 0, c.width, c.height);
+    for (let k = 0; k < 30; k++) {
+      x.fillStyle = `hsl(${(i * 11 + k * 23) % 360} 60% ${25 + (k % 6) * 11}%)`;
+      x.fillRect((k * 71) % c.width, (k * 47) % c.height, size / 12, size / 12);
+    }
+    out.push(await createImageBitmap(c));
+  }
+  return out;
+}
+
+function makeCards(n, kind) {
+  const host = document.getElementById('cards');
+  host.innerHTML = '';
+  const cards = [];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('canvas');
+    c.style.width = '84px'; c.style.height = '56px';
+    if (kind === 'old') { c.width = 336; c.height = 224; }
+    host.appendChild(c);
+    cards.push(c);
+  }
+  return cards;
+}
+
+async function run() {
+  const N = Number(new URLSearchParams(location.search).get('n') || 40);
+  const SRC = Number(new URLSearchParams(location.search).get('src') || 1400);
+  const W = 336, H = 224;
+  const imgs = await makeImages(N, SRC);
+
+  /* one warm pass each so shader compilation is not in the numbers */
+  const oldE = new OldEngine(), newE = new NewEngine();
+  let cards = makeCards(N, 'old');
+  oldE.paint(cards[0], imgs[0], 'k0', W, H);
+  const cardsN = makeCards(N, 'new');
+  newE.paint(cardsN[0], imgs[0], 'k0', W, H);
+
+  /* --- pass 1: every card a distinct image (the real board case) --- */
+  const REPS = Number(new URLSearchParams(location.search).get('reps') || 3);
+  const median = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+
+  const oldFirst = [], newFirst = [], oldRep = [], newRep = [];
+
+  for (let rep = 0; rep < REPS; rep++) {
+    /* --- pass 1: cold. Every card a distinct image, nothing cached. --- */
+    const co = makeCards(N, 'old');
+    oldE.texKey = null;
+    let t = performance.now();
+    for (let i = 0; i < N; i++) oldE.paint(co[i], imgs[i], 'k' + i, W, H);
+    barrier(oldE.gl);
+    oldFirst.push(performance.now() - t);
+
+    const cn = makeCards(N, 'new');
+    newE.reset();
+    t = performance.now();
+    for (let i = 0; i < N; i++) newE.paint(cn[i], imgs[i], 'k' + i, W, H);
+    barrier(newE.gl);
+    newFirst.push(performance.now() - t);
+
+    /* --- pass 2: warm. Re-render the same cards, as changing an effect
+           or dragging a parameter slider does. --- */
+    t = performance.now();
+    for (let i = 0; i < N; i++) oldE.paint(co[i], imgs[i], 'k' + i, W, H);
+    barrier(oldE.gl);
+    oldRep.push(performance.now() - t);
+
+    t = performance.now();
+    for (let i = 0; i < N; i++) newE.paint(cn[i], imgs[i], 'k' + i, W, H);
+    barrier(newE.gl);
+    newRep.push(performance.now() - t);
+  }
+
+  /* Ablation: attribute the cold-pass cost between texture allocation and the
+   * bitmap handoff, so the comparison says which mechanism costs what. */
+  const abl = { transferOnly: 0, uploadOnly: 0, both: 0 };
+  {
+    const cn = makeCards(N, 'new');
+    /* both (already measured, but re-run adjacent for a fair comparison) */
+    newE.reset();
+    let t = performance.now();
+    for (let i = 0; i < N; i++) newE.paint(cn[i], imgs[i], 'k' + i, W, H);
+    barrier(newE.gl); abl.both = performance.now() - t;
+
+    /* upload only: render but skip the ImageBitmap handoff */
+    newE.reset();
+    newE.skipTransfer = true;
+    t = performance.now();
+    for (let i = 0; i < N; i++) newE.paint(cn[i], imgs[i], 'k' + i, W, H);
+    barrier(newE.gl); abl.uploadOnly = performance.now() - t;
+    newE.skipTransfer = false;
+
+    /* transfer only: one shared texture like the old engine, still handing off */
+    newE.reset();
+    newE.singleSlot = true;
+    t = performance.now();
+    for (let i = 0; i < N; i++) newE.paint(cn[i], imgs[i], 'k' + i, W, H);
+    barrier(newE.gl); abl.transferOnly = performance.now() - t;
+    newE.singleSlot = false;
+    newE.reset();
+  }
+
+  const oldDistinct = median(oldFirst), newDistinct = median(newFirst);
+  const oldRepeat = median(oldRep), newRepeat = median(newRep);
+
+  window.__bench = {
+    n: N, sourcePx: SRC, reps: REPS,
+    oldDistinctMs: +oldDistinct.toFixed(1),
+    newDistinctMs: +newDistinct.toFixed(1),
+    oldRepeatMs: +oldRepeat.toFixed(1),
+    newRepeatMs: +newRepeat.toFixed(1),
+    speedupFirstPass: +(oldDistinct / newDistinct).toFixed(2),
+    speedupRepeat: +(oldRepeat / newRepeat).toFixed(2),
+    newCacheMisses: newE.misses,
+    newEvictions: newE.evictions,
+    newTextureReuses: newE.reuses,
+    paintsPerEngine: N * REPS * 2,
+    coldAblationMs: {
+      renderPlusUploadOnly: +abl.uploadOnly.toFixed(1),
+      sharedTexturePlusTransfer: +abl.transferOnly.toFixed(1),
+      full: +abl.both.toFixed(1),
+    },
+  };
+  document.getElementById('out').textContent = JSON.stringify(window.__bench, null, 2);
+}
+run();
+</script>

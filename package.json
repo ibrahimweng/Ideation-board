@@ -1,0 +1,28 @@
+{
+  "name": "ideation-board",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A GPU-accelerated ideation board: drop images, video, audio, notes and files, then apply effects at speed.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false",
+    "test:smoke": "node test/smoke.mjs",
+    "test:load": "node test/load.mjs",
+    "bench": "node test/bench.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.62.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
