@@ -46,6 +46,14 @@ export class BoardStore {
   name = 'Untitled board'
   id = 'board_local'
 
+  /* Renaming has to go through here rather than assigning to `name`, or the
+   * change never marks the board dirty and the autosave never runs. */
+  setName(next: string) {
+    if (this.name === next) return
+    this.name = next
+    this.touch()
+  }
+
   /* ---------- reads ---------- */
 
   getItem = (id: string): Item | undefined => this.items.get(id)
@@ -122,9 +130,13 @@ export class BoardStore {
     this.touch()
   }
 
+  /* Stacking order is assigned here, never taken from the caller. The item
+   * factories fill in a placeholder z to satisfy the type, and `item.z ?? ...`
+   * kept that placeholder, because 0 is not null. Every card was created at
+   * z 0, so a new card could land behind one already on the board. */
   add(item: Omit<Item, 'z'> & { z?: number }) {
     this.snapshot()
-    const it: Item = { ...item, z: item.z ?? ++this.topZ, fx: item.fx || { ...FX_0 } }
+    const it: Item = { ...item, z: ++this.topZ, fx: item.fx || { ...FX_0 } }
     this.items.set(it.id, it)
     this.order.push(it.id)
     this.pingOrder()
@@ -135,7 +147,7 @@ export class BoardStore {
   addMany(list: (Omit<Item, 'z'> & { z?: number })[]) {
     this.snapshot()
     for (const item of list) {
-      const it: Item = { ...item, z: item.z ?? ++this.topZ, fx: item.fx || { ...FX_0 } }
+      const it: Item = { ...item, z: ++this.topZ, fx: item.fx || { ...FX_0 } }
       this.items.set(it.id, it)
       this.order.push(it.id)
     }

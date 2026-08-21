@@ -203,9 +203,19 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   color: var(--muted); padding: 6px 10px;
 }
 
+/* Its own layer, so the card can keep clipping its contents without clipping
+   the handles away with them. Only the handles themselves take the pointer. */
+.card-handles {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9000;
+  will-change: transform;
+}
+
 .handle {
   position: absolute; width: 11px; height: 11px;
   background: #fff; border: 1.5px solid var(--sel); border-radius: 3px;
+  pointer-events: auto;
 }
 .handle-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .handle-nw { left: -6px; top: -6px; cursor: nwse-resize; }
