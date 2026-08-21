@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import { store, useSelection } from './state/store'
-import { ingest, noteItem, labelItem, sectionItem, linkItem, newId } from './state/ingest'
+import { ingest, noteItem, labelItem, sectionItem, linkItem } from './state/ingest'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import type { Board as BoardModel, Item } from './state/types'
@@ -111,15 +111,8 @@ export default function App() {
       }
       if (cmd && e.key.toLowerCase() === 'd') {
         e.preventDefault()
-        const copies = store
-          .getSelection()
-          .map((id) => store.getItem(id))
-          .filter(Boolean)
-          .map((i) => ({ ...i!, id: newId(), x: i!.x + 28, y: i!.y + 28 }))
-        if (copies.length) {
-          store.addMany(copies)
-          store.select(copies.map((c) => c.id))
-        }
+        const made = store.duplicate(store.getSelection())
+        if (made.length) store.select(made)
         return
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -140,7 +133,9 @@ export default function App() {
         const d = e.shiftKey ? 10 : 1
         const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0
         const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0
-        store.moveMany(sel, dx, dy, false)
+        /* A burst of nudges collapses into one undo step. */
+        store.beginGesture(700)
+        store.moveMany(store.dragSet(sel).ids, dx, dy, false)
       }
     }
     window.addEventListener('keydown', onKey)

@@ -196,6 +196,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   border: 1.5px dashed var(--line);
   box-shadow: none; pointer-events: none;
 }
+/* Shown while a drag is holding over this section, so it is clear which one
+   would take the drop. */
+.card-section[data-drop] {
+  background: rgba(47, 75, 255, 0.07);
+  border-color: var(--sel);
+  border-style: solid;
+}
+.card-section[data-drop] .section-bar { color: var(--sel); }
+
 .section-bar {
   pointer-events: auto; cursor: grab;
   display: inline-flex; align-items: center;

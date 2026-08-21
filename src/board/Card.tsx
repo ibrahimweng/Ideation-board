@@ -67,7 +67,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
   if (it.kind === 'section') {
     return (
       <>
-        <div className="card card-section" style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
+        <div className="card card-section" data-id={id} style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
           <div className="section-bar" onPointerDown={(e) => onPointerDown(e, id)}>
             <span>{it.name || 'Section'}</span>
           </div>
@@ -250,10 +250,16 @@ function startResize(e: React.PointerEvent, id: string, corner: string) {
   const s = { x: it.x, y: it.y, w: it.w, h: it.h }
   const target = e.currentTarget as HTMLElement
   target.setPointerCapture(e.pointerId)
+  let began = false
 
   const move = (ev: PointerEvent) => {
     const dx = (ev.clientX - sx) / z
     const dy = (ev.clientY - sy) / z
+    if (!began && Math.hypot(dx, dy) >= 2) {
+      /* One snapshot for the whole resize, taken once it really starts. */
+      store.beginGesture()
+      began = true
+    }
     let { x, y, w, h } = s
     if (corner.includes('e')) w = Math.max(80, s.w + dx)
     if (corner.includes('s')) h = Math.max(60, s.h + dy)

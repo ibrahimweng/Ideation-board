@@ -105,6 +105,78 @@ export class BoardStore {
     for (const fn of this.viewListeners) fn()
   }
 
+  /* ---------- gestures ---------- */
+
+  /* One undo step for a whole drag, resize or slider sweep.
+   *
+   * Those all write with recording turned off so they do not push a snapshot
+   * per pointer move, but nothing was pushing a snapshot at the start either.
+   * The result was that they left no undo entry at all, and one Cmd+Z after a
+   * drag jumped back past it to whatever was recorded before, which could
+   * delete a card the drag had nothing to do with.
+   *
+   * `coalesceMs` merges a rapid series into one step, so holding an arrow key
+   * or sweeping a slider does not fill the history. */
+  private lastGesture = 0
+  beginGesture(coalesceMs = 0) {
+    const now = Date.now()
+    if (coalesceMs && now - this.lastGesture < coalesceMs) {
+      this.lastGesture = now
+      return
+    }
+    this.lastGesture = now
+    this.snapshot()
+  }
+
+  /* ---------- sections ---------- */
+
+  membersOf(sectionId: string): Item[] {
+    return this.all().filter((i) => i.parent === sectionId)
+  }
+
+  /* Everything that should move when `ids` move: the items themselves plus
+   * anything sitting inside a section being dragged. `carried` names the ones
+   * that came along because their section moved, which must keep their
+   * section rather than being re-tested against wherever they land. */
+  dragSet(ids: string[]): { ids: string[]; carried: Set<string> } {
+    const out = new Set(ids)
+    const carried = new Set<string>()
+    for (const id of ids) {
+      const it = this.items.get(id)
+      if (!it || it.kind !== 'section') continue
+      for (const m of this.membersOf(id)) {
+        out.add(m.id)
+        carried.add(m.id)
+      }
+    }
+    return { ids: [...out], carried }
+  }
+
+  /* The section a point falls in, topmost first. Sections never nest, so a
+   * section itself is never a candidate. */
+  sectionAt(x: number, y: number): string | null {
+    for (let i = this.order.length - 1; i >= 0; i--) {
+      const it = this.items.get(this.order[i])
+      if (!it || it.kind !== 'section') continue
+      if (x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + it.h) return it.id
+    }
+    return null
+  }
+
+  /* Re-tests an item against the sections and records where it landed. Called
+   * when a drag finishes, never on resize. */
+  reparentByPosition(ids: string[]) {
+    for (const id of ids) {
+      const it = this.items.get(id)
+      if (!it || it.kind === 'section') continue
+      const parent = this.sectionAt(it.x + it.w / 2, it.y + it.h / 2)
+      if ((it.parent || null) === parent) continue
+      this.items.set(id, { ...it, parent })
+      this.pingItem(id)
+    }
+    this.touch()
+  }
+
   /* ---------- writes ---------- */
 
   /* Every mutation replaces the item object, so a subscriber comparing by
@@ -155,9 +227,17 @@ export class BoardStore {
     this.touch()
   }
 
+  /* Removing a section removes what is inside it, which is what Figma does.
+   * Undo keeps whole-board snapshots, so one Cmd+Z brings all of it back. */
   remove(ids: string[]) {
     if (!ids.length) return
     this.snapshot()
+    const all = new Set(ids)
+    for (const id of ids) {
+      const it = this.items.get(id)
+      if (it && it.kind === 'section') for (const m of this.membersOf(id)) all.add(m.id)
+    }
+    ids = [...all]
     for (const id of ids) {
       this.items.delete(id)
       this.sel.delete(id)
@@ -166,6 +246,30 @@ export class BoardStore {
     this.pingOrder()
     this.pingSel()
     this.touch()
+  }
+
+  /* Copies items, taking the contents of any copied section along and
+   * pointing the copies at the copied section rather than the original. */
+  duplicate(ids: string[], dx = 28, dy = 28): string[] {
+    const { ids: full } = this.dragSet(ids)
+    if (!full.length) return []
+    this.snapshot()
+    const remap = new Map<string, string>()
+    for (const id of full) remap.set(id, 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36))
+    const made: string[] = []
+    for (const id of full) {
+      const src = this.items.get(id)
+      if (!src) continue
+      const nid = remap.get(id)!
+      const parent = src.parent && remap.has(src.parent) ? remap.get(src.parent)! : src.parent ?? null
+      const copy: Item = { ...src, id: nid, x: src.x + dx, y: src.y + dy, z: ++this.topZ, parent }
+      this.items.set(nid, copy)
+      this.order.push(nid)
+      made.push(nid)
+    }
+    this.pingOrder()
+    this.touch()
+    return made
   }
 
   raise(id: string) {

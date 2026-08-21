@@ -22,6 +22,10 @@ export interface Item {
   url?: string
   color?: string
   tag?: string | null
+  /* Id of the section this item sits in, when it is in one. Membership is
+   * decided when a drag finishes and then remembered, so an item stays where
+   * it was put even if a section is later moved under or away from it. */
+  parent?: string | null
   fx: FxState
   /* Natural pixel size, when known. */
   nw?: number

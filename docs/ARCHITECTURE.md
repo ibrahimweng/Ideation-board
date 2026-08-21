@@ -126,6 +126,28 @@ A loop works out which cards those are on each frame, but it calls `setState`
 only when the set has actually changed. Panning across empty space costs
 nothing.
 
+## Sections
+
+An item records which section it is in, in a `parent` field holding the
+section's id. Membership is worked out when a drag finishes, by asking which
+section the item's middle landed in, and is then stored. It is not recomputed
+from the geometry afterwards.
+
+That matters for two cases. An item can be resized, or a section shrunk, so the
+item pokes out past the edge, and it still belongs. A section can also be moved
+under an item without swallowing it.
+
+When a drag starts, `store.dragSet` expands the selection to include the
+contents of any section being dragged. Items that came along that way are
+marked as carried and are not re-tested against the sections when the drag
+ends, because they are still in the section they started in, wherever it went.
+
+Deleting a section deletes its contents, and duplicating one copies its
+contents and points the copies at the copy.
+
+Sections are drawn behind the items they hold, so clicking one does not raise
+it above its own contents. One section cannot go inside another.
+
 ## The state
 
 The state is in `src/state`.
@@ -138,9 +160,19 @@ viewport. Each card subscribes only to its own item through
 Every change replaces the item object rather than editing it, so a listener can
 compare by reference.
 
-Undo and redo keep up to 60 snapshots of the item list. A drag records one
-snapshot at the start and then writes positions with recording turned off, so a
-drag is one step of undo and not hundreds.
+Undo and redo keep up to 60 snapshots of the item list. A drag, a resize, a
+keyboard nudge and a slider sweep each call `beginGesture` once, which takes a
+single snapshot, and then write with recording turned off. Each of those is
+therefore one step of undo rather than hundreds.
+
+`beginGesture` takes an optional window in milliseconds that merges a rapid
+series into one step, which is what stops holding an arrow key from filling the
+history.
+
+Before this existed, those gestures wrote with recording off and nothing took a
+snapshot at the start, so they left no undo entry at all. One undo after a drag
+jumped back past it to whatever was recorded before, which could remove a card
+the drag had nothing to do with.
 
 `ingest.ts` turns dropped files into cards. It hands back one card at a time as
 each file becomes ready, so a large drop fills in as it goes. For a picture it

@@ -16,7 +16,8 @@
     "test:load": "node test/load.mjs",
     "bench": "node test/bench.mjs",
     "test:video": "node test/video.mjs",
-    "test:ui": "node test/ui.mjs"
+    "test:ui": "node test/ui.mjs",
+    "test:sections": "node test/sections.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

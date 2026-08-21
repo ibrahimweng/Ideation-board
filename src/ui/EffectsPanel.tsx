@@ -58,6 +58,8 @@ export function EffectsPanel({ tab, onTab }: Props) {
   const ids = targets.map((t) => t!.id)
 
   const patchFx = (patch: Partial<FxState>) => {
+    /* A slider sweep is one undo step rather than none. */
+    store.beginGesture(600)
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
@@ -68,6 +70,7 @@ export function EffectsPanel({ tab, onTab }: Props) {
   const setEffect = (fxid: string) => patchFx({ fxid, ep: fxid === 'none' ? null : (defaults(fxid) as Params) })
 
   const setParam = (k: string, v: number | string) => {
+    store.beginGesture(600)
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue

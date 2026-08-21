@@ -200,28 +200,48 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
     [paintTransform]
   )
 
-  /* Dragging a card moves the whole selection. Positions are written with
-   * history recording off, then committed once on release. */
+  /* Dragging a card moves the whole selection, and dragging a section takes
+   * everything inside it along. Positions are written with recording off, so
+   * one snapshot is taken when the drag actually starts moving and the whole
+   * drag becomes a single undo step. */
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
     e.stopPropagation()
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
     if (additive) store.toggle(id)
     else if (!store.isSelected(id)) store.select([id])
-    store.raise(id)
+    /* Sections sit behind their contents by design, so raising one would put
+     * it over the very items it holds. */
+    if (store.getItem(id)?.kind !== 'section') store.raise(id)
 
-    const ids = store.getSelection().includes(id) ? store.getSelection() : [id]
+    const selected = store.getSelection().includes(id) ? store.getSelection() : [id]
+    const { ids, carried } = store.dragSet(selected)
     const z = store.peekView().z || 1
     const startX = e.clientX
     const startY = e.clientY
     const origin = new Map(ids.map((i) => [i, { ...store.getItem(i)! }]))
+    /* Only what was dragged directly is re-tested against the sections.
+     * Something that moved because its section moved is still in that
+     * section, wherever the section went. */
+    const testable = selected.filter((i) => !carried.has(i) && store.getItem(i)?.kind !== 'section')
     let moved = false
+    let highlight: string | null = null
     const engine = getEngine()
+
+    const setHighlight = (sectionId: string | null) => {
+      if (sectionId === highlight) return
+      document.querySelector('.card-section[data-drop]')?.removeAttribute('data-drop')
+      if (sectionId) {
+        document.querySelector(`.card-section[data-id="${sectionId}"]`)?.setAttribute('data-drop', '')
+      }
+      highlight = sectionId
+    }
 
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - startX) / z
       const dy = (ev.clientY - startY) / z
       if (!moved && Math.hypot(dx, dy) < 2) return
+      if (!moved) store.beginGesture()
       moved = true
       engine.touch()
       const snap = ev.shiftKey
@@ -230,10 +250,17 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
         const ny = snap ? Math.round((o.y + dy) / SNAP) * SNAP : o.y + dy
         store.update(iid, { x: Math.round(nx), y: Math.round(ny) }, false)
       }
+      /* Show which section would take the drop. */
+      if (testable.length) {
+        const lead = store.getItem(testable[0])
+        setHighlight(lead ? store.sectionAt(lead.x + lead.w / 2, lead.y + lead.h / 2) : null)
+      }
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      setHighlight(null)
+      if (moved && testable.length) store.reparentByPosition(testable)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)

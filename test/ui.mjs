@@ -27,6 +27,19 @@ await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1500)
 
 const surfaceT = () => page.evaluate(() => document.querySelector('.surface').style.transform)
+
+/* The board gets crowded as the test runs, so points for marquees and empty
+ * clicks are found rather than hard coded. */
+const emptyPoint = async () => page.evaluate(() => {
+  const vp = document.querySelector('.viewport').getBoundingClientRect()
+  for (let y = vp.bottom - 60; y > vp.top + 40; y -= 40) {
+    for (let x = vp.left + 40; x < vp.right - 40; x += 40) {
+      const el = document.elementFromPoint(x, y)
+      if (el && (el.classList.contains('viewport') || el.classList.contains('surface'))) return { x, y }
+    }
+  }
+  return null
+})
 const addImages = (n) => page.evaluate(async (n) => {
   const dt = new DataTransfer()
   for (let i=0;i<n;i++){
@@ -242,12 +255,101 @@ ok('editor: note text saved', (await note.innerText()).includes('hello from the 
    JSON.stringify((await note.innerText()).slice(0,40)))
 ok('editor: tag dot shows on card', await note.locator('.card-tag').count() === 1)
 
+// ---------- 13b. sections carry their contents ----------
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+// a fresh section, then a note dropped inside it
+await page.locator('.zoomval').click()   // back to 100% so nothing sits off screen
+await page.waitForTimeout(400)
+await page.getByRole('button',{name:'Section',exact:true}).click()
+await page.waitForTimeout(500)
+const section = page.locator('.card-section').last()
+const sectionBar = page.locator('.card-section').last().locator('.section-bar')
+const sbox = await section.boundingBox()
+await page.getByRole('button',{name:'Note',exact:true}).click()
+await page.waitForTimeout(500)
+const inner = page.locator('.card[data-kind="note"]').last()
+
+// drag the note so its centre lands inside the section
+let ibox = await inner.boundingBox()
+const targetX = sbox.x + sbox.width/2, targetY = sbox.y + sbox.height/2
+await page.mouse.move(ibox.x + ibox.width/2, ibox.y + 8)
+await page.mouse.down()
+await page.mouse.move(targetX, targetY - ibox.height/2 + 8, {steps:12})
+const highlighted = await page.locator('.card-section[data-drop]').count()
+await page.mouse.up()
+await page.waitForTimeout(500)
+ok('section: highlights while a drag hovers over it', highlighted === 1)
+
+ibox = await inner.boundingBox()
+// now drag the section by its title bar and check the note came along
+const sbox2 = await section.boundingBox()
+const bar2 = await sectionBar.boundingBox()
+await page.mouse.move(bar2.x + bar2.width/2, bar2.y + bar2.height/2)
+await page.mouse.down()
+await page.mouse.move(bar2.x + bar2.width/2 + 130, bar2.y + bar2.height/2 + 90, {steps:12})
+await page.mouse.up()
+await page.waitForTimeout(600)
+const sbox3 = await section.boundingBox()
+const ibox2 = await inner.boundingBox()
+ok('section: moving it moves the section itself',
+   Math.abs(sbox3.x - sbox2.x - 130) < 20 && Math.abs(sbox3.y - sbox2.y - 90) < 20,
+   `section moved ${Math.round(sbox3.x-sbox2.x)},${Math.round(sbox3.y-sbox2.y)}`)
+ok('section: items inside move with it',
+   Math.abs(ibox2.x - ibox.x - 130) < 20 && Math.abs(ibox2.y - ibox.y - 90) < 20,
+   `note moved ${Math.round(ibox2.x-ibox.x)},${Math.round(ibox2.y-ibox.y)}`)
+
+// drag the note back out, then move the section again: it must stay put
+const ib3 = await inner.boundingBox()
+await page.mouse.move(ib3.x + ib3.width/2, ib3.y + 8)
+await page.mouse.down()
+await page.mouse.move(ib3.x + ib3.width/2, ib3.y + 8 - (sbox3.height/2 + 200), {steps:12})
+await page.mouse.up()
+await page.waitForTimeout(600)
+const ib4 = await inner.boundingBox()
+const bar4 = await sectionBar.boundingBox()
+await page.mouse.move(bar4.x + bar4.width/2, bar4.y + bar4.height/2)
+await page.mouse.down()
+await page.mouse.move(bar4.x + bar4.width/2 + 110, bar4.y + bar4.height/2, {steps:10})
+await page.mouse.up()
+await page.waitForTimeout(600)
+const ib5 = await inner.boundingBox()
+ok('section: an item dragged out no longer follows it',
+   Math.abs(ib5.x - ib4.x) < 20, `note shifted ${Math.round(ib5.x-ib4.x)}px`)
+
+// ---------- 13c. undo granularity ----------
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+const cardsPre = await page.locator('.card').count()
+const uNote = page.locator('.card[data-kind="note"]').last()
+const ub0 = await uNote.boundingBox()
+await page.mouse.move(ub0.x + ub0.width/2, ub0.y + 8)
+await page.mouse.down()
+await page.mouse.move(ub0.x + ub0.width/2 + 140, ub0.y + 8 + 110, {steps:10})
+await page.mouse.up()
+await page.waitForTimeout(500)
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(600)
+const cardsPost = await page.locator('.card').count()
+const ub2 = await page.locator('.card[data-kind="note"]').last().boundingBox()
+ok('undo: one step reverts the drag and nothing else',
+   cardsPost === cardsPre && ub2 && Math.abs(ub2.x - ub0.x) < 20 && Math.abs(ub2.y - ub0.y) < 20,
+   `cards ${cardsPre} -> ${cardsPost}, offset ${ub2?Math.round(ub2.x-ub0.x):'?'},${ub2?Math.round(ub2.y-ub0.y):'?'}`)
+
 // ---------- 14. marquee ----------
 await page.keyboard.press('Escape')
 await page.waitForTimeout(200)
-await page.mouse.move(1000, 700)
+const empty = await emptyPoint()
+ok('marquee: found an empty spot to start from', !!empty, empty ? `${empty.x},${empty.y}` : 'board is full')
+/* Drag from the empty spot toward the middle of the board, which sweeps a
+ * large area and is guaranteed to cross some cards. */
+const vpMid = await page.evaluate(() => {
+  const r = document.querySelector('.viewport').getBoundingClientRect()
+  return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) }
+})
+await page.mouse.move(empty.x, empty.y)
 await page.mouse.down()
-await page.mouse.move(200, 150, {steps:12})
+await page.mouse.move(vpMid.x, vpMid.y, {steps:14})
 const marqueeVisible = await page.locator('.marquee').count()
 await page.mouse.up()
 await page.waitForTimeout(500)

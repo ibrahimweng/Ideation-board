@@ -72,6 +72,25 @@ Once something is on the board:
 - Hold Ctrl or Cmd and scroll to zoom.
 - Double click a note, a label or a section to edit its text.
 
+## Sections
+
+A section is a labelled area you can group work into. It behaves the way a
+section does in Figma.
+
+- Drop an item so its middle is inside a section and it joins that section.
+  The section lights up while you hold an item over it, so you can see which
+  one will take it.
+- Move a section by its title bar and everything inside moves with it.
+- Drag an item out and it leaves the section.
+- Resizing a section never changes what is inside it. Only dragging does. An
+  item can therefore stick out past the edge and still belong to the section.
+- Duplicating a section copies its contents too, and the copies belong to the
+  copy rather than the original.
+- Deleting a section deletes what is inside it. One undo brings all of it back.
+
+Sections sit behind the items they hold, and one section cannot go inside
+another.
+
 Keyboard shortcuts:
 
 | Keys | What it does |
@@ -135,6 +154,7 @@ running.
 ```bash
 npm run dev &
 npm run test:ui -- http://localhost:5173
+npm run test:sections -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
@@ -145,6 +165,9 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:sections` checks that items join a section when dropped in, move with
+  it, leave when dragged out, survive a reload, and that resizing does not
+  change membership while deleting removes the contents.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies
