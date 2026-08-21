@@ -308,13 +308,15 @@ export class FxEngine {
     if (TRACE && this.queue.size) {
       console.log('[fx] loop q=', this.queue.size, 'inflight=', this.inflight, 'hot=', hot, 'ok=', this.ok, 'worker=', !!this.worker)
     }
+    /* Fill the worker up to maxInflight rather than handing it a single job
+     * per frame. Dispatching once per frame capped throughput at the refresh
+     * rate and left the worker idle between frames, which is why a panel of
+     * previews trickled in instead of appearing together. The local path still
+     * costs real time per job, so the frame budget bounds it. */
     while (this.inflight < this.maxInflight && performance.now() - t0 < budget) {
       const job = this.queue.take(!hot)
       if (!job) break
       this.dispatch(job)
-      /* The worker path returns immediately; only the local path actually
-       * consumes the budget here. */
-      if (this.worker) break
     }
   }
 

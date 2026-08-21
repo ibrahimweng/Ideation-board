@@ -59,9 +59,21 @@ export default function App() {
   }, [])
 
   /* ---------- adding things ---------- */
+  /* Successive additions step down and across instead of landing on the exact
+   * same point. Without the step, adding a note then a label then a link
+   * stacked all three on top of each other and only the last was visible. */
+  const cascade = useRef(0)
   const centreOfView = useCallback(() => {
     const v = store.peekView()
-    return { x: (-v.x + window.innerWidth / 2) / v.z - 150, y: (-v.y + window.innerHeight / 2) / v.z - 100 }
+    /* Measured from the board area, not the window, so the top bar and the
+     * effects panel do not push new items off centre. */
+    const el = document.querySelector('.viewport')
+    const r = el ? el.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight }
+    const step = (cascade.current++ % 6) * 26
+    return {
+      x: (-v.x + r.width / 2) / v.z - 150 + step,
+      y: (-v.y + r.height / 2) / v.z - 100 + step,
+    }
   }, [])
 
   const onDropFiles = useCallback(async (files: FileList | File[], at: { x: number; y: number }) => {
@@ -169,7 +181,7 @@ export default function App() {
             value={name}
             onChange={(e) => {
               setName(e.target.value)
-              store.name = e.target.value
+              store.setName(e.target.value)
             }}
             spellCheck={false}
           />

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { store, useOrder, useSelection } from '../state/store'
 import type { Item } from '../state/types'
 import { Card } from './Card'
-import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt, clampZoom } from './viewport'
+import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
 
@@ -61,12 +61,22 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
 
   /* ---------- the visible set ---------- */
   const rectRef = useRef<Rect>({ x: 0, y: 0, w: 0, h: 0 })
+  const paintedRef = useRef('')
   useEffect(() => {
     let raf = 0
     let last = ''
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const v = store.peekView()
+      /* Gestures write the transform themselves for immediacy, but anything
+       * that changes the viewport without going through a gesture, such as the
+       * zoom buttons, would otherwise never move the surface. Painting here
+       * when the value actually changed covers both. */
+      const vk = `${v.x},${v.y},${v.z}`
+      if (vk !== paintedRef.current) {
+        paintedRef.current = vk
+        paintTransform()
+      }
       const { w, h } = sizeRef.current
       const r = visibleRect(v, w, h, 320)
       rectRef.current = r
@@ -85,7 +95,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [order])
+  }, [order, paintTransform])
 
   useEffect(() => {
     paintTransform()
@@ -164,21 +174,25 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
           w: Math.abs(cur.x - start.x),
           h: Math.abs(cur.y - start.y),
         }
+        last = rect
         setMarquee(rect)
       }
+      /* The final rectangle is tracked here rather than read out of state
+       * inside a setState updater. An updater has to be pure, and selecting
+       * notifies subscribers, which would set state in other components while
+       * React is still rendering this one. */
+      let last: Rect | null = null
       const up = () => {
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
-        setMarquee((m) => {
-          if (m && (m.w > 4 || m.h > 4)) {
-            const hits = store
-              .all()
-              .filter((i) => i.kind !== 'section' && intersects(i, m))
-              .map((i) => i.id)
-            store.select(hits, e.shiftKey)
-          }
-          return null
-        })
+        setMarquee(null)
+        if (last && (last.w > 4 || last.h > 4)) {
+          const hits = store
+            .all()
+            .filter((i) => i.kind !== 'section' && intersects(i, last!))
+            .map((i) => i.id)
+          store.select(hits, e.shiftKey)
+        }
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
@@ -239,6 +253,20 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
     [onDropFiles]
   )
 
+  /* Zooming from a button has no cursor to anchor on, so it anchors on the
+   * middle of the viewport. Setting the scale alone would push the board off
+   * screen, because the surface scales from its origin. */
+  const zoomBy = useCallback((factor: number) => {
+    const { w, h } = sizeRef.current
+    store.setView(zoomAt(store.peekView(), w / 2, h / 2, factor))
+  }, [])
+
+  const resetZoom = useCallback(() => {
+    const v = store.peekView()
+    const { w, h } = sizeRef.current
+    store.setView(zoomAt(v, w / 2, h / 2, 1 / (v.z || 1)))
+  }, [])
+
   const rect = rectRef.current
 
   return (
@@ -278,26 +306,23 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
       </div>
 
       {dragOver && <div className="drop-veil">Drop to add</div>}
-      <ZoomBar />
+      <ZoomBar onZoom={zoomBy} onReset={resetZoom} />
     </div>
   )
 }
 
-function ZoomBar() {
+function ZoomBar({ onZoom, onReset }: { onZoom: (factor: number) => void; onReset: () => void }) {
   const [z, setZ] = useState(() => store.peekView().z)
   useEffect(() => store.subscribeView(() => setZ(store.peekView().z)), [])
-  const set = (nz: number) => {
-    store.setView({ z: clampZoom(nz) })
-  }
   return (
     <div className="zoombar">
-      <button onClick={() => set(z / 1.25)} title="Zoom out">
+      <button onClick={() => onZoom(1 / 1.25)} title="Zoom out">
         −
       </button>
-      <button className="zoomval" onClick={() => set(1)} title="Reset zoom">
+      <button className="zoomval" onClick={onReset} title="Reset zoom">
         {Math.round(z * 100)}%
       </button>
-      <button onClick={() => set(z * 1.25)} title="Zoom in">
+      <button onClick={() => onZoom(1.25)} title="Zoom in">
         +
       </button>
     </div>

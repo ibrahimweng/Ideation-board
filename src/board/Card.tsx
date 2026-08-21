@@ -66,29 +66,36 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
    * pointer except on their own title bar. */
   if (it.kind === 'section') {
     return (
-      <div className="card card-section" style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
-        <div className="section-bar" onPointerDown={(e) => onPointerDown(e, id)}>
-          <span>{it.name || 'Section'}</span>
+      <>
+        <div className="card card-section" style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
+          <div className="section-bar" onPointerDown={(e) => onPointerDown(e, id)}>
+            <span>{it.name || 'Section'}</span>
+          </div>
         </div>
-      </div>
+        {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+      </>
     )
   }
 
   if (it.kind === 'label') {
     return (
-      <div
-        className="card card-label"
-        style={{ ...shell, color: it.color || '#111114' }}
-        data-sel={selected || undefined}
-        onPointerDown={(e) => onPointerDown(e, id)}
-        onDoubleClick={() => onOpenEditor(id)}
-      >
-        {it.text || 'Label'}
-      </div>
+      <>
+        <div
+          className="card card-label"
+          style={{ ...shell, color: it.color || '#111114' }}
+          data-sel={selected || undefined}
+          onPointerDown={(e) => onPointerDown(e, id)}
+          onDoubleClick={() => onOpenEditor(id)}
+        >
+          {it.text || 'Label'}
+        </div>
+        {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+      </>
     )
   }
 
   return (
+    <>
     <div
       className="card"
       style={shell}
@@ -181,17 +188,38 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
       </div>
       )}
 
-      {selected && (
-        <>
-          <i className="handle handle-se" data-resize="se" onPointerDown={(e) => startResize(e, id, 'se')} />
-          <i className="handle handle-sw" data-resize="sw" onPointerDown={(e) => startResize(e, id, 'sw')} />
-          <i className="handle handle-ne" data-resize="ne" onPointerDown={(e) => startResize(e, id, 'ne')} />
-          <i className="handle handle-nw" data-resize="nw" onPointerDown={(e) => startResize(e, id, 'nw')} />
-        </>
-      )}
     </div>
+    {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+    </>
   )
 })
+
+/* ---------------------------------------------------------------------------
+ * Resize handles.
+ *
+ * These sit in their own layer rather than inside the card. A card clips its
+ * contents so the picture keeps the rounded corners, and handles straddling
+ * the border were being clipped away with it. They still drew a few pixels of
+ * themselves, but the part you would reach for was outside the clip and took
+ * no clicks, so dragging a corner started a selection rectangle instead.
+ * ------------------------------------------------------------------------- */
+function Handles({ id, x, y, w, h }: { id: string; x: number; y: number; w: number; h: number }) {
+  return (
+    <div
+      className="card-handles"
+      style={{ transform: `translate3d(${x}px, ${y}px, 0)`, width: w, height: h }}
+    >
+      {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
+        <i
+          key={c}
+          className={`handle handle-${c}`}
+          data-resize={c}
+          onPointerDown={(e) => startResize(e, id, c)}
+        />
+      ))}
+    </div>
+  )
+}
 
 /* Stable per-card seed so grain and dithering do not crawl between renders. */
 function hashSeed(id: string) {

@@ -134,12 +134,17 @@ running.
 
 ```bash
 npm run dev &
+npm run test:ui -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
 ```
 
+- `test:ui` drives every control on the board, which is 43 checks covering the
+  toolbar, selection, dragging, resizing, undo, the effects panel, the editor
+  and saving. It clears the board's stored data first, so do not point it at a
+  browser holding work you want to keep.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies
