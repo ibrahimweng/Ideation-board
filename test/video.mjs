@@ -112,9 +112,14 @@ for (let i = 0; i < 5; i++) {
 frames.forEach((f, i) => fs.writeFileSync(path.join(OUT, `video-frame-${i}.png`), f))
 
 const distinct = new Set(frames.map((f) => f.toString('base64'))).size
-const playingReported = await page.evaluate(() => {
+/* The clip is recorded live, so its container carries no reliable duration and
+ * a looping player can be back near zero whenever we happen to look. What
+ * proves it is playing is that the position moves, not what it reads once. */
+const playingReported = await page.evaluate(async () => {
   const v = document.querySelector('.card[data-kind="video"] video')
-  return { paused: v.paused, t: +v.currentTime.toFixed(2), w: v.videoWidth }
+  const t0 = v.currentTime
+  await new Promise((r) => setTimeout(r, 400))
+  return { paused: v.paused, t: +v.currentTime.toFixed(2), moved: v.currentTime !== t0, w: v.videoWidth }
 })
 
 await page.locator('.video-play').click()
@@ -136,7 +141,7 @@ fs.writeFileSync(path.join(OUT, 'video-after-reload.png'), afterReload)
 console.log(JSON.stringify({
   nativeControlsBeforeEffect: nativeControls === 1,
   customBarAfterEffect: hasBar === 1,
-  videoPlayed: !playingReported.paused || playingReported.t > 0,
+  videoPlayed: !playingReported.paused && playingReported.moved,
   currentTime: playingReported.t,
   distinctFramesWhilePlaying: `${distinct} of ${frames.length}`,
   pausedFrameNotBlank: pausedShot.length > 8000,
@@ -147,7 +152,8 @@ console.log(JSON.stringify({
 const ok =
   nativeControls === 1 &&
   hasBar === 1 &&
-  playingReported.t > 0 &&
+  !playingReported.paused &&
+  playingReported.moved &&
   distinct >= 3 &&
   pausedShot.length > 8000 &&
   afterReload.length > 8000 &&

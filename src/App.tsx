@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import { store, useSelection } from './state/store'
-import { ingest, noteItem, labelItem, sectionItem, linkItem } from './state/ingest'
+import { ingest, noteItem, labelItem, sectionItem, addUrl } from './state/ingest'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import type { Board as BoardModel, Item } from './state/types'
@@ -140,8 +140,8 @@ export default function App() {
         if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
         if (k === KEYS.link.key) {
           e.preventDefault()
-          const u = window.prompt('Link URL')
-          if (u) store.add(linkItem(at, u))
+          const u = window.prompt('Paste a link. A video URL becomes a playable card.')
+          if (u) addUrl(at, u)
           return
         }
         if (k === KEYS.addFiles.key) { e.preventDefault(); fileRef.current?.click(); return }
@@ -188,7 +188,8 @@ export default function App() {
       const text = dt.getData('text/plain')?.trim()
       if (!text) return
       const at = centreOfView()
-      store.add(/^https?:\/\//i.test(text) ? linkItem(at, text) : noteItem(at, text))
+      if (/^https?:\/\//i.test(text)) addUrl(at, text)
+      else store.add(noteItem(at, text))
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
@@ -203,8 +204,8 @@ export default function App() {
       addLabel: (at: { x: number; y: number }) => store.add(labelItem(at)),
       addSection: (at: { x: number; y: number }) => store.add(sectionItem(at)),
       addLink: (at: { x: number; y: number }) => {
-        const u = window.prompt('Link URL')
-        if (u) store.add(linkItem(at, u))
+        const u = window.prompt('Paste a link. A video URL becomes a playable card.')
+        if (u) addUrl(at, u)
       },
       pickFiles: (at: { x: number; y: number }) => {
         /* Remembered so the chosen files land where the menu was opened. */
@@ -234,7 +235,8 @@ export default function App() {
         try {
           const text = (await navigator.clipboard.readText())?.trim()
           if (!text) return
-          store.add(/^https?:\/\//i.test(text) ? linkItem(at, text) : noteItem(at, text))
+          if (/^https?:\/\//i.test(text)) addUrl(at, text)
+          else store.add(noteItem(at, text))
         } catch {
           /* nothing readable, and nothing useful to say about it */
         }
@@ -278,8 +280,8 @@ export default function App() {
           <button
             title={titleFor('link')}
             onClick={() => {
-              const u = window.prompt('Link URL')
-              if (u) store.add(linkItem(centreOfView(), u))
+              const u = window.prompt('Paste a link. A video URL becomes a playable card.')
+              if (u) addUrl(centreOfView(), u)
             }}
           >
             Link <kbd aria-hidden="true">{KEYS.link.hint}</kbd>

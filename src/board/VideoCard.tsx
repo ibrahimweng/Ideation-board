@@ -20,6 +20,14 @@ interface Props {
   id: string
   url: string | null
   effected: boolean
+  /* Set for a video loaded from a URL whose host allows cross-origin reads.
+   * It has to be on the element before the source is fetched, so changing it
+   * remounts the element rather than editing it in place. */
+  crossOrigin?: 'anonymous'
+  /* An effect is selected but this source's pixels cannot be read, so there
+   * is nothing to run it on. The card says so rather than quietly showing an
+   * unaffected picture. */
+  blocked?: boolean
   effectId: string
   params: Params | null
   seed: number
@@ -42,7 +50,7 @@ const fmt = (s: number) => {
 }
 
 export function VideoCard({
-  id, url, effected, effectId, params, seed, w, h, filter, frame, grain,
+  id, url, effected, crossOrigin, blocked, effectId, params, seed, w, h, filter, frame, grain,
 }: Props) {
   /* State rather than a ref: the canvas needs to re-render once the element
    * exists so it can start pulling frames from it. */
@@ -123,6 +131,7 @@ export function VideoCard({
         {inner}
       </div>
       {grain > 0 && <div className="grain" style={{ opacity: grain / 100 }} />}
+      {blocked && <div className="fx-blocked">Effects unavailable for this source</div>}
     </div>
   )
 
@@ -136,8 +145,10 @@ export function VideoCard({
       {body(
         <>
           <video
+            key={crossOrigin || 'same-origin'}
             ref={setEl}
             className={effected ? 'media video-source' : 'media'}
+            crossOrigin={crossOrigin}
             src={url}
             playsInline
             loop

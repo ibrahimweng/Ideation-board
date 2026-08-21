@@ -1,6 +1,6 @@
 import type { FxState } from '../engine/types'
 
-export type Kind = 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section'
+export type Kind = 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed'
 
 export interface Item {
   id: string
@@ -20,6 +20,14 @@ export interface Item {
   poster?: string
   text?: string
   url?: string
+  /* Player URL for an embed card. Held rather than derived so a board that
+   * was saved keeps working if the way we build embed URLs ever changes. */
+  embed?: string
+  /* Video cards only, and only for ones loaded from a URL: whether the host
+   * lets us read the video's pixels back. False means the picture plays but
+   * shaders cannot run on it. Undefined for local files, whose pixels are
+   * always ours. */
+  readable?: boolean
   color?: string
   tag?: string | null
   /* Id of the section this item sits in, when it is in one. Membership is
@@ -42,7 +50,7 @@ export interface Board {
 
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
-  link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC',
+  link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID',
 }
 
 export const TAGS = [

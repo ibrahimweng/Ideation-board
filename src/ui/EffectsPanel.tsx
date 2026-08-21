@@ -39,7 +39,10 @@ export function EffectsPanel({ tab, onTab }: Props) {
   const selection = useSelection()
   /* Controls edit the first selected media item and apply to all of them. */
   const targets = useMemo(
-    () => selection.map((id) => store.getItem(id)).filter((i) => i && (i.kind === 'image' || i.kind === 'video')),
+    () =>
+      selection
+        .map((id) => store.getItem(id))
+        .filter((i) => i && (i.kind === 'image' || i.kind === 'video' || i.kind === 'embed')),
     [selection]
   )
   const primaryId = targets[0]?.id
@@ -56,6 +59,20 @@ export function EffectsPanel({ tab, onTab }: Props) {
   const fx = primary.fx
   const spec = BY_ID[fx.fxid] || BY_ID.none
   const ids = targets.map((t) => t!.id)
+
+  /* Shaders need the picture's pixels. An embedded player never gives them up,
+   * and neither does a video whose host refused cross-origin access. Tone,
+   * framing and grain are CSS and work on both, so the Adjust tab stays. */
+  const shadeable =
+    primary.kind === 'embed' ? false : primary.kind === 'video' ? primary.readable !== false : true
+  const why =
+    primary.kind === 'embed'
+      ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`
+      : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
+
+  /* A video card previews its effects on the still it was opened with; a
+   * remote one has no still to use, so its thumbnails stay blank. */
+  const previewKey = primary.kind === 'video' ? primary.poster : primary.media
 
   const patchFx = (patch: Partial<FxState>) => {
     /* A slider sweep is one undo step rather than none. */
@@ -90,7 +107,19 @@ export function EffectsPanel({ tab, onTab }: Props) {
         </button>
       </div>
 
-      {tab === 'effect' && (
+      {tab === 'effect' && !shadeable && (
+        <div className="panel-scroll">
+          <section className="fx-controls">
+            <h4>Effects unavailable</h4>
+            <p className="panel-note">{why}</p>
+            <button className="ghost" onClick={() => onTab('adjust')}>
+              Open Adjust
+            </button>
+          </section>
+        </div>
+      )}
+
+      {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
           {GROUPS.map((g) => (
             <section key={g.name} className="fx-group">
@@ -101,7 +130,7 @@ export function EffectsPanel({ tab, onTab }: Props) {
                     key={e.id}
                     effectId={e.id}
                     name={e.name}
-                    mediaKey={primary.media}
+                    mediaKey={previewKey}
                     active={fx.fxid === e.id}
                     onPick={() => setEffect(e.id)}
                   />

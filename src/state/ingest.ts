@@ -4,6 +4,8 @@ import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped 
 import { putBlob } from '../store/idb'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
+import { classifyUrl, probeVideo, hostOf } from './urls'
+import { store } from './store'
 
 /* ---------------------------------------------------------------------------
  * Turning dropped files into board items.
@@ -131,6 +133,75 @@ export function linkItem(at: { x: number; y: number }, url: string): Item {
     id: newId(), kind: 'link', x: Math.round(at.x), y: Math.round(at.y), z: 0,
     w: 300, h: 130, url, name, fx: { ...FX_0 }, tag: null,
   }
+}
+
+export function videoUrlItem(at: { x: number; y: number }, url: string, name: string): Item {
+  return {
+    id: newId(), kind: 'video', x: Math.round(at.x), y: Math.round(at.y), z: 0,
+    /* Sixteen by nine until the file itself says otherwise. */
+    w: 420, h: 266, url, name, fx: { ...FX_0 }, tag: null,
+  }
+}
+
+export function embedItem(at: { x: number; y: number }, url: string, embed: string, name: string): Item {
+  return {
+    id: newId(), kind: 'embed', x: Math.round(at.x), y: Math.round(at.y), z: 0,
+    w: 480, h: 300, url, embed, name, fx: { ...FX_0 }, tag: null,
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The one way a URL becomes a card, used by paste, drop, the Link button and
+ * the right click menu alike.
+ *
+ * A card appears immediately, from the URL's shape alone, and is then
+ * corrected once the browser has told us what is actually at the other end: a
+ * link that turns out to be a video becomes a video card, a `.mp4` that turns
+ * out to be a dead end goes back to being a link, and a video card learns its
+ * real proportions and whether its pixels can be read.
+ * ------------------------------------------------------------------------- */
+export function addUrl(at: { x: number; y: number }, raw: string): Item {
+  const c = classifyUrl(raw)
+  if (c.kind === 'embed') {
+    const it = embedItem(at, c.url, c.embed, c.name)
+    store.add(it)
+    return it
+  }
+  const it = c.kind === 'video' ? videoUrlItem(at, c.url, c.name) : linkItem(at, c.url)
+  store.add(it)
+  if (/^https?:\/\//i.test(c.url)) void refine(it, c.url)
+  return it
+}
+
+async function refine(made: Item, url: string) {
+  const probe = await probeVideo(url)
+  const cur = store.getItem(made.id)
+  /* Deleted, or undone, while we were asking. */
+  if (!cur) return
+
+  if (!probe) {
+    if (cur.kind === 'video') {
+      store.update(made.id, { kind: 'link', w: 300, h: 130, name: hostOf(url) }, false)
+    }
+    return
+  }
+
+  const patch: Partial<Item> = { kind: 'video', url, nw: probe.nw, nh: probe.nh, readable: probe.readable }
+  /* Leave the card alone if it has been resized in the meantime. */
+  if (cur.w === made.w && cur.h === made.h) Object.assign(patch, fitBox(probe.nw, probe.nh))
+  store.update(made.id, patch, false)
+
+  /* A still of the first frame, on the same terms as a dropped file: it backs
+   * the effect previews in the panel and is what the card shows before the
+   * video itself has decoded anything. Only possible when the host lets us
+   * read the picture in the first place. */
+  if (!probe.readable) return
+  const poster = await posterFrom(url, true)
+  if (!poster || !store.getItem(made.id)) return
+  const posterKey = newKey('vid') + ':poster'
+  await putBlob(posterKey, poster.blob)
+  void ensureSource(posterKey, poster.blob)
+  store.update(made.id, { poster: posterKey }, false)
 }
 
 export function sectionItem(at: { x: number; y: number }): Item {

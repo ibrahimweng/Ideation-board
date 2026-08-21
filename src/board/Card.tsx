@@ -3,6 +3,7 @@ import { useItem, store } from '../state/store'
 import { TYPE_LABEL, TAGS } from '../state/types'
 import { FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
+import { EmbedCard } from './EmbedCard'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
@@ -49,13 +50,21 @@ export const Card = memo(function Card({
   id, selected, dim, distance, onPointerDown, onOpenEditor, onContextMenu,
 }: Props) {
   const it = useItem(id)
-  const url = useObjectURL(it?.media)
+  const objectUrl = useObjectURL(it?.media)
   const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
 
   if (!it) return null
 
+  /* A video is either a file we hold, which needs an object URL, or a remote
+   * one, which is played straight from its own address. */
+  const url = it.media ? objectUrl : it.kind === 'video' ? it.url || null : null
+  const remote = !it.media && !!it.url
+
   const fx = it.fx
-  const effected = hasEffect(fx) && (it.kind === 'image' || it.kind === 'video')
+  /* `readable` is only ever false for a remote video whose host refused us
+   * cross-origin access. Everything else can be shaded. */
+  const shadeable = it.kind === 'video' ? it.readable !== false : true
+  const effected = hasEffect(fx) && (it.kind === 'image' || (it.kind === 'video' && shadeable))
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null
@@ -136,11 +145,25 @@ export const Card = memo(function Card({
           id={id}
           url={url}
           effected={effected}
+          /* Optimistic while the probe is still out: asking for cross-origin
+             access and being refused costs one reload, asking for it too late
+             costs a cached response that can never be read. */
+          crossOrigin={remote && it.readable !== false ? 'anonymous' : undefined}
+          blocked={hasEffect(fx) && !shadeable}
           effectId={fx.fxid}
           params={fx.ep}
           seed={hashSeed(id)}
           w={it.w}
           h={it.h - 30}
+          filter={filter}
+          frame={frame}
+          grain={fx.grain}
+        />
+      ) : it.kind === 'embed' ? (
+        <EmbedCard
+          embed={it.embed || ''}
+          name={it.name || 'Video'}
+          selected={selected}
           filter={filter}
           frame={frame}
           grain={fx.grain}

@@ -62,6 +62,8 @@ You add things in several ways:
 - Drag files from your computer onto the board.
 - Press the "Add files" button in the top bar.
 - Paste an image, a block of text or a link.
+- Paste or drop the address of a video file and it becomes a video card you can
+  play and put effects on. A YouTube or Vimeo link becomes an embedded player.
 
 Once something is on the board:
 
@@ -161,6 +163,29 @@ bar and mute button, because the browser's own controls sit behind the effect
 and cannot be reached. Pause anywhere and the card keeps showing the effected
 frame you stopped on.
 
+## Video from a link
+
+Paste the address of a video file and the board loads it, works out its shape
+and gives you a video card with everything a dropped file gets.
+
+Whether it can also take an effect is not ours to decide. Running a shader over
+a video means reading its picture back out of the player, and a browser only
+allows that when the site hosting the file says it may. Many do; some do not.
+The board finds out by loading the file both ways when you paste it, so you are
+told rather than left guessing:
+
+- If the host allows it, the card behaves exactly like a dropped file.
+- If it does not, the video still plays and the card says "Effects unavailable
+  for this source". Exposure, contrast, saturation, warmth, blur, grain,
+  zoom, rotation and flipping all still work on it, because those are applied
+  to the card rather than to the picture's pixels.
+- A YouTube or Vimeo link becomes an embedded player. Nothing outside an
+  embedded player can read its picture, so those cards take the same
+  adjustments but no effects. Click once to select the card, and again to
+  reach the player's own controls.
+
+An address that turns out not to be a video stays an ordinary link card.
+
 ## Where your work is stored
 
 The board saves itself to IndexedDB in your browser a moment after each change.
@@ -197,6 +222,7 @@ npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:video -- http://localhost:5173
+npm run test:urlvideo -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
 ```
@@ -219,6 +245,11 @@ npm run bench
 - `test:video` records a short clip in the page, drops it on the board, applies
   an effect and checks that the picture keeps changing while the video plays.
   It also reloads the page to check the card comes back.
+- `test:urlvideo` serves that same clip from a second origin on your machine,
+  one path with the cross-origin header and one without, and checks all four
+  outcomes: effects on the readable one, a playing card that says so on the
+  other, an embedded player for a YouTube link, and a plain link for an address
+  that is not a video.
 - `test:load` fills a board with images, applies an effect to all of them and
   reports whether the main thread ever blocked.
 - `bench` compares the old drawing method with the new one.

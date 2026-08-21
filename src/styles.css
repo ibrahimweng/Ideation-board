@@ -290,6 +290,24 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 
 .video-time { font: 400 9px var(--mono); color: var(--muted); flex: none; white-space: nowrap; }
 
+/* Said on the card itself, because the alternative is a picture that silently
+   ignores the effect you just chose. */
+.fx-blocked {
+  /* Along the top: the bottom of the card belongs to the player's controls. */
+  position: absolute; left: 8px; right: 8px; top: 8px;
+  padding: 5px 8px; border-radius: 5px;
+  font: 500 10px var(--mono); text-align: center; color: #fff;
+  background: rgba(23, 23, 26, 0.78); pointer-events: none;
+}
+
+/* ---------- embedded players ---------- */
+
+.embed-frame { border: 0; background: #000; }
+/* Transparent, and only there while the card is unselected: an iframe eats
+   every pointer event, so without this the card could not be picked up or
+   dragged by its picture. */
+.embed-shield { position: absolute; inset: 0; cursor: grab; }
+
 .note { width: 100%; height: 100%; padding: 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; }
 
 .link-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; height: 100%; text-decoration: none; color: inherit; }
@@ -373,6 +391,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   min-height: 0;
 }
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.panel-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 10px; }
 
 .panel-tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
 .panel-tabs button {

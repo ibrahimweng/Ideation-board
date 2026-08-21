@@ -45,9 +45,14 @@ export async function decodeCapped(blob: Blob): Promise<ImageBitmap | null> {
 }
 
 /* Pulls the first usable frame out of a video for use as a still. */
-export function posterFrom(url: string): Promise<{ blob: Blob; w: number; h: number } | null> {
+export function posterFrom(url: string, cors = false): Promise<{ blob: Blob; w: number; h: number } | null> {
   return new Promise((res) => {
     const v = document.createElement('video')
+    /* Reading a frame out of a cross-origin video needs the host's permission,
+     * and asking for it has to happen before the file is fetched. Without it
+     * the canvas is tainted and toBlob throws, which lands on `finish(null)`
+     * below: no poster, rather than a broken one. */
+    if (cors) v.crossOrigin = 'anonymous'
     v.preload = 'auto'
     v.muted = true
     v.playsInline = true
