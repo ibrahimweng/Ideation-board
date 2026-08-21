@@ -373,6 +373,20 @@ export class BoardStore {
     for (const fn of this.queryListeners) fn()
   }
 
+  private tagFilter: string | null = null
+  private tagListeners = new Set<Listener>()
+
+  getTagFilter = (): string | null => this.tagFilter
+  subscribeTagFilter = (fn: Listener) => {
+    this.tagListeners.add(fn)
+    return () => void this.tagListeners.delete(fn)
+  }
+  setTagFilter(tag: string | null) {
+    if (this.tagFilter === tag) return
+    this.tagFilter = tag
+    for (const fn of this.tagListeners) fn()
+  }
+
   /* ---------- viewport ---------- */
 
   setView(v: Partial<Viewport>) {
@@ -484,4 +498,8 @@ export function useViewport(): Viewport {
 
 export function useQuery(): string {
   return useSyncExternalStore(store.subscribeQuery, store.getQuery, store.getQuery)
+}
+
+export function useTagFilter(): string | null {
+  return useSyncExternalStore(store.subscribeTagFilter, store.getTagFilter, store.getTagFilter)
 }

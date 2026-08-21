@@ -116,6 +116,22 @@ await page.locator('.menu').getByRole('button', { name: /^Delete/ }).click()
 await settle()
 ok('delete: removes the selection', (await stored()).length < before, `${before} -> ${(await stored()).length}`)
 
+/* ---------- right clicking a corner ---------- */
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
+/* The delete check above emptied the board, so make something to aim at. */
+await page.getByRole('button', { name: 'Note', exact: true }).click()
+await page.waitForTimeout(500)
+const corner = page.locator('.card[data-kind="note"]').first()
+const cb = await corner.boundingBox()
+/* Pressing selects the card, which draws a resize handle right here. The
+ * contextmenu that follows must still reach the card. */
+await page.mouse.click(Math.round(cb.x + 3), Math.round(cb.y + 3), { button: 'right' })
+await page.waitForTimeout(500)
+ok('menu: right clicking a corner still opens the card menu',
+   await page.locator('.menu').count() === 1 && !/add here/i.test(await page.locator('.menu-head').innerText().catch(() => '')),
+   `${await page.locator('.menu').count()} menu(s)`)
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
+
 /* ---------- canvas menu ---------- */
 await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 

@@ -101,6 +101,11 @@ Search looks at the card name, its text, a link's address, its tag and the
 kind of card it is. Every word has to match somewhere, in any order, so
 "blue note" finds a note tagged blue.
 
+Next to the box is a tag filter. Pick a colour to keep only cards carrying
+that tag, or Untagged to find the ones with none. Each entry shows how many
+cards it covers. The two controls work together, so a card has to satisfy the
+text and the tag to stay lit.
+
 Press Enter to move the board to the next result and select it, Shift and
 Enter for the previous one, and Escape to clear. Press / or Cmd and F to put
 the cursor in the box.
@@ -207,7 +212,8 @@ npm run bench
   ordering, tagging, acting on a multiple selection, and that the canvas menu
   adds things under the pointer.
 - `test:search` checks what search matches on, that non-matches fade and stop
-  taking clicks, and that Enter steps through results.
+  taking clicks, that Enter steps through results, and that the tag filter
+  narrows the board and combines with the text.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies

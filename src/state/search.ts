@@ -33,13 +33,30 @@ export function matches(it: Item, words: string[]): boolean {
   return words.every((w) => hay.includes(w))
 }
 
+/* The tag filter. null means every tag is allowed, and UNTAGGED picks out the
+ * cards that carry none. */
+export const UNTAGGED = '__untagged'
+
+export function matchesTag(it: Item, tag: string | null): boolean {
+  if (!tag) return true
+  if (tag === UNTAGGED) return !it.tag
+  return it.tag === tag
+}
+
+/* A card has to satisfy the text and the tag together, so the two controls
+ * narrow the board rather than fighting each other. */
+export const passes = (it: Item, words: string[], tag: string | null) =>
+  matchesTag(it, tag) && matches(it, words)
+
+export const filtering = (words: string[], tag: string | null) => words.length > 0 || !!tag
+
 /* Matching items in reading order, top to bottom then left to right, so
  * stepping through results follows the board rather than the order things
  * happened to be added. */
-export function findMatches(items: Item[], q: string): Item[] {
+export function findMatches(items: Item[], q: string, tag: string | null = null): Item[] {
   const words = parseQuery(q)
-  if (!words.length) return []
+  if (!filtering(words, tag)) return []
   return items
-    .filter((i) => matches(i, words))
+    .filter((i) => passes(i, words, tag))
     .sort((a, b) => a.y - b.y || a.x - b.x)
 }

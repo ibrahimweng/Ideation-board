@@ -56,6 +56,23 @@ ok('setup: cards on the board', total >= 5, `${total} cards`)
 
 ok('search: bar is present', await page.locator('.search input').count() === 1)
 
+/* Cards added from the toolbar cascade and overlap, so a click aimed at one
+ * can land on another. This finds a spot that really belongs to the card. */
+const pointOn = async (index) => page.evaluate((i) => {
+  const card = document.querySelectorAll('.card[data-kind="note"]')[i]
+  if (!card) return null
+  const r = card.getBoundingClientRect()
+  const cy = Math.round(r.top + r.height / 2), cx = Math.round(r.left + r.width / 2)
+  for (let dy = 0; dy < r.height / 2 - 6; dy += 8) {
+    for (let dx = 0; dx < r.width / 2 - 6; dx += 8) {
+      const y = cy + (dy % 16 === 0 ? dy : -dy), x = cx + (dx % 16 === 0 ? dx : -dx)
+      const el = document.elementFromPoint(x, y)
+      if (el && !el.closest('.card-handles') && el.closest('.card') === card) return { x, y }
+    }
+  }
+  return null
+}, index)
+
 const dimmed = async () => page.locator('.card[data-dim]').count()
 const lit = async () => page.locator('.card:not([data-dim])').count()
 
@@ -135,6 +152,87 @@ await page.keyboard.press('/')
 await page.waitForTimeout(400)
 ok('search: slash focuses the box',
    await page.evaluate(() => document.activeElement?.closest('.search') !== null))
+
+/* ---------- tag filter ---------- */
+await page.locator('.search input').fill('')
+await page.waitForTimeout(400)
+
+/* A selected card shows resize handles in a layer above the board, and those
+ * can sit over a neighbouring card. Clearing the selection first keeps the
+ * clicks below aimed at cards. */
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+
+/* tag two of the notes differently through the right click menu */
+const tagNote = async (index, swatch) => {
+  const p = await pointOn(index)
+  if (!p) return false
+  await page.mouse.click(p.x, p.y, { button: 'right' })
+  await page.waitForTimeout(500)
+  await page.locator('.menu-tags button').nth(swatch).click()
+  await page.waitForTimeout(700)
+  return true
+}
+ok('setup: tagged one note', await tagNote(0, 1))
+ok('setup: tagged another note differently', await tagNote(1, 2))
+
+ok('tag filter: control is present', await page.locator('.tagfilter').count() === 1)
+ok('tag filter: starts on all tags', (await page.locator('.tagfilter').innerText()).toLowerCase().includes('all'),
+   await page.locator('.tagfilter').innerText())
+
+await page.locator('.tagfilter').click()
+await page.waitForTimeout(400)
+ok('tag filter: opens a list', await page.locator('.tf-pop').count() === 1)
+const rows = await page.locator('.tf-pop button').allInnerTexts()
+ok('tag filter: lists all tags, each colour and untagged',
+   rows.length === 7 && /all tags/i.test(rows[0]) && /untagged/i.test(rows[rows.length - 1]),
+   rows.map(r => r.replace(/\n/g, ' ')).join(' | '))
+fs.writeFileSync(path.join(OUT, 'tagfilter-open.png'), await page.screenshot())
+
+/* the dropdown must not be cut off by the top bar */
+const notClipped = await page.evaluate(() => {
+  const p = document.querySelector('.tf-pop').getBoundingClientRect()
+  const bar = document.querySelector('.topbar').getBoundingClientRect()
+  return p.bottom > bar.bottom && p.height > 100
+})
+ok('tag filter: list is not clipped by the top bar', notClipped)
+
+/* pick the first colour */
+await page.locator('.tf-pop button').nth(1).click()
+await page.waitForTimeout(600)
+ok('tag filter: closes after choosing', await page.locator('.tf-pop').count() === 0)
+const litNow = await page.locator('.card:not([data-dim])').count()
+ok('tag filter: dims cards without that tag', litNow === 1, `${litNow} lit`)
+ok('tag filter: button shows the chosen tag',
+   !/all tags/i.test(await page.locator('.tagfilter').innerText()),
+   await page.locator('.tagfilter').innerText())
+
+/* combining with text: both have to match */
+await page.locator('.search input').fill('zzzznothing')
+await page.waitForTimeout(500)
+ok('tag filter: text and tag narrow together',
+   (await page.locator('.card:not([data-dim])').count()) === 0,
+   `${await page.locator('.card:not([data-dim])').count()} lit`)
+await page.locator('.search input').fill('')
+await page.waitForTimeout(500)
+
+/* untagged */
+await page.locator('.tagfilter').click()
+await page.waitForTimeout(400)
+await page.locator('.tf-pop button').last().click()
+await page.waitForTimeout(600)
+const untaggedLit = await page.locator('.card:not([data-dim])').count()
+ok('tag filter: untagged picks the cards with no tag', untaggedLit >= 2, `${untaggedLit} lit`)
+
+/* back to all */
+await page.locator('.tagfilter').click()
+await page.waitForTimeout(400)
+await page.locator('.tf-pop button').first().click()
+await page.waitForTimeout(600)
+ok('tag filter: all tags brings every card back',
+   (await page.locator('.card[data-dim]').count()) === 0,
+   `${await page.locator('.card[data-dim]').count()} still dimmed`)
 
 console.log('\npage errors:', errors.length ? errors.slice(0, 5) : 'none')
 const failed = results.filter(r => !r.p)

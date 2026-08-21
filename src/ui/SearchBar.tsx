@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { store, useQuery } from '../state/store'
+import { store, useQuery, useTagFilter } from '../state/store'
 import { findMatches } from '../state/search'
 import { KEYS } from './shortcuts'
 
@@ -13,16 +13,17 @@ import { KEYS } from './shortcuts'
 
 export function SearchBar() {
   const q = useQuery()
+  const tag = useTagFilter()
   const ref = useRef<HTMLInputElement | null>(null)
   /* Which result stepping through has reached. */
   const [at, setAt] = useState(0)
 
-  const results = q.trim() ? findMatches(store.all(), q) : []
+  const results = findMatches(store.all(), q, tag)
   const total = results.length
 
   useEffect(() => {
     setAt(0)
-  }, [q])
+  }, [q, tag])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,7 +42,7 @@ export function SearchBar() {
 
   /* Moves the board so the result sits in the middle, without changing zoom. */
   const goTo = useCallback((index: number) => {
-    const list = findMatches(store.all(), store.getQuery())
+    const list = findMatches(store.all(), store.getQuery(), store.getTagFilter())
     if (!list.length) return
     const it = list[((index % list.length) + list.length) % list.length]
     const el = document.querySelector('.viewport')
@@ -67,7 +68,7 @@ export function SearchBar() {
   }
 
   return (
-    <div className="search" data-active={q.trim() ? true : undefined}>
+    <div className="search" data-active={q.trim() || tag ? true : undefined}>
       <svg className="search-icon" viewBox="0 0 16 16" aria-hidden="true">
         <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
         <path d="M10.5 10.5 L14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -91,7 +92,7 @@ export function SearchBar() {
           }
         }}
       />
-      {q.trim() && (
+      {(q.trim() || tag) && (
         <>
           <span className="search-count">{total ? `${at + 1}/${total}` : 'none'}</span>
           <button className="search-clear" onClick={clear} title="Clear search (Esc)" aria-label="Clear search">

@@ -11,6 +11,7 @@ import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
 import { KEYS, titleFor } from './ui/shortcuts'
 import { SearchBar } from './ui/SearchBar'
+import { TagFilter } from './ui/TagFilter'
 
 const BOARD_ID = 'board_local'
 
@@ -259,6 +260,7 @@ export default function App() {
         </div>
 
         <SearchBar />
+        <TagFilter />
 
         <div className="tools">
           <button onClick={() => fileRef.current?.click()} title={titleFor('addFiles')}>

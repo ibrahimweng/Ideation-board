@@ -87,7 +87,7 @@ export const Card = memo(function Card({
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -106,7 +106,7 @@ export const Card = memo(function Card({
         >
           {it.text || 'Label'}
         </div>
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -208,7 +208,7 @@ export const Card = memo(function Card({
       )}
 
     </div>
-    {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+    {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
     </>
   )
 })
@@ -222,11 +222,25 @@ export const Card = memo(function Card({
  * themselves, but the part you would reach for was outside the clip and took
  * no clicks, so dragging a corner started a selection rectangle instead.
  * ------------------------------------------------------------------------- */
-function Handles({ id, x, y, w, h }: { id: string; x: number; y: number; w: number; h: number }) {
+function Handles({
+  id, x, y, w, h, onContextMenu,
+}: {
+  id: string
+  x: number
+  y: number
+  w: number
+  h: number
+  onContextMenu: (e: React.MouseEvent, id: string) => void
+}) {
   return (
     <div
       className="card-handles"
       style={{ transform: `translate3d(${x}px, ${y}px, 0)`, width: w, height: h }}
+      /* Pressing on an unselected card selects it, which draws these handles
+       * straight under the pointer. The contextmenu event that follows then
+       * lands on a handle rather than the card, so right clicking near a
+       * corner produced no menu at all. Handles hand it back to the card. */
+      onContextMenu={(e) => onContextMenu(e, id)}
     >
       {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
         <i
