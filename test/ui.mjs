@@ -30,6 +30,23 @@ const surfaceT = () => page.evaluate(() => document.querySelector('.surface').st
 
 /* The board gets crowded as the test runs, so points for marquees and empty
  * clicks are found rather than hard coded. */
+/* The section title bar spans the section's whole width, and by this point
+ * other cards may overlap parts of it, so grab a spot that is actually the
+ * bar rather than assuming its midpoint is free. */
+const barGrip = async () => page.evaluate(() => {
+  const bar = [...document.querySelectorAll('.card-section .section-bar')].pop()
+  if (!bar) return null
+  const r = bar.getBoundingClientRect()
+  const y = Math.round(r.top + r.height / 2)
+  for (let x = Math.round(r.left) + 6; x < r.right - 6; x += 8) {
+    const el = document.elementFromPoint(x, y)
+    if (el && (el.classList.contains('section-bar') || el.parentElement?.classList.contains('section-bar'))) {
+      return { x, y }
+    }
+  }
+  return null
+})
+
 const emptyPoint = async () => page.evaluate(() => {
   const vp = document.querySelector('.viewport').getBoundingClientRect()
   for (let y = vp.bottom - 60; y > vp.top + 40; y -= 40) {
@@ -264,7 +281,6 @@ await page.waitForTimeout(400)
 await page.getByRole('button',{name:'Section',exact:true}).click()
 await page.waitForTimeout(500)
 const section = page.locator('.card-section').last()
-const sectionBar = page.locator('.card-section').last().locator('.section-bar')
 const sbox = await section.boundingBox()
 await page.getByRole('button',{name:'Note',exact:true}).click()
 await page.waitForTimeout(500)
@@ -284,10 +300,11 @@ ok('section: highlights while a drag hovers over it', highlighted === 1)
 ibox = await inner.boundingBox()
 // now drag the section by its title bar and check the note came along
 const sbox2 = await section.boundingBox()
-const bar2 = await sectionBar.boundingBox()
-await page.mouse.move(bar2.x + bar2.width/2, bar2.y + bar2.height/2)
+const grip = await barGrip()
+ok('section: title bar is reachable', !!grip, grip ? `${grip.x},${grip.y}` : 'covered')
+await page.mouse.move(grip.x, grip.y)
 await page.mouse.down()
-await page.mouse.move(bar2.x + bar2.width/2 + 130, bar2.y + bar2.height/2 + 90, {steps:12})
+await page.mouse.move(grip.x + 130, grip.y + 90, {steps:12})
 await page.mouse.up()
 await page.waitForTimeout(600)
 const sbox3 = await section.boundingBox()
@@ -307,10 +324,10 @@ await page.mouse.move(ib3.x + ib3.width/2, ib3.y + 8 - (sbox3.height/2 + 200), {
 await page.mouse.up()
 await page.waitForTimeout(600)
 const ib4 = await inner.boundingBox()
-const bar4 = await sectionBar.boundingBox()
-await page.mouse.move(bar4.x + bar4.width/2, bar4.y + bar4.height/2)
+const grip4 = await barGrip()
+await page.mouse.move(grip4.x, grip4.y)
 await page.mouse.down()
-await page.mouse.move(bar4.x + bar4.width/2 + 110, bar4.y + bar4.height/2, {steps:10})
+await page.mouse.move(grip4.x + 110, grip4.y, {steps:10})
 await page.mouse.up()
 await page.waitForTimeout(600)
 const ib5 = await inner.boundingBox()
@@ -369,6 +386,44 @@ ok('panel: Effects button reopens it', await page.locator('.panel').count() === 
 await page.locator('.board-name').fill('Audit Board')
 await page.waitForTimeout(900)
 ok('board: name field accepts input', await page.locator('.board-name').inputValue() === 'Audit Board')
+
+// ---------- 16b. shortcut hints and the keys themselves ----------
+const hints = await page.evaluate(() =>
+  [...document.querySelectorAll('.tools button')].map(b => ({
+    label: (b.childNodes[0]?.textContent || '').trim(),
+    kbd: b.querySelector('kbd')?.textContent || null,
+    title: b.getAttribute('title'),
+  }))
+)
+ok('hints: every toolbar button shows one', hints.every(h => h.kbd),
+   hints.map(h => `${h.label}:${h.kbd}`).join(' '))
+ok('hints: buttons carry a title too', hints.every(h => h.title && h.title.includes('(')))
+
+/* The board name field was the last thing touched, and a shortcut must not
+ * fire while a field has focus, so move focus off it before testing them. */
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
+const before16 = await page.locator('.card').count()
+await page.keyboard.press('n'); await page.waitForTimeout(450)
+ok('shortcut: N adds a note', await page.locator('.card').count() === before16 + 1)
+await page.keyboard.press('l'); await page.waitForTimeout(450)
+ok('shortcut: L adds a label', await page.locator('.card-label').count() > 0)
+const panelWas = await page.locator('.panel').count()
+await page.keyboard.press('e'); await page.waitForTimeout(450)
+ok('shortcut: E toggles the effects panel', await page.locator('.panel').count() !== panelWas)
+await page.keyboard.press('e'); await page.waitForTimeout(450)
+
+/* and must not fire while typing */
+await page.locator('.board-name').click()
+await page.locator('.board-name').fill('')
+await page.locator('.board-name').type('nls note', { delay: 30 })
+await page.waitForTimeout(500)
+ok('shortcut: keys do not fire while typing in a field',
+   (await page.locator('.board-name').inputValue()) === 'nls note',
+   await page.locator('.board-name').inputValue())
+await page.locator('.board-name').fill('Audit Board')
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.waitForTimeout(400)
 
 // ---------- 17. persistence ----------
 const countBefore = await page.locator('.card').count()

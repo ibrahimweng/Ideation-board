@@ -9,6 +9,7 @@ import type { Board as BoardModel, Item } from './state/types'
 import { download } from './store/fs'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
+import { KEYS, titleFor } from './ui/shortcuts'
 
 const BOARD_ID = 'board_local'
 
@@ -91,6 +92,11 @@ export default function App() {
     setBusy(null)
   }, [])
 
+  const exportBoard = useCallback(() => {
+    const b = store.toBoard()
+    download(new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' }), `${b.name || 'board'}.json`)
+  }, [])
+
   /* ---------- keyboard ---------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -115,6 +121,31 @@ export default function App() {
         if (made.length) store.select(made)
         return
       }
+      if (cmd && e.key.toLowerCase() === 's') {
+        /* The browser's own save dialog is not useful here. */
+        e.preventDefault()
+        exportBoard()
+        return
+      }
+
+      /* Single key shortcuts only when no modifier is held, so they cannot
+       * swallow a browser or system combination. */
+      if (!cmd && !e.altKey && !e.shiftKey) {
+        const k = e.key.toLowerCase()
+        const at = centreOfView()
+        if (k === KEYS.note.key) { e.preventDefault(); store.add(noteItem(at)); return }
+        if (k === KEYS.label.key) { e.preventDefault(); store.add(labelItem(at)); return }
+        if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
+        if (k === KEYS.link.key) {
+          e.preventDefault()
+          const u = window.prompt('Link URL')
+          if (u) store.add(linkItem(at, u))
+          return
+        }
+        if (k === KEYS.addFiles.key) { e.preventDefault(); fileRef.current?.click(); return }
+        if (k === KEYS.effects.key) { e.preventDefault(); setPanelOpen((v) => !v); return }
+      }
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         store.remove(store.getSelection())
@@ -140,7 +171,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [centreOfView, exportBoard])
 
   /* ---------- paste ---------- */
   useEffect(() => {
@@ -210,11 +241,6 @@ export default function App() {
     [onDropFiles]
   )
 
-  const exportBoard = useCallback(() => {
-    const b = store.toBoard()
-    download(new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' }), `${b.name || 'board'}.json`)
-  }, [])
-
   return (
     <div className="app" data-panel={panelOpen || undefined}>
       <header className="topbar">
@@ -232,29 +258,44 @@ export default function App() {
         </div>
 
         <div className="tools">
-          <button onClick={() => fileRef.current?.click()}>Add files</button>
-          <button onClick={() => store.add(noteItem(centreOfView()))}>Note</button>
-          <button onClick={() => store.add(labelItem(centreOfView()))}>Label</button>
-          <button onClick={() => store.add(sectionItem(centreOfView()))}>Section</button>
+          <button onClick={() => fileRef.current?.click()} title={titleFor('addFiles')}>
+            Add files <kbd aria-hidden="true">{KEYS.addFiles.hint}</kbd>
+          </button>
+          <button onClick={() => store.add(noteItem(centreOfView()))} title={titleFor('note')}>
+            Note <kbd aria-hidden="true">{KEYS.note.hint}</kbd>
+          </button>
+          <button onClick={() => store.add(labelItem(centreOfView()))} title={titleFor('label')}>
+            Label <kbd aria-hidden="true">{KEYS.label.hint}</kbd>
+          </button>
+          <button onClick={() => store.add(sectionItem(centreOfView()))} title={titleFor('section')}>
+            Section <kbd aria-hidden="true">{KEYS.section.hint}</kbd>
+          </button>
           <button
+            title={titleFor('link')}
             onClick={() => {
               const u = window.prompt('Link URL')
               if (u) store.add(linkItem(centreOfView(), u))
             }}
           >
-            Link
+            Link <kbd aria-hidden="true">{KEYS.link.hint}</kbd>
           </button>
           <span className="sep" />
-          <button onClick={() => store.undo()} title="Undo (Cmd+Z)">
-            Undo
+          <button onClick={() => store.undo()} title={titleFor('undo')}>
+            Undo <kbd aria-hidden="true">{KEYS.undo.hint}</kbd>
           </button>
-          <button onClick={() => store.redo()} title="Redo (Shift+Cmd+Z)">
-            Redo
+          <button onClick={() => store.redo()} title={titleFor('redo')}>
+            Redo <kbd aria-hidden="true">{KEYS.redo.hint}</kbd>
           </button>
           <span className="sep" />
-          <button onClick={exportBoard}>Export</button>
-          <button data-on={panelOpen || undefined} onClick={() => setPanelOpen((v) => !v)}>
-            Effects
+          <button onClick={exportBoard} title={titleFor('export')}>
+            Export <kbd aria-hidden="true">{KEYS.export.hint}</kbd>
+          </button>
+          <button
+            data-on={panelOpen || undefined}
+            onClick={() => setPanelOpen((v) => !v)}
+            title={titleFor('effects')}
+          >
+            Effects <kbd aria-hidden="true">{KEYS.effects.hint}</kbd>
           </button>
         </div>
       </header>

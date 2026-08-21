@@ -91,6 +91,10 @@ section does in Figma.
 Sections sit behind the items they hold, and one section cannot go inside
 another.
 
+Each toolbar button shows its shortcut, and hovering one names it in full.
+The single key shortcuts only fire when no modifier is held and no text field
+has focus, so they never get in the way of typing.
+
 Right click a card for a menu with edit or rename, duplicate, bring to front,
 send to back, remove from section, tagging and delete. Right clicking a card
 that is part of a selection acts on the whole selection.
@@ -102,6 +106,13 @@ Keyboard shortcuts:
 
 | Keys | What it does |
 | --- | --- |
+| F | Add files |
+| N | New note |
+| L | New label |
+| S | New section |
+| K | New link |
+| E | Show or hide the effects panel |
+| Cmd or Ctrl and S | Export |
 | Cmd or Ctrl and Z | Undo |
 | Shift and Cmd or Ctrl and Z | Redo |
 | Cmd or Ctrl and A | Select everything |
