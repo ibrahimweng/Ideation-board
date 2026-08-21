@@ -24,8 +24,36 @@ To build a copy you can host:
 npm run build
 ```
 
-The build is written to `dist`. The repository includes a `vercel.json`, so you
-can deploy it to Vercel without further setup.
+The build is written to `dist`.
+
+## Deploying to Vercel
+
+The repository already has a `vercel.json`, so there is nothing to configure.
+It sets the framework to Vite, the build command to `npm run build`, the output
+folder to `dist`, a catch all rewrite to `index.html`, and long cache headers
+for the hashed files under `/assets`.
+
+The simplest way is to let Vercel build from GitHub:
+
+1. Go to https://vercel.com/new.
+2. Import `ibrahimweng/Ideation-board`.
+3. Accept the settings Vercel reads from `vercel.json` and press Deploy.
+
+Vercel then builds every push. The default branch becomes the production site
+and other branches get their own preview links.
+
+If you would rather deploy from your own machine, install the Vercel command
+line tool and run it from a clone of the repository:
+
+```bash
+npm install -g vercel
+vercel login
+vercel --prod
+```
+
+Nothing in the app runs on a server. The build is a set of static files, and
+all the work happens in the browser, so there are no environment variables or
+secrets to set.
 
 ## Using the board
 

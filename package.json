@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "A GPU-accelerated ideation board: drop images, video, audio, notes and files, then apply effects at speed.",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
