@@ -8,6 +8,9 @@ import { BoardCard } from './BoardCard'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
+import { wireToPoint } from './wire'
+import type { Side } from './wire'
+import { screenToBoard } from './viewport'
 
 /* ---------------------------------------------------------------------------
  * One card.
@@ -107,6 +110,7 @@ export const Card = memo(function Card({
       <>
         <div
           className="card card-label"
+          data-id={id}
           style={{ ...shell, color: it.color || '#111114' }}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
@@ -116,6 +120,7 @@ export const Card = memo(function Card({
         >
           {it.text || 'Label'}
         </div>
+        {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
         {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
@@ -125,6 +130,7 @@ export const Card = memo(function Card({
     <>
     <div
       className="card"
+      data-id={id}
       style={shell}
       data-sel={selected || undefined}
       data-dim={dim || undefined}
@@ -234,10 +240,91 @@ export const Card = memo(function Card({
       )}
 
     </div>
+    {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
     {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
     </>
   )
 })
+
+/* ---------------------------------------------------------------------------
+ * Connection ports.
+ *
+ * Four dots on the sides of a card, hidden until the card is hovered or
+ * selected. Dragging from one draws a wire to wherever you let go; letting go
+ * on another card connects the two.
+ *
+ * They sit in their own layer, immediately after the card in the document, so
+ * that hovering the card can show them: the pointer stays over the card while
+ * it crosses them, because the layer itself takes no pointer events and only
+ * the dots do.
+ * ------------------------------------------------------------------------- */
+function Ports({ id, x, y, w, h }: { id: string; x: number; y: number; w: number; h: number }) {
+  return (
+    <div className="card-ports" style={{ transform: `translate3d(${x}px, ${y}px, 0)`, width: w, height: h }}>
+      {(['n', 'e', 's', 'w'] as const).map((s) => (
+        <i key={s} className={`port port-${s}`} data-port={s} onPointerDown={(e) => startWire(e, id, s)} />
+      ))}
+    </div>
+  )
+}
+
+/* The card under a point on screen, whatever part of it is there. Sections
+ * are not cards for this purpose: they are the ground other cards sit on, and
+ * they have no ports of their own to wire back from. */
+function cardUnder(clientX: number, clientY: number): string | null {
+  const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+  const card = el?.closest('.card') as HTMLElement | null
+  if (!card || card.classList.contains('card-section')) return null
+  return card.dataset.id || null
+}
+
+function startWire(e: React.PointerEvent, id: string, side: Side) {
+  e.stopPropagation()
+  e.preventDefault()
+  const from = store.getItem(id)
+  const vp = document.querySelector('.viewport') as HTMLElement | null
+  const preview = document.querySelector('.wire-preview') as SVGPathElement | null
+  if (!from || !vp || !preview) return
+
+  const target = e.currentTarget as HTMLElement
+  target.setPointerCapture(e.pointerId)
+  let over: HTMLElement | null = null
+
+  const move = (ev: PointerEvent) => {
+    const r = vp.getBoundingClientRect()
+    const p = screenToBoard(store.peekView(), ev.clientX - r.left, ev.clientY - r.top)
+    /* Written straight to the DOM: this runs at pointer rate and has nothing
+     * to do with the board's contents until it is let go of. */
+    preview.setAttribute('d', wireToPoint(from, side, p.x, p.y))
+    preview.setAttribute('data-on', '')
+    const hit = cardUnder(ev.clientX, ev.clientY)
+    const el = hit && hit !== id ? (document.querySelector(`.card[data-id="${hit}"]`) as HTMLElement | null) : null
+    if (el !== over) {
+      over?.removeAttribute('data-wire-over')
+      el?.setAttribute('data-wire-over', '')
+      over = el
+    }
+  }
+
+  const up = (ev: PointerEvent) => {
+    target.releasePointerCapture(e.pointerId)
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    preview.removeAttribute('d')
+    preview.removeAttribute('data-on')
+    over?.removeAttribute('data-wire-over')
+    const hit = cardUnder(ev.clientX, ev.clientY)
+    /* No gesture snapshot: adding the wire takes one of its own, and two
+     * would mean two presses of undo to take it away again. */
+    if (hit && hit !== id) {
+      const made = store.connect(id, hit)
+      if (made) store.select([made])
+    }
+  }
+
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+}
 
 /* ---------------------------------------------------------------------------
  * Resize handles.

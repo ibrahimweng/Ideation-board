@@ -2,8 +2,9 @@
 
 A board where you drop ideas and work on them. You can drop images, video,
 audio, notes, links and other files. You can apply visual effects to the images
-and video, move things around, group them into sections and label them, and put
-a board inside a board when one canvas is no longer enough.
+and video, move things around, group them into sections and label them, draw
+connections between them, and put a board inside a board when one canvas is no
+longer enough.
 
 Everything is stored in your own browser. There is no server and no account.
 
@@ -73,6 +74,8 @@ Once something is on the board:
 - Drag a card to move it. Hold Shift while dragging to snap to a grid.
 - Drag a corner handle to resize it.
 - Drag on empty space to select several cards at once.
+- Hover a card and drag one of the four dots on its sides onto another card to
+  connect them.
 - Hold Alt and drag, or drag with the middle mouse button, to pan the board.
 - Hold Ctrl or Cmd and scroll to zoom.
 - Double click a note, a label or a section to edit its text.
@@ -167,6 +170,24 @@ bar and mute button, because the browser's own controls sit behind the effect
 and cannot be reached. Pause anywhere and the card keeps showing the effected
 frame you stopped on.
 
+## Connecting cards
+
+Hover a card and four dots appear on its sides. Drag one onto another card and
+the two are joined by an arrow. The card you are about to land on is outlined,
+so it is clear what will be connected before letting go. Selecting exactly two
+cards and choosing "Connect" from the right click menu does the same thing
+without the drag.
+
+A connection is stored as the two card ids and nothing else. It is drawn from
+wherever those cards happen to be, leaving each one from the side that faces
+the other, so moving a card takes its connections with it and nothing has to be
+tidied up afterwards. Each connection watches only the two cards it joins, so
+dragging a card redraws its own arrows and no others.
+
+Click an arrow to select it and Delete to remove it. Deleting a card removes
+the connections that reached it, and one undo brings back the card and its
+connections together.
+
 ## Boards inside boards
 
 A board card opens a board of its own. Double click it to go in, and the trail
@@ -248,6 +269,7 @@ npm run dev &
 npm run test:ui -- http://localhost:5173
 npm run test:sections -- http://localhost:5173
 npm run test:boards -- http://localhost:5173
+npm run test:wires -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
@@ -261,6 +283,10 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:wires` connects two cards by dragging from a port, checks the arrow
+  follows them when they move, that the same pair cannot be joined twice, that
+  an arrow can be selected and removed on its own, that deleting a card takes
+  its arrows with it, and that undo brings both back.
 - `test:boards` makes a board inside a board inside a board and checks that
   what goes in each one stays there, that the trail back out works at depth,
   that a rename reaches the card that opens it, that a reload lands you where

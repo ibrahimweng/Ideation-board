@@ -140,7 +140,9 @@ export class BoardStore {
    * that came along because their section moved, which must keep their
    * section rather than being re-tested against wherever they land. */
   dragSet(ids: string[]): { ids: string[]; carried: Set<string> } {
-    const out = new Set(ids)
+    /* Wires are drawn from their two ends, so there is nothing about one to
+     * move. Selecting everything and dragging must not try. */
+    const out = new Set(ids.filter((id) => this.items.get(id)?.kind !== 'edge'))
     const carried = new Set<string>()
     for (const id of ids) {
       const it = this.items.get(id)
@@ -169,7 +171,7 @@ export class BoardStore {
   reparentByPosition(ids: string[]) {
     for (const id of ids) {
       const it = this.items.get(id)
-      if (!it || it.kind === 'section') continue
+      if (!it || it.kind === 'section' || it.kind === 'edge') continue
       const parent = this.sectionAt(it.x + it.w / 2, it.y + it.h / 2)
       if ((it.parent || null) === parent) continue
       this.items.set(id, { ...it, parent })
@@ -207,6 +209,25 @@ export class BoardStore {
    * factories fill in a placeholder z to satisfy the type, and `item.z ?? ...`
    * kept that placeholder, because 0 is not null. Every card was created at
    * z 0, so a new card could land behind one already on the board. */
+  /* Joins two cards, once. Asking twice for the same pair, in either
+   * direction, is treated as asking for what is already there. */
+  connect(from: string, to: string): string | null {
+    if (from === to) return null
+    const a = this.items.get(from)
+    const b = this.items.get(to)
+    if (!a || !b || a.kind === 'edge' || b.kind === 'edge') return null
+    for (const it of this.items.values()) {
+      if (it.kind !== 'edge') continue
+      if ((it.from === from && it.to === to) || (it.from === to && it.to === from)) return it.id
+    }
+    /* Built here rather than pulled from the item factories: those import the
+     * store, and a cycle between the two is not worth five lines. The zeros
+     * are honest — a wire is drawn from its ends and has no box of its own. */
+    const id = 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+    this.add({ id, kind: 'edge', x: 0, y: 0, w: 0, h: 0, from, to, fx: { ...FX_0 }, tag: null })
+    return id
+  }
+
   add(item: Omit<Item, 'z'> & { z?: number }) {
     this.snapshot()
     const it: Item = { ...item, z: ++this.topZ, fx: item.fx || { ...FX_0 } }
@@ -238,6 +259,12 @@ export class BoardStore {
       const it = this.items.get(id)
       if (it && it.kind === 'section') for (const m of this.membersOf(id)) all.add(m.id)
     }
+    /* A wire to a card that is no longer there is not a wire. Undo brings the
+     * card and its connections back together, since both are in the snapshot
+     * taken above. */
+    for (const it of this.items.values()) {
+      if (it.kind === 'edge' && (all.has(it.from!) || all.has(it.to!))) all.add(it.id)
+    }
     ids = [...all]
     for (const id of ids) {
       this.items.delete(id)
@@ -261,9 +288,17 @@ export class BoardStore {
     for (const id of full) {
       const src = this.items.get(id)
       if (!src) continue
+      /* A copied wire joins the copies. With only one end in the selection
+       * there is nothing sensible to join, so it is left out rather than
+       * quietly drawn back to the original. */
+      if (src.kind === 'edge' && !(remap.has(src.from!) && remap.has(src.to!))) continue
       const nid = remap.get(id)!
       const parent = src.parent && remap.has(src.parent) ? remap.get(src.parent)! : src.parent ?? null
       const copy: Item = { ...src, id: nid, x: src.x + dx, y: src.y + dy, z: ++this.topZ, parent }
+      if (src.kind === 'edge') {
+        copy.from = remap.get(src.from!)!
+        copy.to = remap.get(src.to!)!
+      }
       this.items.set(nid, copy)
       this.order.push(nid)
       made.push(nid)

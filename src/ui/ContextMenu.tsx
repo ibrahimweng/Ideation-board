@@ -205,6 +205,18 @@ function CardMenu({
       <button onClick={run(() => { const made = store.duplicate(ids); if (made.length) store.select(made) })}>
         Duplicate <em>⌘D</em>
       </button>
+      {/* Two cards and nothing else: the one case where what to connect to
+          what is not a question. */}
+      {ids.length === 2 && !anySection && (
+        <button
+          onClick={run(() => {
+            const made = store.connect(ids[0], ids[1])
+            if (made) store.select([made])
+          })}
+        >
+          Connect
+        </button>
+      )}
 
       <div className="menu-sep" />
 

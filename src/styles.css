@@ -293,6 +293,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   background: #fff;
   cursor: grab;
 }
+/* Cards are things to move, not text to select. Shift clicking to add a card
+   to the selection was dragging a text selection across their titles. Where
+   the words themselves are the point, selecting is put back. */
+
 .card-type { font: 500 10px var(--mono); letter-spacing: 0.06em; color: var(--accent); flex: none; }
 .card-name { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-tag { width: 8px; height: 8px; border-radius: 50%; margin-left: auto; flex: none; }
@@ -441,6 +445,65 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .handle-nw { left: -6px; top: -6px; cursor: nwse-resize; }
 .handle-ne { right: -6px; top: -6px; cursor: nesw-resize; }
 .handle-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+
+/* ---------- connections ---------- */
+
+/* One pixel and overflowing: the paths inside are in board coordinates, which
+   have no bounds, and the surface's transform moves them with the cards. */
+.wires {
+  position: absolute; left: 0; top: 0; width: 1px; height: 1px;
+  overflow: visible; pointer-events: none;
+  /* Above the sections, below the cards. */
+  z-index: 2;
+}
+.wire-line { fill: none; stroke: #9a9689; stroke-width: 2; stroke-linecap: round; }
+/* The head takes the colour of the line it ends, so selecting or hovering a
+   wire does not leave a grey arrow on a blue curve. */
+.wires marker path { fill: #9a9689; fill: context-stroke; }
+.wire[data-sel] .wire-line { stroke: var(--sel); stroke-width: 3; }
+/* Two pixels is hard to hit, so the clickable path is a wide invisible one on
+   the same curve. */
+.wire-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+.wire:hover .wire-line { stroke: var(--ink); }
+.wire-preview { fill: none; stroke: var(--sel); stroke-width: 2; stroke-dasharray: 6 5; display: none; }
+.wire-preview[data-on] { display: block; }
+
+.card-ports {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none; z-index: 8000;
+  /* Hidden rather than transparent. A transparent dot still takes clicks, and
+     since the dots sit outside the card, every card was left surrounded by
+     four invisible targets that swallowed presses meant for whatever was
+     underneath. */
+  visibility: hidden; opacity: 0;
+  transition: opacity 0.12s ease;
+  will-change: transform;
+}
+/* The dot sits just outside the card and its target reaches a few pixels back
+   over the border. On the border itself it stole the middle of the title bar,
+   which is where a hand goes to move the card; a few pixels of overlap is
+   enough that there is no gap to cross on the way to it. */
+.port {
+  position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+  display: grid; place-items: center;
+  pointer-events: auto; cursor: crosshair;
+}
+.port::after {
+  content: ''; width: 11px; height: 11px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--sel);
+}
+.port-n { left: 50%; top: -7px; }
+.port-s { left: 50%; top: calc(100% + 7px); }
+.port-w { left: -7px; top: 50%; }
+.port-e { left: calc(100% + 7px); top: 50%; }
+/* Shown on hover or while selected. The layer takes no pointer events itself,
+   so crossing it does not count as leaving the card, and the dots overlap the
+   border far enough that moving onto one keeps the set visible. */
+.card:hover + .card-ports,
+.card[data-sel] + .card-ports,
+.card-ports:hover { visibility: visible; opacity: 1; }
+/* The card a wire is about to land on. */
+.card[data-wire-over] { outline: 2px solid var(--sel); outline-offset: 1px; }
 
 /* ---------- zoom ---------- */
 

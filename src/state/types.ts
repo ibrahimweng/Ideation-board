@@ -2,6 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
+  | 'edge'
 
 export interface Item {
   id: string
@@ -27,6 +28,10 @@ export interface Item {
   /* Id of the board a board card opens. The board is a record of its own, so
    * what is inside it costs nothing until it is opened. */
   board?: string
+  /* The two ends of a connection. An edge has no geometry of its own: it is
+   * drawn from wherever these two cards are. */
+  from?: string
+  to?: string
   /* Video cards only, and only for ones loaded from a URL: whether the host
    * lets us read the video's pixels back. False means the picture plays but
    * shaders cannot run on it. Undefined for local files, whose pixels are
@@ -55,6 +60,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
+  edge: 'ARR',
 }
 
 export const TAGS = [

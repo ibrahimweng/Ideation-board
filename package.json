@@ -20,6 +20,7 @@
     "test:ui": "node test/ui.mjs",
     "test:sections": "node test/sections.mjs",
     "test:boards": "node test/boards.mjs",
+    "test:wires": "node test/wires.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs"
   },

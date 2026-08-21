@@ -4,6 +4,7 @@ import { addUrl } from '../state/ingest'
 import { parseQuery, passes, filtering } from '../state/search'
 import type { Item } from '../state/types'
 import { Card } from './Card'
+import { Wires } from './Wires'
 import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
@@ -49,6 +50,7 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
   const selSet = useMemo(() => new Set(selection), [selection])
   /* Recomputed only when the text changes, not on every render. */
   const words = useMemo(() => parseQuery(query), [query])
+  const edgeIds = useMemo(() => order.filter((id) => store.getItem(id)?.kind === 'edge'), [order])
   const isFiltering = filtering(words, tagFilter)
 
   /* Applies the current viewport to the DOM without touching React state. */
@@ -96,7 +98,9 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
       const ids: string[] = []
       for (const id of store.getOrder()) {
         const it = store.getItem(id)
-        if (it && intersects(it, r)) ids.push(id)
+        /* Wires are not cards and are not virtualised: they have no box to
+         * test, and a wire whose cards are both off screen costs one path. */
+        if (it && it.kind !== 'edge' && intersects(it, r)) ids.push(id)
       }
       const key = ids.join(',')
       /* setState only when membership changed, so a pan across empty board
@@ -202,7 +206,7 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
         if (last && (last.w > 4 || last.h > 4)) {
           const hits = store
             .all()
-            .filter((i) => i.kind !== 'section' && intersects(i, last!))
+            .filter((i) => i.kind !== 'section' && i.kind !== 'edge' && intersects(i, last!))
             .map((i) => i.id)
           store.select(hits, e.shiftKey)
         }
@@ -357,6 +361,7 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
       data-dragover={dragOver || undefined}
     >
       <div className="surface" ref={surfaceRef}>
+        <Wires ids={edgeIds} selected={selection} />
         {visible.map((id) => {
           const it = store.getItem(id)
           if (!it) return null
