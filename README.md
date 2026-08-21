@@ -70,6 +70,12 @@ The panel has two tabs:
 
 You can select several images and apply the same effect to all of them at once.
 
+Effects work on playing video as well as on stills. When you put an effect on a
+video, the card shows the effected picture and gets its own play button, scrub
+bar and mute button, because the browser's own controls sit behind the effect
+and cannot be reached. Pause anywhere and the card keeps showing the effected
+frame you stopped on.
+
 ## Where your work is stored
 
 The board saves itself to IndexedDB in your browser a moment after each change.
@@ -101,12 +107,16 @@ running.
 ```bash
 npm run dev &
 npm run test:smoke -- http://localhost:5173
+npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
 ```
 
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
+- `test:video` records a short clip in the page, drops it on the board, applies
+  an effect and checks that the picture keeps changing while the video plays.
+  It also reloads the page to check the card comes back.
 - `test:load` fills a board with images, applies an effect to all of them and
   reports whether the main thread ever blocked.
 - `bench` compares the old drawing method with the new one.

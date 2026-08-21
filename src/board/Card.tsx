@@ -1,7 +1,8 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useItem, store } from '../state/store'
 import { TYPE_LABEL, TAGS } from '../state/types'
 import { FxCanvas } from './FxCanvas'
+import { VideoCard } from './VideoCard'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
@@ -44,8 +45,7 @@ function useObjectURL(key: string | undefined) {
 export const Card = memo(function Card({ id, selected, distance, onPointerDown, onOpenEditor }: Props) {
   const it = useItem(id)
   const url = useObjectURL(it?.media)
-  const ready = useSourceReady(it?.kind === 'image' || it?.kind === 'video' ? it?.media : undefined)
-  const vidRef = useRef<HTMLVideoElement | null>(null)
+  const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
 
   if (!it) return null
 
@@ -105,6 +105,21 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
         {tag && <i className="card-tag" style={{ background: tag.c }} />}
       </div>
 
+      {it.kind === 'video' ? (
+        <VideoCard
+          id={id}
+          url={url}
+          effected={effected}
+          effectId={fx.fxid}
+          params={fx.ep}
+          seed={hashSeed(id)}
+          w={it.w}
+          h={it.h - 30}
+          filter={filter}
+          frame={frame}
+          grain={fx.grain}
+        />
+      ) : (
       <div className="card-body" style={{ filter: filter || undefined }}>
         <div className="card-frame" style={{ transform: frame || undefined }}>
           {it.kind === 'image' &&
@@ -125,37 +140,6 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
             ) : (
               <div className="media placeholder" />
             ))}
-
-          {it.kind === 'video' && (
-            <>
-              {effected && ready ? (
-                <FxCanvas
-                  id={id}
-                  mediaKey={it.media!}
-                  effectId={fx.fxid}
-                  params={fx.ep}
-                  seed={hashSeed(id)}
-                  w={it.w}
-                  h={it.h - 30}
-                  distance={distance}
-                  className="media"
-                />
-              ) : url ? (
-                <video
-                  ref={vidRef}
-                  className="media"
-                  src={url}
-                  playsInline
-                  loop
-                  muted
-                  controls
-                  preload="metadata"
-                />
-              ) : (
-                <div className="media placeholder" />
-              )}
-            </>
-          )}
 
           {it.kind === 'audio' &&
             (url ? (
@@ -195,6 +179,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
 
         {fx.grain > 0 && <div className="grain" style={{ opacity: fx.grain / 100 }} />}
       </div>
+      )}
 
       {selected && (
         <>

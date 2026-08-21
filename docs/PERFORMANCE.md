@@ -133,6 +133,21 @@ board is ever drawn larger than 1536 pixels, so a larger decode would only cost
 memory and upload time. A 6000 pixel photo decodes to about 96MB of raw pixels.
 The cap brings that down to about 10MB.
 
+### Video effects follow playback without slowing it down
+
+An effected video card is drawn from the video as it plays. Frames are taken
+with `requestVideoFrameCallback`, which fires once per decoded frame, so no
+frame is captured twice and none is missed. Each frame is scaled down as it is
+captured, to 768 pixels on the long edge while playing, so what crosses to the
+worker is already the size the render needs.
+
+Only one frame is in flight at a time. A frame is captured only once the
+previous one has come back. A queued frame would be out of date by the time it
+was drawn, so skipping is better than queuing.
+
+We measured playback with and without an effect. The video advanced at the same
+rate in both cases, so capturing frames costs the video nothing.
+
 ### Tone adjustments do not redraw anything
 
 Exposure, contrast, saturation, warmth, blur and grain are applied as CSS
@@ -216,8 +231,11 @@ npm run test:load -- http://localhost:5173 60
   pictures are visible at the same time will start uploading again. The reuse of
   texture objects keeps that case reasonable, but it is not free. The number of
   pictures on the board does not matter, only how many are visible at once.
-- Video is drawn from a still frame taken when you drop the file. Effects on a
-  playing video are supported by the engine but are not yet wired to playback.
+- Effects on a playing video are drawn one frame at a time, and a frame is
+  captured only after the previous one has been drawn. On a slow machine the
+  card therefore shows fewer frames per second than the video is playing at.
+  It never falls behind, because a frame that is not captured is skipped rather
+  than queued.
 - The engine needs WebGL2 and OffscreenCanvas. Where a worker cannot be started,
   the same engine runs on the main thread under the same time budget. Where
   OffscreenCanvas is missing entirely, pictures and tone adjustments still work
