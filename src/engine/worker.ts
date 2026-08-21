@@ -100,13 +100,20 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
     }
 
     case 'live': {
-      const okRender = r.render(msg.bitmap, msg.bitmap.width, msg.bitmap.height, null, {
+      let okRender = false
+      try {
+      okRender = r.render(msg.bitmap, msg.bitmap.width, msg.bitmap.height, null, {
         effectId: msg.effectId,
         params: msg.params,
         width: msg.width,
         height: msg.height,
         seed: msg.seed,
       })
+      } catch (e) {
+        post({ t: 'fail', id: msg.id, jobId: msg.jobId, reason: 'threw: ' + (e as Error).message })
+        try { msg.bitmap.close() } catch { /* already gone */ }
+        return
+      }
       msg.bitmap.close()
       if (!okRender) {
         post({ t: 'fail', id: msg.id, jobId: msg.jobId, reason: 'render-failed' })

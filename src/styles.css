@@ -137,6 +137,39 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.55'/></svg>");
 }
 
+/* ---------- video ---------- */
+
+/* When an effect is on, the canvas is what you see, but the video element has
+   to stay laid out and painting or the browser may stop decoding it. Opacity
+   zero keeps it decoding while making it invisible. */
+.video-source { position: absolute; inset: 0; }
+[data-effected] .video-source,
+.card[data-kind='video'] .video-source { opacity: 0; pointer-events: none; }
+.video-out { position: absolute; inset: 0; }
+
+.video-bar {
+  display: flex; align-items: center; gap: 7px; flex: none;
+  height: 28px; padding: 0 8px;
+  background: #fff; border-top: 1px solid var(--line-soft);
+}
+.video-bar button {
+  font: 500 10px var(--mono); color: var(--muted);
+  padding: 3px 5px; border-radius: 4px; flex: none; line-height: 1;
+}
+.video-bar button:hover { background: rgba(23, 23, 26, 0.06); color: var(--ink); }
+.video-play { min-width: 20px; }
+
+.video-scrub {
+  flex: 1; height: 4px; border-radius: 2px; background: #e2dfd8;
+  cursor: pointer; position: relative; min-width: 24px;
+}
+.video-scrub i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+.video-scrub::after {
+  content: ''; position: absolute; inset: -7px 0; /* easier to grab than 4px */
+}
+
+.video-time { font: 400 9px var(--mono); color: var(--muted); flex: none; white-space: nowrap; }
+
 .note { width: 100%; height: 100%; padding: 14px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; }
 
 .link-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; height: 100%; text-decoration: none; color: inherit; }

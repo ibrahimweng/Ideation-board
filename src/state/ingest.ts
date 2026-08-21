@@ -89,14 +89,20 @@ export async function* ingest(files: File[], at: { x: number; y: number }): Asyn
       URL.revokeObjectURL(url)
       const nw = poster?.w || 640
       const nh = poster?.h || 360
-      /* The poster is what effects run against, so a video card can be
-       * effected without decoding frames until it plays. */
-      if (poster) {
-        await putBlob(key + ':poster', poster.blob)
-        void ensureSource(key, poster.blob)
+      /* The poster is a still of the first frame. It is what an effected
+       * video card shows until the video itself has decoded something, and
+       * what it falls back to on a reload.
+       *
+       * It gets its own key. Keying it to the video would mean that after a
+       * reload the source loader is handed the video file and asked to decode
+       * it as an image, which fails, and the card would never render. */
+      const posterKey = poster ? key + ':poster' : undefined
+      if (poster && posterKey) {
+        await putBlob(posterKey, poster.blob)
+        void ensureSource(posterKey, poster.blob)
       }
       const box = fitBox(nw, nh)
-      yield { ...base, kind: 'video', media: key, nw, nh, ...box }
+      yield { ...base, kind: 'video', media: key, poster: posterKey, nw, nh, ...box }
       continue
     }
 

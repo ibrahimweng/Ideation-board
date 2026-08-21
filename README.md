@@ -24,8 +24,36 @@ To build a copy you can host:
 npm run build
 ```
 
-The build is written to `dist`. The repository includes a `vercel.json`, so you
-can deploy it to Vercel without further setup.
+The build is written to `dist`.
+
+## Deploying to Vercel
+
+The repository already has a `vercel.json`, so there is nothing to configure.
+It sets the framework to Vite, the build command to `npm run build`, the output
+folder to `dist`, a catch all rewrite to `index.html`, and long cache headers
+for the hashed files under `/assets`.
+
+The simplest way is to let Vercel build from GitHub:
+
+1. Go to https://vercel.com/new.
+2. Import `ibrahimweng/Ideation-board`.
+3. Accept the settings Vercel reads from `vercel.json` and press Deploy.
+
+Vercel then builds every push. The default branch becomes the production site
+and other branches get their own preview links.
+
+If you would rather deploy from your own machine, install the Vercel command
+line tool and run it from a clone of the repository:
+
+```bash
+npm install -g vercel
+vercel login
+vercel --prod
+```
+
+Nothing in the app runs on a server. The build is a set of static files, and
+all the work happens in the browser, so there are no environment variables or
+secrets to set.
 
 ## Using the board
 
@@ -70,6 +98,12 @@ The panel has two tabs:
 
 You can select several images and apply the same effect to all of them at once.
 
+Effects work on playing video as well as on stills. When you put an effect on a
+video, the card shows the effected picture and gets its own play button, scrub
+bar and mute button, because the browser's own controls sit behind the effect
+and cannot be reached. Pause anywhere and the card keeps showing the effected
+frame you stopped on.
+
 ## Where your work is stored
 
 The board saves itself to IndexedDB in your browser a moment after each change.
@@ -101,12 +135,16 @@ running.
 ```bash
 npm run dev &
 npm run test:smoke -- http://localhost:5173
+npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
 ```
 
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
+- `test:video` records a short clip in the page, drops it on the board, applies
+  an effect and checks that the picture keeps changing while the video plays.
+  It also reloads the page to check the card comes back.
 - `test:load` fills a board with images, applies an effect to all of them and
   reports whether the main thread ever blocked.
 - `bench` compares the old drawing method with the new one.

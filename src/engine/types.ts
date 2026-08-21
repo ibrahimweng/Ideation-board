@@ -80,3 +80,8 @@ export const enum Tier {
 export const BUCKET = 128
 export const PROXY_CAP = 384
 export const FULL_CAP = 1536
+
+/* Playing video is rendered smaller than a still. A frame is only on screen
+ * for about 16ms, so detail beyond this is not visible, and holding the cap
+ * down is what keeps a playing card from starving the rest of the board. */
+export const VIDEO_CAP = 768

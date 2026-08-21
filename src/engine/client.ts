@@ -1,6 +1,6 @@
 import { JobQueue, Heat } from './scheduler'
 import type { Job } from './scheduler'
-import { Tier, BUCKET, PROXY_CAP, FULL_CAP } from './types'
+import { Tier, BUCKET, PROXY_CAP, FULL_CAP, VIDEO_CAP } from './types'
 import type { Params } from './types'
 import { EFFECTS } from './effects'
 import { Renderer } from './gl'
@@ -31,7 +31,7 @@ type Sink = (bitmap: ImageBitmap) => void
 
 /* Round a target size into buckets so panning and zooming do not invalidate
  * every cached render on a sub-pixel change. */
-function bucketed(cssW: number, cssH: number, cap: number, dpr: number) {
+export function bucketed(cssW: number, cssH: number, cap: number, dpr: number) {
   const long = Math.max(cssW, cssH)
   if (long <= 0) return { w: 0, h: 0 }
   const scale = Math.min(cap / (long * dpr), 1)
@@ -54,11 +54,16 @@ export class FxEngine {
   private queue = new JobQueue()
   private heat = new Heat()
   private sinks = new Map<string, Sink>()
+  /* Told when a render for this card failed, so a caller waiting on a frame
+   * does not wait forever. */
+  private fails = new Map<string, () => void>()
   /* jobId of the newest dispatch per card, so a late reply for superseded work
    * is dropped instead of flashing an old frame onto the card. */
   private latest = new Map<string, number>()
   private inflight = 0
   private maxInflight = 3
+  /* Live jobs count down so they never collide with queued job ids. */
+  private liveSeq = 0
   private known = new Set<string>()
   private raf: number | null = null
   private running = false
@@ -150,12 +155,14 @@ export class FxEngine {
 
   /* ---------- requests ---------- */
 
-  subscribe(id: string, sink: Sink) {
+  subscribe(id: string, sink: Sink, onFail?: () => void) {
     this.sinks.set(id, sink)
+    if (onFail) this.fails.set(id, onFail)
   }
 
   unsubscribe(id: string) {
     this.sinks.delete(id)
+    this.fails.delete(id)
     this.queue.drop(id)
     this.latest.delete(id)
     this.upgrades.delete(id)
@@ -196,34 +203,73 @@ export class FxEngine {
     this.heat.touch()
   }
 
-  /* Video needs a fresh upload per frame, so it bypasses the source cache. */
-  renderLive(req: RenderRequest, frame: ImageBitmap) {
-    if (!this.ok || !this.worker) {
+  /* The size a caller should capture a video frame at. Capturing larger than
+   * this only costs decode bandwidth for detail the render discards. */
+  liveCaptureSize(cssW: number, cssH: number, playing: boolean) {
+    return bucketed(cssW, cssH, playing ? VIDEO_CAP : FULL_CAP, this.dpr)
+  }
+
+  /* A video frame, which changes every frame and so bypasses the source cache
+   * entirely. The frame is transferred, used once and closed.
+   *
+   * Live frames skip the queue. A queued frame is a stale frame, and showing
+   * one late is worse than dropping it, so the caller is expected to hold off
+   * capturing the next frame until this one comes back. */
+  renderLive(req: RenderRequest, frame: ImageBitmap, playing: boolean) {
+    if (!this.ok) {
       frame.close()
       return
     }
-    const size = bucketed(req.cssW, req.cssH, this.heat.hot ? PROXY_CAP : FULL_CAP, this.dpr)
+    const size = this.liveCaptureSize(req.cssW, req.cssH, playing)
     if (!size.w) {
       frame.close()
       return
     }
-    const jobId = -Date.now()
+    const jobId = --this.liveSeq
     this.latest.set(req.id, jobId)
-    this.inflight++
-    this.send(
-      {
-        t: 'live',
-        id: req.id,
-        jobId,
-        bitmap: frame,
+
+    if (this.worker) {
+      this.inflight++
+      this.send(
+        {
+          t: 'live',
+          id: req.id,
+          jobId,
+          bitmap: frame,
+          effectId: req.effectId,
+          params: req.params,
+          width: size.w,
+          height: size.h,
+          seed: req.seed,
+        },
+        [frame]
+      )
+      return
+    }
+
+    /* No worker: draw it here, under the same rules. */
+    const r = this.local
+    if (!r) {
+      frame.close()
+      return
+    }
+    try {
+      const okRender = r.render(frame, frame.width, frame.height, null, {
         effectId: req.effectId,
         params: req.params,
         width: size.w,
         height: size.h,
         seed: req.seed,
-      },
-      [frame]
-    )
+      })
+      if (okRender) {
+        const bmp = r.takeBitmap()
+        if (bmp) this.deliver(req.id, jobId, bmp)
+      }
+    } catch {
+      /* A failed frame drops; the next one will be along shortly. */
+    } finally {
+      frame.close()
+    }
   }
 
   /* ---------- the pump ---------- */
@@ -259,6 +305,9 @@ export class FxEngine {
      * the budget is what runs; the board keeps its frame either way. */
     const budget = hot ? 4 : 8
     const t0 = performance.now()
+    if (TRACE && this.queue.size) {
+      console.log('[fx] loop q=', this.queue.size, 'inflight=', this.inflight, 'hot=', hot, 'ok=', this.ok, 'worker=', !!this.worker)
+    }
     while (this.inflight < this.maxInflight && performance.now() - t0 < budget) {
       const job = this.queue.take(!hot)
       if (!job) break
@@ -327,6 +376,7 @@ export class FxEngine {
       case 'fail':
         if (TRACE) console.log('[fx] fail', m.id, m.reason)
         this.inflight = Math.max(0, this.inflight - 1)
+        this.fails.get(m.id)?.()
         return
       case 'stats':
         this.onStats?.({ textures: m.textures, textureBytes: m.textureBytes, programs: m.programs })
@@ -339,11 +389,13 @@ export class FxEngine {
     /* Drop replies for work that a newer request already superseded. */
     if (this.latest.get(id) !== jobId) {
       bitmap.close()
+      this.fails.get(id)?.()
       return
     }
     const sink = this.sinks.get(id)
     if (!sink) {
       bitmap.close()
+      this.fails.get(id)?.()
       return
     }
     sink(bitmap)

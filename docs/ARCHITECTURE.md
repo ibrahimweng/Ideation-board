@@ -39,6 +39,31 @@ card.
 If a newer request has been made for the same card in the meantime, the older
 result is thrown away rather than shown.
 
+### Video
+
+An effected video card has a canvas on top and the video element underneath at
+zero opacity. The element is what decodes and plays. It is kept laid out rather
+than hidden, because a browser is allowed to stop decoding a video it is not
+painting.
+
+`FxVideoCanvas` takes frames off that element. It uses
+`requestVideoFrameCallback` where the browser has it, and animation frames
+where it does not. It holds off capturing the next frame until the last one has
+come back, and it gives up waiting after 500ms so a dropped frame cannot stall
+playback for good.
+
+A paused card is drawn once rather than in a loop, and again after each seek.
+Whether a video has a frame ready is read from the element itself rather than
+waited on as an event, because a video with a local file can be ready before
+React has attached any listener, and an event that has already fired will not
+fire again.
+
+The browser's own controls are unreachable behind the canvas, so `VideoCard`
+draws its own play button, scrub bar and mute button. They sit outside the
+element that carries the tone adjustments. A CSS filter applies to everything
+inside it and a child cannot opt out, so controls placed inside would be tinted
+along with the picture.
+
 ### Quality levels
 
 There are two. `Tier.Proxy` is a small draft, capped at 384 pixels.
@@ -61,6 +86,11 @@ Video frames are not cached. They use one texture that is overwritten each
 time, so playback does not fill the cache with frames that will never be needed
 again.
 
+A video also has a still of its first frame, saved when the file is dropped.
+That still is kept under its own key rather than the video's. Keyed to the
+video, the loader would be handed the video file after a reload and asked to
+decode it as an image, which fails.
+
 ### When there is no worker
 
 `client.ts` starts a worker where it can. Where it cannot, it builds the same
@@ -79,7 +109,8 @@ The board is in `src/board`.
 | --- | --- |
 | `Board.tsx` | The surface, pan and zoom, selection and file drops |
 | `Card.tsx` | One card of any kind |
-| `FxCanvas.tsx` | The canvas that receives finished renders |
+| `FxCanvas.tsx` | The canvases that receive finished renders |
+| `VideoCard.tsx` | A video card, its hidden video element and its controls |
 | `sources.ts` | Tracks which pictures are on the graphics card |
 | `viewport.ts` | Pan and zoom arithmetic, and deciding what is visible |
 | `adjust.ts` | Builds the CSS filter and transform for tone and framing |
