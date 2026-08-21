@@ -91,6 +91,20 @@ section does in Figma.
 Sections sit behind the items they hold, and one section cannot go inside
 another.
 
+## Searching
+
+Type in the search box to narrow the board. Cards that do not match fade out
+and stop taking clicks, but stay where they are, because where you put
+something is part of how you recognise it later.
+
+Search looks at the card name, its text, a link's address, its tag and the
+kind of card it is. Every word has to match somewhere, in any order, so
+"blue note" finds a note tagged blue.
+
+Press Enter to move the board to the next result and select it, Shift and
+Enter for the previous one, and Escape to clear. Press / or Cmd and F to put
+the cursor in the box.
+
 Each toolbar button shows its shortcut, and hovering one names it in full.
 The single key shortcuts only fire when no modifier is held and no text field
 has focus, so they never get in the way of typing.
@@ -112,6 +126,7 @@ Keyboard shortcuts:
 | S | New section |
 | K | New link |
 | E | Show or hide the effects panel |
+| / | Search |
 | Cmd or Ctrl and S | Export |
 | Cmd or Ctrl and Z | Undo |
 | Shift and Cmd or Ctrl and Z | Redo |
@@ -174,6 +189,7 @@ npm run dev &
 npm run test:ui -- http://localhost:5173
 npm run test:sections -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
+npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
@@ -190,6 +206,8 @@ npm run bench
 - `test:menu` opens both right click menus and checks each action, including
   ordering, tagging, acting on a multiple selection, and that the canvas menu
   adds things under the pointer.
+- `test:search` checks what search matches on, that non-matches fade and stop
+  taking clicks, and that Enter steps through results.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies

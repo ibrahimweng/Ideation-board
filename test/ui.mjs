@@ -425,6 +425,28 @@ await page.locator('.board-name').fill('Audit Board')
 await page.evaluate(() => document.activeElement?.blur?.())
 await page.waitForTimeout(400)
 
+// ---------- 16c. the top bar must stay one row and never spill ----------
+for (const w of [1600, 1440, 1360, 1280, 1024, 900]) {
+  await page.setViewportSize({ width: w, height: 900 })
+  await page.waitForTimeout(300)
+  const bar = await page.evaluate(() => {
+    const tools = document.querySelector('.tools')
+    const btns = [...tools.querySelectorAll('button')]
+    const rows = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top)))
+    const last = btns[btns.length - 1].getBoundingClientRect()
+    return {
+      rows: rows.size,
+      clipped: Math.round(last.right) > window.innerWidth + 1,
+      topbarH: Math.round(document.querySelector('.topbar').getBoundingClientRect().height),
+    }
+  })
+  ok(`layout: top bar is one row at ${w}px`,
+     bar.rows === 1 && !bar.clipped && bar.topbarH === 52,
+     `rows ${bar.rows}, clipped ${bar.clipped}, height ${bar.topbarH}`)
+}
+await page.setViewportSize({ width: 1440, height: 900 })
+await page.waitForTimeout(400)
+
 // ---------- 17. persistence ----------
 const countBefore = await page.locator('.card').count()
 await page.waitForTimeout(1200)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { store, useOrder, useSelection } from '../state/store'
+import { store, useOrder, useSelection, useQuery } from '../state/store'
+import { parseQuery, matches } from '../state/search'
 import type { Item } from '../state/types'
 import { Card } from './Card'
 import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
@@ -33,6 +34,7 @@ const SNAP = 8
 export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
+  const query = useQuery()
   const vpRef = useRef<HTMLDivElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
   const [visible, setVisible] = useState<string[]>([])
@@ -41,6 +43,8 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
   const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
   const selSet = useMemo(() => new Set(selection), [selection])
+  /* Recomputed only when the text changes, not on every render. */
+  const words = useMemo(() => parseQuery(query), [query])
 
   /* Applies the current viewport to the DOM without touching React state. */
   const paintTransform = useCallback(() => {
@@ -347,6 +351,7 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
               key={id}
               id={id}
               selected={selSet.has(id)}
+              dim={words.length > 0 && !matches(it, words)}
               distance={distanceToCentre(it, rect)}
               onPointerDown={onCardPointerDown}
               onOpenEditor={onOpenEditor}

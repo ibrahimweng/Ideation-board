@@ -18,7 +18,8 @@
     "test:video": "node test/video.mjs",
     "test:ui": "node test/ui.mjs",
     "test:sections": "node test/sections.mjs",
-    "test:menu": "node test/menu.mjs"
+    "test:menu": "node test/menu.mjs",
+    "test:search": "node test/search.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -357,6 +357,22 @@ export class BoardStore {
     this.pingSel()
   }
 
+  /* ---------- search ---------- */
+
+  private query = ''
+  private queryListeners = new Set<Listener>()
+
+  getQuery = (): string => this.query
+  subscribeQuery = (fn: Listener) => {
+    this.queryListeners.add(fn)
+    return () => void this.queryListeners.delete(fn)
+  }
+  setQuery(q: string) {
+    if (this.query === q) return
+    this.query = q
+    for (const fn of this.queryListeners) fn()
+  }
+
   /* ---------- viewport ---------- */
 
   setView(v: Partial<Viewport>) {
@@ -464,4 +480,8 @@ export function useSelection(): string[] {
 
 export function useViewport(): Viewport {
   return useSyncExternalStore(store.subscribeView, store.getView, store.getView)
+}
+
+export function useQuery(): string {
+  return useSyncExternalStore(store.subscribeQuery, store.getQuery, store.getQuery)
 }

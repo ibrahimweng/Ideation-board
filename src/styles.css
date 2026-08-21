@@ -39,20 +39,71 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   background: var(--bar);
   border-bottom: 1px solid var(--line);
   z-index: 20;
+  /* Fixed height, so anything that does not fit must not fall onto the board
+     underneath. Everything inside shrinks or hides instead of wrapping. */
+  overflow: hidden;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; }
 .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; }
 
 .board-name {
   font: 600 15px var(--sans);
   border: none; background: transparent; color: var(--ink);
-  padding: 4px 6px; border-radius: 6px; width: 220px; min-width: 0;
+  padding: 4px 6px; border-radius: 6px; width: 168px; min-width: 60px;
 }
 .board-name:hover { background: rgba(23, 23, 26, 0.04); }
 .board-name:focus { outline: 2px solid var(--accent); background: #fff; }
 
-.tools { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+/* ---------- search ---------- */
+
+.search {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: 20px; padding: 0 8px 0 9px; height: 30px;
+  background: rgba(23, 23, 26, 0.045);
+  border: 1px solid transparent; border-radius: 8px;
+  min-width: 110px; max-width: 240px; flex: 0 1 200px;
+}
+.search:focus-within { background: #fff; border-color: var(--accent); }
+.search[data-active] { background: #fff; border-color: var(--line); }
+
+.search-icon { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.search input {
+  flex: 1; min-width: 0;
+  border: none; background: none; outline: none;
+  font: 400 13px var(--sans); color: var(--ink);
+}
+.search input::placeholder { color: #a8a49a; }
+
+.search-count { font: 400 10px var(--mono); color: var(--muted); flex: none; white-space: nowrap; }
+.search-clear {
+  flex: none; width: 17px; height: 17px; border-radius: 50%;
+  color: var(--muted); font-size: 14px; line-height: 1;
+  display: grid; place-items: center;
+}
+.search-clear:hover { background: rgba(23, 23, 26, 0.09); color: var(--ink); }
+
+.search kbd {
+  font: 400 10px var(--mono); color: #a8a49a;
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none;
+}
+.search:focus-within kbd { display: none; }
+
+/* A card the search excluded. It stays where it is, because where something
+   sits on the board is part of how you recognise it, but it steps back and
+   stops taking the pointer so only results can be picked up. */
+.card[data-dim] {
+  opacity: 0.16;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.card[data-dim] .section-bar { pointer-events: none; }
+
+@media (max-width: 1320px) {
+  .search { min-width: 110px; flex: 0 1 150px; margin-left: 12px; }
+}
+
+.tools { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-wrap: nowrap; flex: none; }
 .tools button {
   padding: 6px 11px; border-radius: 7px;
   font-size: 13px; font-weight: 500; color: var(--muted);
@@ -77,7 +128,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .tools button:hover kbd { color: var(--muted); border-color: #c9c5bb; }
 .tools button[data-on] kbd { color: rgba(255, 255, 255, 0.65); border-color: rgba(255, 255, 255, 0.28); }
 
-@media (max-width: 1180px) {
+/* Below this the row cannot hold the hints as well as the buttons, and the
+   buttons matter more. */
+@media (max-width: 1320px) {
   .tools kbd { display: none; }
 }
 

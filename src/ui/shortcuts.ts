@@ -18,6 +18,7 @@ export const KEYS = {
   section: { key: 's', hint: 'S', label: 'Section' },
   link: { key: 'k', hint: 'K', label: 'Link' },
   effects: { key: 'e', hint: 'E', label: 'Effects panel' },
+  search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },
   export: { key: 's', mod: true, hint: join(MOD, 'S'), label: 'Export' },

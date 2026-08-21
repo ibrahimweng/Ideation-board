@@ -10,6 +10,7 @@ import { download } from './store/fs'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
 import { KEYS, titleFor } from './ui/shortcuts'
+import { SearchBar } from './ui/SearchBar'
 
 const BOARD_ID = 'board_local'
 
@@ -256,6 +257,8 @@ export default function App() {
             spellCheck={false}
           />
         </div>
+
+        <SearchBar />
 
         <div className="tools">
           <button onClick={() => fileRef.current?.click()} title={titleFor('addFiles')}>

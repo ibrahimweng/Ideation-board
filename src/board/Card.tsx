@@ -19,6 +19,8 @@ import { useSourceReady } from './sources'
 interface Props {
   id: string
   selected: boolean
+  /* Faded out because a search is running and this card does not match. */
+  dim?: boolean
   distance: number
   onPointerDown: (e: React.PointerEvent, id: string) => void
   onOpenEditor: (id: string) => void
@@ -43,7 +45,9 @@ function useObjectURL(key: string | undefined) {
   return url
 }
 
-export const Card = memo(function Card({ id, selected, distance, onPointerDown, onOpenEditor, onContextMenu }: Props) {
+export const Card = memo(function Card({
+  id, selected, dim, distance, onPointerDown, onOpenEditor, onContextMenu,
+}: Props) {
   const it = useItem(id)
   const url = useObjectURL(it?.media)
   const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
@@ -68,7 +72,13 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
   if (it.kind === 'section') {
     return (
       <>
-        <div className="card card-section" data-id={id} style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
+        <div
+          className="card card-section"
+          data-id={id}
+          style={{ ...shell, zIndex: 1 }}
+          data-sel={selected || undefined}
+          data-dim={dim || undefined}
+        >
           <div
             className="section-bar"
             onPointerDown={(e) => onPointerDown(e, id)}
@@ -77,7 +87,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
-        {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
       </>
     )
   }
@@ -89,13 +99,14 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
           className="card card-label"
           style={{ ...shell, color: it.color || '#111114' }}
           data-sel={selected || undefined}
+          data-dim={dim || undefined}
           onPointerDown={(e) => onPointerDown(e, id)}
           onContextMenu={(e) => onContextMenu(e, id)}
           onDoubleClick={() => onOpenEditor(id)}
         >
           {it.text || 'Label'}
         </div>
-        {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
       </>
     )
   }
@@ -106,6 +117,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
       className="card"
       style={shell}
       data-sel={selected || undefined}
+      data-dim={dim || undefined}
       data-kind={it.kind}
       onPointerDown={(e) => onPointerDown(e, id)}
       onContextMenu={(e) => onContextMenu(e, id)}
@@ -196,7 +208,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
       )}
 
     </div>
-    {selected && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+    {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
     </>
   )
 })
