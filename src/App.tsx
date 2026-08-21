@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import { store, useSelection } from './state/store'
@@ -161,6 +161,55 @@ export default function App() {
     return () => window.removeEventListener('paste', onPaste)
   }, [onDropFiles, centreOfView])
 
+  /* Actions for the right click menu on empty board. Everything is placed
+   * where the pointer was, which is the point of having the menu there. */
+  const pendingAt = useRef<{ x: number; y: number } | null>(null)
+  const canvasActions = useMemo(
+    () => ({
+      addNote: (at: { x: number; y: number }) => store.add(noteItem(at)),
+      addLabel: (at: { x: number; y: number }) => store.add(labelItem(at)),
+      addSection: (at: { x: number; y: number }) => store.add(sectionItem(at)),
+      addLink: (at: { x: number; y: number }) => {
+        const u = window.prompt('Link URL')
+        if (u) store.add(linkItem(at, u))
+      },
+      pickFiles: (at: { x: number; y: number }) => {
+        /* Remembered so the chosen files land where the menu was opened. */
+        pendingAt.current = at
+        fileRef.current?.click()
+      },
+      paste: async (at: { x: number; y: number }) => {
+        /* Reading the clipboard needs permission the browser may refuse, and
+         * there may be nothing in it, so this quietly does nothing rather
+         * than reporting a failure the person cannot act on. */
+        try {
+          const entries = await navigator.clipboard.read()
+          const files: File[] = []
+          for (const item of entries) {
+            const type = item.types.find((t) => t.startsWith('image/') || t.startsWith('video/'))
+            if (!type) continue
+            const blob = await item.getType(type)
+            files.push(new File([blob], `pasted.${type.split('/')[1] || 'bin'}`, { type }))
+          }
+          if (files.length) {
+            void onDropFiles(files, at)
+            return
+          }
+        } catch {
+          /* fall through to text */
+        }
+        try {
+          const text = (await navigator.clipboard.readText())?.trim()
+          if (!text) return
+          store.add(/^https?:\/\//i.test(text) ? linkItem(at, text) : noteItem(at, text))
+        } catch {
+          /* nothing readable, and nothing useful to say about it */
+        }
+      },
+    }),
+    [onDropFiles]
+  )
+
   const exportBoard = useCallback(() => {
     const b = store.toBoard()
     download(new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' }), `${b.name || 'board'}.json`)
@@ -211,7 +260,7 @@ export default function App() {
       </header>
 
       <main className="main">
-        <Board onDropFiles={onDropFiles} onOpenEditor={setEditing} />
+        <Board onDropFiles={onDropFiles} onOpenEditor={setEditing} canvasActions={canvasActions} />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} />}
       </main>
 
@@ -221,7 +270,9 @@ export default function App() {
         multiple
         hidden
         onChange={(e) => {
-          if (e.target.files?.length) void onDropFiles(e.target.files, centreOfView())
+          const at = pendingAt.current || centreOfView()
+          pendingAt.current = null
+          if (e.target.files?.length) void onDropFiles(e.target.files, at)
           e.target.value = ''
         }}
       />

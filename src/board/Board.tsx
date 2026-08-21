@@ -6,7 +6,7 @@ import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
 import { ContextMenu } from '../ui/ContextMenu'
-import type { MenuState } from '../ui/ContextMenu'
+import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
 /* ---------------------------------------------------------------------------
  * The board surface.
@@ -25,11 +25,12 @@ import type { MenuState } from '../ui/ContextMenu'
 interface Props {
   onDropFiles: (files: FileList | File[], at: { x: number; y: number }) => void
   onOpenEditor: (id: string) => void
+  canvasActions: CanvasActions
 }
 
 const SNAP = 8
 
-export function Board({ onDropFiles, onOpenEditor }: Props) {
+export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
   const vpRef = useRef<HTMLDivElement | null>(null)
@@ -280,6 +281,19 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
     setMenu({ x: e.clientX, y: e.clientY, ids })
   }, [])
 
+  /* Right clicking bare board opens the add menu. Cards stop the event
+   * themselves, so reaching here means nothing was under the pointer. */
+  const onSurfaceContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const el = vpRef.current
+    if (!el) return
+    const t = e.target as HTMLElement
+    if (!t.classList.contains('viewport') && !t.classList.contains('surface')) return
+    const r = el.getBoundingClientRect()
+    const board = screenToBoard(store.peekView(), e.clientX - r.left, e.clientY - r.top)
+    setMenu({ x: e.clientX, y: e.clientY, ids: [], board })
+  }, [])
+
   /* ---------- drop ---------- */
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -315,7 +329,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
       className="viewport"
       ref={vpRef}
       onPointerDown={onSurfacePointerDown}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={onSurfaceContextMenu}
       onDragOver={(e) => {
         e.preventDefault()
         setDragOver(true)
@@ -350,7 +364,14 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
 
       {dragOver && <div className="drop-veil">Drop to add</div>}
       <ZoomBar onZoom={zoomBy} onReset={resetZoom} />
-      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} onOpenEditor={onOpenEditor} />}
+      {menu && (
+        <ContextMenu
+          menu={menu}
+          onClose={() => setMenu(null)}
+          onOpenEditor={onOpenEditor}
+          canvas={canvasActions}
+        />
+      )}
     </div>
   )
 }

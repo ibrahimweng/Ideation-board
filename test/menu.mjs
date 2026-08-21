@@ -76,7 +76,7 @@ ok('tag: dot shows on the card', await card.locator('.card-tag').count() === 1)
 const zBefore = (await stored()).find(i => i.tag)
 await card.click({ button: 'right', position: { x: 40, y: 8 } })
 await page.waitForTimeout(350)
-await page.getByRole('button', { name: 'Send to back', exact: true }).click()
+await page.locator('.menu').getByRole('button', { name: 'Send to back', exact: true }).click()
 await settle()
 let zAfter = (await stored()).find(i => i.id === zBefore.id)
 ok('order: send to back lowers z', zAfter.z < zBefore.z, `${zBefore.z} -> ${zAfter.z}`)
@@ -84,7 +84,7 @@ ok('order: stays above sections', zAfter.z >= 2, `z=${zAfter.z}`)
 
 await card.click({ button: 'right', position: { x: 40, y: 8 } })
 await page.waitForTimeout(350)
-await page.getByRole('button', { name: 'Bring to front', exact: true }).click()
+await page.locator('.menu').getByRole('button', { name: 'Bring to front', exact: true }).click()
 await settle()
 const zTop = (await stored()).find(i => i.id === zBefore.id)
 const maxOther = Math.max(...(await stored()).filter(i => i.id !== zBefore.id && i.kind !== 'section').map(i => i.z))
@@ -94,7 +94,7 @@ ok('order: bring to front raises above the rest', zTop.z > maxOther, `${zTop.z} 
 const n0 = (await stored()).length
 await card.click({ button: 'right', position: { x: 40, y: 8 } })
 await page.waitForTimeout(350)
-await page.getByRole('button', { name: /^Duplicate/ }).click()
+await page.locator('.menu').getByRole('button', { name: /^Duplicate/ }).click()
 await settle()
 ok('duplicate: adds a copy', (await stored()).length === n0 + 1, `${n0} -> ${(await stored()).length}`)
 
@@ -107,14 +107,64 @@ const head = await page.locator('.menu-head').innerText()
 ok('menu: acts on the whole selection when one of them is right clicked', /\d+ items/i.test(head), head)
 
 /* remove from section only when relevant */
-const hasRemove = await page.getByRole('button', { name: 'Remove from section' }).count()
+const hasRemove = await page.locator('.menu').getByRole('button', { name: 'Remove from section' }).count()
 ok('menu: hides "Remove from section" when nothing is in one', hasRemove === 0)
 
 /* delete */
 const before = (await stored()).length
-await page.getByRole('button', { name: /^Delete/ }).click()
+await page.locator('.menu').getByRole('button', { name: /^Delete/ }).click()
 await settle()
 ok('delete: removes the selection', (await stored()).length < before, `${before} -> ${(await stored()).length}`)
+
+/* ---------- canvas menu ---------- */
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
+
+/* find bare board to right click on */
+const spot = await page.evaluate(() => {
+  const vp = document.querySelector('.viewport').getBoundingClientRect()
+  for (let y = vp.bottom - 80; y > vp.top + 60; y -= 40) {
+    for (let x = vp.left + 60; x < vp.right - 60; x += 40) {
+      const el = document.elementFromPoint(x, y)
+      if (el && (el.classList.contains('viewport') || el.classList.contains('surface'))) return { x, y }
+    }
+  }
+  return null
+})
+ok('canvas: found bare board', !!spot, spot ? `${spot.x},${spot.y}` : 'none')
+
+await page.mouse.click(spot.x, spot.y, { button: 'right' })
+await page.waitForTimeout(500)
+ok('canvas: menu opens on empty board', await page.locator('.menu').count() === 1)
+const canvasLabels = await page.locator('.menu > button').allInnerTexts()
+ok('canvas: lists the add actions',
+   ['Note', 'Label', 'Section', 'Link', 'Files…'].every(l => canvasLabels.some(c => c.startsWith(l))),
+   canvasLabels.map(l => l.split('\n')[0]).join(' | '))
+ok('canvas: head reads as an add menu',
+   /add here/i.test(await page.locator('.menu-head').innerText()))
+fs.writeFileSync(path.join(OUT, 'menu-canvas.png'), await page.screenshot())
+
+const nBefore = (await stored()).length
+await page.locator('.menu').getByRole('button', { name: 'Note', exact: true }).click()
+await settle()
+const after = await stored()
+ok('canvas: adds a note', after.length === nBefore + 1, `${nBefore} -> ${after.length}`)
+
+/* the new note must be at the click point, not the middle of the view */
+const placed = await page.evaluate((s) => {
+  const el = document.elementFromPoint(s.x + 6, s.y + 6)
+  const card = el && el.closest('.card')
+  return card ? card.dataset.kind : null
+}, spot)
+ok('canvas: places it under the pointer', placed === 'note', `found ${placed}`)
+
+/* right clicking a card still gives the card menu, not this one */
+const anyCard = page.locator('.card[data-kind="note"]').first()
+await anyCard.click({ button: 'right', position: { x: 30, y: 8 } })
+await page.waitForTimeout(500)
+ok('canvas: right clicking a card still opens the card menu',
+   !/add here/i.test(await page.locator('.menu-head').innerText()),
+   await page.locator('.menu-head').innerText())
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 
 console.log('\npage errors:', errors.length ? errors.slice(0, 5) : 'none')
 const failed = results.filter(r => !r.p)

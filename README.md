@@ -95,6 +95,9 @@ Right click a card for a menu with edit or rename, duplicate, bring to front,
 send to back, remove from section, tagging and delete. Right clicking a card
 that is part of a selection acts on the whole selection.
 
+Right click bare board for a menu that adds a note, label, section, link or
+files at the point you clicked, and that can paste or select everything.
+
 Keyboard shortcuts:
 
 | Keys | What it does |
@@ -173,8 +176,9 @@ npm run bench
 - `test:sections` checks that items join a section when dropped in, move with
   it, leave when dragged out, survive a reload, and that resizing does not
   change membership while deleting removes the contents.
-- `test:menu` opens the right click menu and checks each action, including
-  ordering, tagging and acting on a multiple selection.
+- `test:menu` opens both right click menus and checks each action, including
+  ordering, tagging, acting on a multiple selection, and that the canvas menu
+  adds things under the pointer.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies
