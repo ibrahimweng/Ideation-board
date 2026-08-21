@@ -4,6 +4,7 @@ import { TYPE_LABEL, TAGS } from '../state/types'
 import { FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
 import { EmbedCard } from './EmbedCard'
+import { BoardCard } from './BoardCard'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
@@ -159,6 +160,8 @@ export const Card = memo(function Card({
           frame={frame}
           grain={fx.grain}
         />
+      ) : it.kind === 'board' ? (
+        <BoardCard boardId={it.board || ''} />
       ) : it.kind === 'embed' ? (
         <EmbedCard
           embed={it.embed || ''}

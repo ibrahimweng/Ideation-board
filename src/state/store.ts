@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
+import { cloneBoard } from './boards'
 
 /* ---------------------------------------------------------------------------
  * Board store.
@@ -266,6 +267,17 @@ export class BoardStore {
       this.items.set(nid, copy)
       this.order.push(nid)
       made.push(nid)
+      /* A copy of a board card has to open a copy of the board, or editing
+       * one would edit the other. Copying the record is a read and a write to
+       * storage, so the card points at the original until that finishes; the
+       * only thing you could do in between is open a board that is about to
+       * be replaced by an identical one. */
+      if (copy.kind === 'board' && copy.board) {
+        void cloneBoard(copy.board).then((into) => {
+          const cur = this.items.get(nid)
+          if (cur && cur.kind === 'board') this.update(nid, { board: into }, false)
+        })
+      }
     }
     this.pingOrder()
     this.touch()

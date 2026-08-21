@@ -16,6 +16,7 @@ export const KEYS = {
   note: { key: 'n', hint: 'N', label: 'Note' },
   label: { key: 'l', hint: 'L', label: 'Label' },
   section: { key: 's', hint: 'S', label: 'Section' },
+  board: { key: 'b', hint: 'B', label: 'New board' },
   link: { key: 'k', hint: 'K', label: 'Link' },
   effects: { key: 'e', hint: 'E', label: 'Effects panel' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },

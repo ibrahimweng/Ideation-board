@@ -2,7 +2,8 @@
 
 A board where you drop ideas and work on them. You can drop images, video,
 audio, notes, links and other files. You can apply visual effects to the images
-and video, move things around, group them into sections and label them.
+and video, move things around, group them into sections and label them, and put
+a board inside a board when one canvas is no longer enough.
 
 Everything is stored in your own browser. There is no server and no account.
 
@@ -64,6 +65,8 @@ You add things in several ways:
 - Paste an image, a block of text or a link.
 - Paste or drop the address of a video file and it becomes a video card you can
   play and put effects on. A YouTube or Vimeo link becomes an embedded player.
+- Press "Board" for a board inside this one, for work that has outgrown a
+  corner of the canvas.
 
 Once something is on the board:
 
@@ -131,6 +134,7 @@ Keyboard shortcuts:
 | N | New note |
 | L | New label |
 | S | New section |
+| B | New board |
 | K | New link |
 | E | Show or hide the effects panel |
 | / | Search |
@@ -162,6 +166,31 @@ video, the card shows the effected picture and gets its own play button, scrub
 bar and mute button, because the browser's own controls sit behind the effect
 and cannot be reached. Pause anywhere and the card keeps showing the effected
 frame you stopped on.
+
+## Boards inside boards
+
+A board card opens a board of its own. Double click it to go in, and the trail
+at the top left is the way back out: each step is a button that takes you
+straight to that level. Boards nest as deep as you like, and the card shows
+what is inside — a count and the first few pictures — so a closed board is not
+a closed box.
+
+Each board is stored on its own and only the one you are looking at is loaded.
+A board holding a thousand cards therefore costs nothing to the board it sits
+on, which is the point of putting it in a board rather than a section. The
+board you were on is the one you come back to when you reopen the page.
+
+Renaming works from either end: the name field at the top left names the board
+you are in, and the card that opens it takes the same name. Duplicating a board
+card copies what is inside it, including any boards in there, so the copy is a
+copy rather than a second door onto the same room.
+
+Deleting a board card takes the card off this board but leaves what was inside
+it alone, so undo brings back the card and everything in it.
+
+Two things to know: search and the tag filter look at the board you are on, not
+the ones inside it, and "Export" writes out the board you are on rather than
+the whole tree.
 
 ## Video from a link
 
@@ -218,6 +247,7 @@ running.
 npm run dev &
 npm run test:ui -- http://localhost:5173
 npm run test:sections -- http://localhost:5173
+npm run test:boards -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
@@ -231,6 +261,12 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:boards` makes a board inside a board inside a board and checks that
+  what goes in each one stays there, that the trail back out works at depth,
+  that a rename reaches the card that opens it, that a reload lands you where
+  you were, and that duplicating a board card copies its contents rather than
+  pointing at the same board. It also measures the top bar at five widths,
+  since the trail has to share a row that was already full.
 - `test:sections` checks that items join a section when dropped in, move with
   it, leave when dragged out, survive a reload, and that resizing does not
   change membership while deleting removes the contents.
@@ -260,7 +296,7 @@ npm run bench
 | --- | --- |
 | `src/engine` | The effects engine, the worker and the job scheduler |
 | `src/board` | The board surface, the cards and the pan and zoom code |
-| `src/state` | The board contents, undo and redo, and reading dropped files |
+| `src/state` | The board contents, undo and redo, the board tree, and reading what is dropped in |
 | `src/store` | Saving to IndexedDB and to a folder on disk |
 | `src/ui` | The effects panel and the small dialogs |
 | `test` | Browser tests and the benchmark |

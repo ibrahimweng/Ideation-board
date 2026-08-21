@@ -26,6 +26,7 @@ export interface CanvasActions {
   addNote: (at: { x: number; y: number }) => void
   addLabel: (at: { x: number; y: number }) => void
   addSection: (at: { x: number; y: number }) => void
+  addBoard: (at: { x: number; y: number }) => void
   addLink: (at: { x: number; y: number }) => void
   pickFiles: (at: { x: number; y: number }) => void
   paste: (at: { x: number; y: number }) => void
@@ -34,7 +35,7 @@ export interface CanvasActions {
 interface Props {
   menu: MenuState
   onClose: () => void
-  onOpenEditor: (id: string) => void
+  onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   canvas: CanvasActions
 }
 
@@ -151,6 +152,7 @@ function CanvasMenu({
       <button onClick={run(() => canvas.addNote(at))}>Note</button>
       <button onClick={run(() => canvas.addLabel(at))}>Label</button>
       <button onClick={run(() => canvas.addSection(at))}>Section</button>
+      <button onClick={run(() => canvas.addBoard(at))}>Board</button>
       <button onClick={run(() => canvas.addLink(at))}>Link</button>
       <button onClick={run(() => canvas.pickFiles(at))}>Files…</button>
 
@@ -180,19 +182,24 @@ function CardMenu({
   anyInSection: boolean
   currentTag: string | null | undefined
   run: (fn: () => void) => () => void
-  onOpenEditor: (id: string) => void
+  onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
 }) {
   return (
     <>
       <div className="menu-head">{many ? `${ids.length} items` : first.name || first.text || first.kind}</div>
 
+      {!many && first.kind === 'board' && (
+        <button onClick={run(() => onOpenEditor(first.id, 'open'))}>Open board</button>
+      )}
       {!many && (
-        <button onClick={run(() => onOpenEditor(first.id))}>
+        <button onClick={run(() => onOpenEditor(first.id, 'edit'))}>
           {first.kind === 'note' || first.kind === 'label'
             ? 'Edit text'
             : first.kind === 'section'
               ? 'Rename section'
-              : 'Rename'}
+              : first.kind === 'board'
+                ? 'Rename board'
+                : 'Rename'}
         </button>
       )}
       <button onClick={run(() => { const made = store.duplicate(ids); if (made.length) store.select(made) })}>

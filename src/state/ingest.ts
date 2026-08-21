@@ -204,6 +204,13 @@ async function refine(made: Item, url: string) {
   store.update(made.id, { poster: posterKey }, false)
 }
 
+export function boardItem(at: { x: number; y: number }, board: string, name = 'Board'): Item {
+  return {
+    id: newId(), kind: 'board', x: Math.round(at.x), y: Math.round(at.y), z: 0,
+    w: 260, h: 190, board, name, fx: { ...FX_0 }, tag: null,
+  }
+}
+
 export function sectionItem(at: { x: number; y: number }): Item {
   return {
     id: newId(), kind: 'section', x: Math.round(at.x), y: Math.round(at.y), z: 0,

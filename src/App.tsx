@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import { store, useSelection } from './state/store'
-import { ingest, noteItem, labelItem, sectionItem, addUrl } from './state/ingest'
+import { ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
+import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import type { Board as BoardModel, Item } from './state/types'
@@ -14,6 +15,17 @@ import { SearchBar } from './ui/SearchBar'
 import { TagFilter } from './ui/TagFilter'
 
 const BOARD_ID = 'board_local'
+const PATH_KEY = 'ideation.path'
+
+/* Where you are in the tree. The last crumb is the board on screen; `card` is
+ * the id of the card that opens it, on the board one step up, which is how a
+ * rename made from inside a board finds its way back to the card. */
+interface Crumb {
+  id: string
+  name: string
+  card: string | null
+}
+const ROOT: Crumb = { id: BOARD_ID, name: 'Untitled board', card: null }
 
 export default function App() {
   const selection = useSelection()
@@ -23,14 +35,66 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('Untitled board')
   const [engineOk, setEngineOk] = useState(true)
+  const [path, setPath] = useState<Crumb[]>([ROOT])
   const fileRef = useRef<HTMLInputElement | null>(null)
+  /* Read by callbacks that must not be rebuilt every time the path changes. */
+  const pathRef = useRef(path)
+  pathRef.current = path
+
+  /* ---------- autosave ---------- */
+  /* Set up before boot so that leaving a board can force the pending write out
+   * first. Switching boards replaces everything in the store, so a debounced
+   * save that fired afterwards would write the new board's items under the old
+   * board's name. */
+  const saveNow = useRef<() => Promise<void>>(async () => {})
+  useEffect(() => {
+    let t: number | null = null
+    const write = () => {
+      const b: BoardModel = store.toBoard()
+      invalidateSummary(b.id)
+      return putBoard({ id: b.id, name: b.name, updated: b.updated, items: b.items, view: b.view })
+    }
+    saveNow.current = async () => {
+      if (t) {
+        clearTimeout(t)
+        t = null
+      }
+      await write()
+    }
+    store.onDirty = () => {
+      if (t) clearTimeout(t)
+      t = window.setTimeout(() => {
+        t = null
+        void write()
+      }, 700)
+    }
+    return () => {
+      store.onDirty = null
+      if (t) clearTimeout(t)
+    }
+  }, [])
 
   /* ---------- boot ---------- */
   useEffect(() => {
     void (async () => {
       const ok = await getEngine().start()
       setEngineOk(ok)
-      const saved = await getBoard(BOARD_ID)
+      /* Come back to the board that was open, however deep it was. Any crumb
+       * whose board has since gone takes everything below it with it. */
+      let trail: Crumb[] = [ROOT]
+      try {
+        const raw = JSON.parse(localStorage.getItem(PATH_KEY) || 'null')
+        if (Array.isArray(raw) && raw[0]?.id === BOARD_ID) {
+          const checked: Crumb[] = [ROOT]
+          for (const c of raw.slice(1)) {
+            if (!c?.id || !(await getBoard(c.id))) break
+            checked.push({ id: c.id, name: c.name || 'Board', card: c.card || null })
+          }
+          trail = checked
+        }
+      } catch { /* a corrupt trail is just the root board */ }
+
+      const saved = await getBoard(trail[trail.length - 1].id)
       if (saved) {
         store.load({
           id: saved.id,
@@ -41,24 +105,60 @@ export default function App() {
         })
         setName(saved.name)
       }
+      setPath(trail)
     })()
     return () => getEngine().stop()
   }, [])
 
-  /* ---------- autosave ---------- */
-  useEffect(() => {
-    let t: number | null = null
-    store.onDirty = () => {
-      if (t) clearTimeout(t)
-      t = window.setTimeout(() => {
-        const b: BoardModel = store.toBoard()
-        void putBoard({ id: b.id, name: b.name, updated: b.updated, items: b.items, view: b.view })
-      }, 700)
-    }
-    return () => {
-      store.onDirty = null
-      if (t) clearTimeout(t)
-    }
+  /* ---------- moving between boards ---------- */
+  const openBoard = useCallback(async (next: Crumb[]) => {
+    const prev = pathRef.current
+    const leaving = prev[prev.length - 1]
+    const target = next[next.length - 1]
+    if (!target || target.id === leaving.id) return
+
+    await saveNow.current()
+    /* The name shown on a board card and the name inside the board are the
+     * same name, so a rename made in the top bar has to reach the card. The
+     * card may be on a board that is not loaded, so it is written through the
+     * record rather than through the store. */
+    const parent = prev[prev.length - 2]
+    if (leaving.card && parent) await renameCardIn(parent.id, leaving.card, store.name)
+    invalidateSummary(leaving.id)
+
+    const rec = await getBoard(target.id)
+    store.load(
+      rec
+        ? { id: rec.id, name: rec.name, items: rec.items as Item[], view: rec.view || { x: 0, y: 0, z: 1 }, updated: rec.updated }
+        : { id: target.id, name: target.name, items: [], view: { x: 0, y: 0, z: 1 }, updated: Date.now() }
+    )
+    setName(store.name)
+    setEditing(null)
+    setPath(next)
+    try {
+      localStorage.setItem(PATH_KEY, JSON.stringify(next))
+    } catch { /* a session without storage still navigates, it just forgets */ }
+  }, [])
+
+  /* Double clicking a card, and the first entry in its menu. A board card
+   * opens its board; everything else opens the editor. */
+  const openItem = useCallback(
+    (id: string, mode: 'open' | 'edit' = 'open') => {
+      const it = store.getItem(id)
+      if (mode === 'open' && it?.kind === 'board' && it.board) {
+        void openBoard([...pathRef.current, { id: it.board, name: it.name || 'Board', card: it.id }])
+        return
+      }
+      setEditing(id)
+    },
+    [openBoard]
+  )
+
+  const addBoard = useCallback(async (at: { x: number; y: number }) => {
+    /* The record is written first so that opening the card straight away
+     * finds a board rather than making one. */
+    const id = await createBoard('Board')
+    store.add(boardItem(at, id))
   }, [])
 
   /* ---------- adding things ---------- */
@@ -138,6 +238,7 @@ export default function App() {
         if (k === KEYS.note.key) { e.preventDefault(); store.add(noteItem(at)); return }
         if (k === KEYS.label.key) { e.preventDefault(); store.add(labelItem(at)); return }
         if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
+        if (k === KEYS.board.key) { e.preventDefault(); void addBoard(at); return }
         if (k === KEYS.link.key) {
           e.preventDefault()
           const u = window.prompt('Paste a link. A video URL becomes a playable card.')
@@ -173,7 +274,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [centreOfView, exportBoard])
+  }, [centreOfView, exportBoard, addBoard])
 
   /* ---------- paste ---------- */
   useEffect(() => {
@@ -203,6 +304,7 @@ export default function App() {
       addNote: (at: { x: number; y: number }) => store.add(noteItem(at)),
       addLabel: (at: { x: number; y: number }) => store.add(labelItem(at)),
       addSection: (at: { x: number; y: number }) => store.add(sectionItem(at)),
+      addBoard: (at: { x: number; y: number }) => void addBoard(at),
       addLink: (at: { x: number; y: number }) => {
         const u = window.prompt('Paste a link. A video URL becomes a playable card.')
         if (u) addUrl(at, u)
@@ -242,14 +344,40 @@ export default function App() {
         }
       },
     }),
-    [onDropFiles]
+    [onDropFiles, addBoard]
   )
 
   return (
     <div className="app" data-panel={panelOpen || undefined}>
-      <header className="topbar">
+      {/* The trail is one more thing in a row that is already full, so the
+          narrow-width rules that make room for it only apply while it is
+          there. */}
+      <header className="topbar" data-nested={path.length > 1 || undefined}>
         <div className="brand">
           <span className="dot" />
+          {path.length > 1 && (
+            <nav className="crumbs">
+              {path.length > 3 && (
+                <span className="crumb">
+                  <button onClick={() => void openBoard([path[0]])} title={path[0].name}>
+                    …
+                  </button>
+                  <i>/</i>
+                </span>
+              )}
+              {path.slice(0, -1).slice(-2).map((c) => (
+                <span key={c.id} className="crumb">
+                  <button
+                    title={c.name}
+                    onClick={() => void openBoard(path.slice(0, path.findIndex((p) => p.id === c.id) + 1))}
+                  >
+                    {c.name}
+                  </button>
+                  <i>/</i>
+                </span>
+              ))}
+            </nav>
+          )}
           <input
             className="board-name"
             value={name}
@@ -276,6 +404,9 @@ export default function App() {
           </button>
           <button onClick={() => store.add(sectionItem(centreOfView()))} title={titleFor('section')}>
             Section <kbd aria-hidden="true">{KEYS.section.hint}</kbd>
+          </button>
+          <button onClick={() => void addBoard(centreOfView())} title={titleFor('board')}>
+            Board <kbd aria-hidden="true">{KEYS.board.hint}</kbd>
           </button>
           <button
             title={titleFor('link')}
@@ -308,7 +439,7 @@ export default function App() {
       </header>
 
       <main className="main">
-        <Board onDropFiles={onDropFiles} onOpenEditor={setEditing} canvasActions={canvasActions} />
+        <Board onDropFiles={onDropFiles} onOpenEditor={openItem} canvasActions={canvasActions} />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} />}
       </main>
 

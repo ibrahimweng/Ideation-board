@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { store, useItem } from '../state/store'
 import { SWATCH, TAGS } from '../state/types'
+import { renameBoard } from '../state/boards'
 
 /* Inline editor for the text-bearing card kinds. Edits are written on close
  * rather than on every keystroke, so typing never touches the board. */
@@ -21,13 +22,26 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
     if (it.kind === 'section') store.update(id, { name: text })
     else if (isText) store.update(id, { text })
     else store.update(id, { name: text })
+    /* A board is named in two places, on the card and in its own record, and
+     * the two have to agree or opening it would show a different name. */
+    if (it.kind === 'board' && it.board) void renameBoard(it.board, text)
     onClose()
   }
 
   return (
     <div className="sheet-veil" onPointerDown={commit}>
       <div className="sheet" onPointerDown={(e) => e.stopPropagation()}>
-        <h3>{it.kind === 'note' ? 'Note' : it.kind === 'label' ? 'Label' : it.kind === 'section' ? 'Section' : 'Rename'}</h3>
+        <h3>
+          {it.kind === 'note'
+            ? 'Note'
+            : it.kind === 'label'
+              ? 'Label'
+              : it.kind === 'section'
+                ? 'Section'
+                : it.kind === 'board'
+                  ? 'Board name'
+                  : 'Rename'}
+        </h3>
         <textarea
           ref={ref}
           value={text}

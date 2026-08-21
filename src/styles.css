@@ -44,13 +44,49 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   overflow: hidden;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
 .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; }
+
+/* Where you are in the tree. Only the ancestors are buttons; the board you are
+   on is the name field itself, so there is one thing on screen standing for
+   the current board rather than two. */
+/* The trail keeps its size and the board name gives way instead. Letting the
+   crumbs shrink squeezed each one to a single letter, and once a crumb was
+   narrower than its own text the next one overlapped it. */
+.crumbs { display: flex; align-items: center; gap: 2px; flex: none; max-width: 220px; overflow: hidden; }
+.crumb { display: flex; align-items: center; flex: none; }
+.crumb i { font-style: normal; color: #bdb9ae; padding: 0 1px; flex: none; }
+.crumbs button {
+  font: 500 13px var(--sans); color: var(--muted);
+  padding: 4px 6px; border-radius: 6px;
+  flex: none; max-width: 110px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+}
+/* Narrow windows have less to spare. The trail gives up its older steps
+   first, since the step you want is nearly always the one just above, and
+   what is left is shortened rather than dropped: a way back that is one
+   ellipsis wide still points the way back. */
+@media (max-width: 1180px) {
+  .crumbs { max-width: 90px; }
+  .crumbs button { max-width: 56px; }
+  .crumb:not(:last-of-type) { display: none; }
+}
+/* Narrowest of all, and the brand mark goes so the name of the board you are
+   on still has somewhere to sit. */
+@media (max-width: 1000px) {
+  .topbar[data-nested] .brand .dot { display: none; }
+  .topbar[data-nested] .crumbs { max-width: 76px; }
+  .topbar[data-nested] .crumbs button { max-width: 48px; }
+}
+.crumbs button:hover { background: rgba(23, 23, 26, 0.05); color: var(--ink); }
 
 .board-name {
   font: 600 15px var(--sans);
   border: none; background: transparent; color: var(--ink);
-  padding: 4px 6px; border-radius: 6px; width: 168px; min-width: 60px;
+  padding: 4px 6px; border-radius: 6px; width: 168px; min-width: 60px; flex: 0 1 auto;
+}
+@media (max-width: 1180px) {
+  .board-name { min-width: 48px; }
 }
 .board-name:hover { background: rgba(23, 23, 26, 0.04); }
 .board-name:focus { outline: 2px solid var(--accent); background: #fff; }
@@ -177,9 +213,25 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .tools button[data-on] kbd { color: rgba(255, 255, 255, 0.65); border-color: rgba(255, 255, 255, 0.28); }
 
 /* Below this the row cannot hold the hints as well as the buttons, and the
-   buttons matter more. */
-@media (max-width: 1320px) {
+   buttons matter more. The hints cost about 380px across the toolbar, which is
+   what the board name, the search box and the trail need between them; the
+   shortcut is still on every button's tooltip. */
+@media (max-width: 1560px) {
   .tools kbd { display: none; }
+}
+/* Inside a board the bar carries the trail as well, which costs about what
+   the hints cost, so the hints stand down for as long as you are in one. The
+   shortcut is still on every button's tooltip. */
+.topbar[data-nested] .tools kbd { display: none; }
+
+/* Narrower still, and the buttons themselves have to give up their padding so
+   that the left of the bar keeps enough room to say where you are. Only while
+   there is a trail to make room for: the root board is as it was. */
+@media (max-width: 1180px) {
+  .topbar[data-nested] { gap: 10px; }
+  .topbar[data-nested] .search { margin-left: 8px; }
+  .topbar[data-nested] .tools button { padding: 6px 8px; }
+  .topbar[data-nested] .tools .sep { margin: 0 2px; }
 }
 
 .main { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -299,6 +351,27 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   font: 500 10px var(--mono); text-align: center; color: #fff;
   background: rgba(23, 23, 26, 0.78); pointer-events: none;
 }
+
+/* ---------- board cards ---------- */
+
+.board-body { display: flex; flex-direction: column; background: #fff; }
+.board-thumbs {
+  flex: 1; min-height: 0; display: grid; gap: 2px; padding: 2px;
+  grid-template-columns: 1fr 1fr; background: #e8e5de;
+}
+.board-thumbs[data-n='1'] { grid-template-columns: 1fr; }
+.board-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 3px; min-height: 0; }
+/* An empty board still reads as a board rather than as a broken picture. */
+.board-thumbs-empty {
+  background-image: radial-gradient(circle at 1px 1px, #d5d2c9 1px, transparent 0);
+  background-size: 14px 14px; background-color: #f2f0ea;
+}
+.board-meta {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  height: 26px; padding: 0 10px; border-top: 1px solid var(--line-soft);
+  font: 400 11px var(--mono); color: var(--muted);
+}
+.board-meta span { font-size: 10px; color: #a8a49a; }
 
 /* ---------- embedded players ---------- */
 
@@ -534,5 +607,38 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 @media (max-width: 900px) {
   .panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 30; box-shadow: -8px 0 30px rgba(0,0,0,0.1); }
   .app[data-panel] .stats { right: 334px; }
-  .board-name { width: 130px; }
+  /* Where you are in the tree. Only the ancestors are buttons; the board you are
+   on is the name field itself, so there is one thing on screen standing for
+   the current board rather than two. */
+/* The trail keeps its size and the board name gives way instead. Letting the
+   crumbs shrink squeezed each one to a single letter, and once a crumb was
+   narrower than its own text the next one overlapped it. */
+.crumbs { display: flex; align-items: center; gap: 2px; flex: none; max-width: 220px; overflow: hidden; }
+.crumb { display: flex; align-items: center; flex: none; }
+.crumb i { font-style: normal; color: #bdb9ae; padding: 0 1px; flex: none; }
+.crumbs button {
+  font: 500 13px var(--sans); color: var(--muted);
+  padding: 4px 6px; border-radius: 6px;
+  flex: none; max-width: 110px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+}
+/* Narrow windows have less to spare. The trail gives up its older steps
+   first, since the step you want is nearly always the one just above, and
+   what is left is shortened rather than dropped: a way back that is one
+   ellipsis wide still points the way back. */
+@media (max-width: 1180px) {
+  .crumbs { max-width: 90px; }
+  .crumbs button { max-width: 56px; }
+  .crumb:not(:last-of-type) { display: none; }
+}
+/* Narrowest of all, and the brand mark goes so the name of the board you are
+   on still has somewhere to sit. */
+@media (max-width: 1000px) {
+  .topbar[data-nested] .brand .dot { display: none; }
+  .topbar[data-nested] .crumbs { max-width: 76px; }
+  .topbar[data-nested] .crumbs button { max-width: 48px; }
+}
+.crumbs button:hover { background: rgba(23, 23, 26, 0.05); color: var(--ink); }
+
+.board-name { width: 130px; }
 }

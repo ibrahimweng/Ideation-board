@@ -26,7 +26,9 @@ import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
 interface Props {
   onDropFiles: (files: FileList | File[], at: { x: number; y: number }) => void
-  onOpenEditor: (id: string) => void
+  /* 'open' follows the card: a board card opens its board, everything else
+   * opens the editor. 'edit' always means the editor. */
+  onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   canvasActions: CanvasActions
 }
 
