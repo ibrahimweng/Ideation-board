@@ -308,6 +308,46 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 }
 .ghost:hover { color: var(--ink); }
 
+/* ---------- context menu ---------- */
+
+.menu {
+  position: fixed; z-index: 71;
+  min-width: 208px; padding: 5px;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(23, 23, 26, 0.18), 0 2px 6px rgba(23, 23, 26, 0.08);
+  display: flex; flex-direction: column; gap: 1px;
+}
+
+.menu-head {
+  font: 500 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); padding: 6px 9px 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.menu > button {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 7px 9px; border-radius: 6px;
+  font-size: 13px; color: var(--ink); text-align: left; width: 100%;
+}
+.menu > button:hover:not(:disabled) { background: rgba(23, 23, 26, 0.06); }
+.menu > button:disabled { color: #b6b3ab; cursor: default; }
+.menu > button em { font: 400 11px var(--mono); font-style: normal; color: var(--muted); }
+.menu > button:disabled em { color: #cfccc4; }
+
+.menu-danger { color: var(--accent) !important; }
+.menu-danger:hover:not(:disabled) { background: rgba(255, 90, 31, 0.09) !important; }
+
+.menu-sep { height: 1px; background: var(--line-soft); margin: 4px 6px; }
+
+.menu-tags { display: flex; align-items: center; gap: 6px; padding: 4px 9px 6px; }
+.menu-tags > span { font-size: 13px; color: var(--ink); margin-right: auto; }
+.menu-tags button {
+  width: 15px; height: 15px; border-radius: 50%; flex: none;
+  border: 1.5px solid transparent;
+}
+.menu-tags button[data-on] { outline: 2px solid var(--ink); outline-offset: 2px; }
+.menu-tag-none { background: #fff; border-color: var(--line) !important; }
+
 /* ---------- sheet ---------- */
 
 .sheet-veil { position: fixed; inset: 0; background: rgba(23, 23, 26, 0.35); display: grid; place-items: center; z-index: 50; }

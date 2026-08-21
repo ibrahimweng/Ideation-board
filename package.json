@@ -17,7 +17,8 @@
     "bench": "node test/bench.mjs",
     "test:video": "node test/video.mjs",
     "test:ui": "node test/ui.mjs",
-    "test:sections": "node test/sections.mjs"
+    "test:sections": "node test/sections.mjs",
+    "test:menu": "node test/menu.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

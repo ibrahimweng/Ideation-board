@@ -279,6 +279,65 @@ export class BoardStore {
     this.pingItem(id)
   }
 
+  /* Explicit ordering from the context menu, which is recorded so it can be
+   * undone, unlike the implicit raise that happens on every click. */
+  bringToFront(ids: string[]) {
+    if (!ids.length) return
+    this.snapshot()
+    for (const id of ids) {
+      const cur = this.items.get(id)
+      if (!cur || cur.kind === 'section') continue
+      this.items.set(id, { ...cur, z: ++this.topZ })
+      this.pingItem(id)
+    }
+    this.touch()
+  }
+
+  /* Kept above 1, which is where sections sit, so sending a card back never
+   * hides it behind the section it belongs to. */
+  sendToBack(ids: string[]) {
+    if (!ids.length) return
+    this.snapshot()
+    let min = Infinity
+    for (const it of this.items.values()) {
+      if (it.kind !== 'section' && !ids.includes(it.id)) min = Math.min(min, it.z)
+    }
+    let z = Math.max(2, (Number.isFinite(min) ? min : 20) - ids.length)
+    for (const id of ids) {
+      const cur = this.items.get(id)
+      if (!cur || cur.kind === 'section') continue
+      this.items.set(id, { ...cur, z: z++ })
+      this.pingItem(id)
+    }
+    this.touch()
+  }
+
+  /* Takes items out of whatever section they are in, without moving them. */
+  clearParent(ids: string[]) {
+    const inSection = ids.filter((id) => this.items.get(id)?.parent)
+    if (!inSection.length) return
+    this.snapshot()
+    for (const id of inSection) {
+      const cur = this.items.get(id)!
+      this.items.set(id, { ...cur, parent: null })
+      this.pingItem(id)
+    }
+    this.touch()
+  }
+
+  /* Applies one tag to everything given, or clears it. */
+  setTag(ids: string[], tag: string | null) {
+    if (!ids.length) return
+    this.snapshot()
+    for (const id of ids) {
+      const cur = this.items.get(id)
+      if (!cur) continue
+      this.items.set(id, { ...cur, tag })
+      this.pingItem(id)
+    }
+    this.touch()
+  }
+
   /* ---------- selection ---------- */
 
   select(ids: string[], additive = false) {

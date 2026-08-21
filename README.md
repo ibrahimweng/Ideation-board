@@ -91,6 +91,10 @@ section does in Figma.
 Sections sit behind the items they hold, and one section cannot go inside
 another.
 
+Right click a card for a menu with edit or rename, duplicate, bring to front,
+send to back, remove from section, tagging and delete. Right clicking a card
+that is part of a selection acts on the whole selection.
+
 Keyboard shortcuts:
 
 | Keys | What it does |
@@ -155,6 +159,7 @@ running.
 npm run dev &
 npm run test:ui -- http://localhost:5173
 npm run test:sections -- http://localhost:5173
+npm run test:menu -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
@@ -168,6 +173,8 @@ npm run bench
 - `test:sections` checks that items join a section when dropped in, move with
   it, leave when dragged out, survive a reload, and that resizing does not
   change membership while deleting removes the contents.
+- `test:menu` opens the right click menu and checks each action, including
+  ordering, tagging and acting on a multiple selection.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
 - `test:video` records a short clip in the page, drops it on the board, applies

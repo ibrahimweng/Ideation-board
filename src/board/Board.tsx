@@ -5,6 +5,8 @@ import { Card } from './Card'
 import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
+import { ContextMenu } from '../ui/ContextMenu'
+import type { MenuState } from '../ui/ContextMenu'
 
 /* ---------------------------------------------------------------------------
  * The board surface.
@@ -35,6 +37,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
   const [visible, setVisible] = useState<string[]>([])
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
   const selSet = useMemo(() => new Set(selection), [selection])
 
@@ -266,6 +269,17 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
     window.addEventListener('pointerup', up)
   }, [])
 
+  /* Right clicking a card that is not in the selection selects just it, so
+   * the menu always acts on something the pointer is actually over. */
+  const onCardContextMenu = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const sel = store.getSelection()
+    const ids = sel.includes(id) ? sel : [id]
+    if (!sel.includes(id)) store.select([id])
+    setMenu({ x: e.clientX, y: e.clientY, ids })
+  }, [])
+
   /* ---------- drop ---------- */
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -301,6 +315,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
       className="viewport"
       ref={vpRef}
       onPointerDown={onSurfacePointerDown}
+      onContextMenu={(e) => e.preventDefault()}
       onDragOver={(e) => {
         e.preventDefault()
         setDragOver(true)
@@ -321,6 +336,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
               distance={distanceToCentre(it, rect)}
               onPointerDown={onCardPointerDown}
               onOpenEditor={onOpenEditor}
+              onContextMenu={onCardContextMenu}
             />
           )
         })}
@@ -334,6 +350,7 @@ export function Board({ onDropFiles, onOpenEditor }: Props) {
 
       {dragOver && <div className="drop-veil">Drop to add</div>}
       <ZoomBar onZoom={zoomBy} onReset={resetZoom} />
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} onOpenEditor={onOpenEditor} />}
     </div>
   )
 }

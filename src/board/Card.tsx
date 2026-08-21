@@ -22,6 +22,7 @@ interface Props {
   distance: number
   onPointerDown: (e: React.PointerEvent, id: string) => void
   onOpenEditor: (id: string) => void
+  onContextMenu: (e: React.MouseEvent, id: string) => void
 }
 
 function useObjectURL(key: string | undefined) {
@@ -42,7 +43,7 @@ function useObjectURL(key: string | undefined) {
   return url
 }
 
-export const Card = memo(function Card({ id, selected, distance, onPointerDown, onOpenEditor }: Props) {
+export const Card = memo(function Card({ id, selected, distance, onPointerDown, onOpenEditor, onContextMenu }: Props) {
   const it = useItem(id)
   const url = useObjectURL(it?.media)
   const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
@@ -68,7 +69,11 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
     return (
       <>
         <div className="card card-section" data-id={id} style={{ ...shell, zIndex: 1 }} data-sel={selected || undefined}>
-          <div className="section-bar" onPointerDown={(e) => onPointerDown(e, id)}>
+          <div
+            className="section-bar"
+            onPointerDown={(e) => onPointerDown(e, id)}
+            onContextMenu={(e) => onContextMenu(e, id)}
+          >
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
@@ -85,6 +90,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
           style={{ ...shell, color: it.color || '#111114' }}
           data-sel={selected || undefined}
           onPointerDown={(e) => onPointerDown(e, id)}
+          onContextMenu={(e) => onContextMenu(e, id)}
           onDoubleClick={() => onOpenEditor(id)}
         >
           {it.text || 'Label'}
@@ -102,6 +108,7 @@ export const Card = memo(function Card({ id, selected, distance, onPointerDown, 
       data-sel={selected || undefined}
       data-kind={it.kind}
       onPointerDown={(e) => onPointerDown(e, id)}
+      onContextMenu={(e) => onContextMenu(e, id)}
       onDoubleClick={() => onOpenEditor(id)}
     >
       <div className="card-bar">
