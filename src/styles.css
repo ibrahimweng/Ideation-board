@@ -485,6 +485,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .handle-ne { right: -6px; top: -6px; cursor: nesw-resize; }
 .handle-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
 
+/* The line a dragged card has just snapped onto. Drawn on the surface, so it
+   pans and zooms with the board; its thickness is divided by the zoom, so it
+   stays a hairline at any scale. */
+.guide {
+  position: absolute; display: none; z-index: 9500;
+  background: var(--accent); pointer-events: none;
+}
+
 /* ---------- connections ---------- */
 
 /* One pixel and overflowing: the paths inside are in board coordinates, which
@@ -661,6 +669,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 }
 .menu-tags button[data-on] { outline: 2px solid var(--ink); outline-offset: 2px; }
 .menu-tag-none { background: #fff; border-color: var(--line) !important; }
+
+.menu-arrange { display: flex; align-items: center; gap: 2px; padding: 3px 9px 4px; }
+.menu-arrange > span { font-size: 13px; color: var(--ink); margin-right: auto; }
+.menu-arrange > i { width: 1px; height: 15px; background: var(--line); margin: 0 4px; flex: none; }
+.menu-arrange button {
+  min-width: 22px; height: 22px; border-radius: 5px; flex: none;
+  font: 500 11px var(--mono); color: var(--muted);
+}
+.menu-arrange button:hover { background: rgba(23, 23, 26, 0.08); color: var(--ink); }
 
 /* ---------- sheet ---------- */
 

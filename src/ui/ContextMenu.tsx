@@ -101,6 +101,9 @@ export function ContextMenu({ menu, onClose, onOpenEditor, canvas }: Props) {
   const first = items[0]
   const anyInSection = items.some((i) => i!.parent)
   const anySection = items.some((i) => i!.kind === 'section')
+  /* Sections are the ground and wires have no box, so neither can be lined up
+   * with anything. Two cards that can is what makes the row worth showing. */
+  const movable = items.filter((i) => i!.kind !== 'section' && i!.kind !== 'edge').length
   const currentTag = first && items.every((i) => i!.tag === first.tag) ? first.tag : null
 
   const run = (fn: () => void) => () => {
@@ -131,6 +134,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, canvas }: Props) {
             anySection={anySection}
             anyInSection={anyInSection}
             currentTag={currentTag}
+            movable={movable}
             run={run}
             onOpenEditor={onOpenEditor}
           />
@@ -175,7 +179,7 @@ function CanvasMenu({
 }
 
 function CardMenu({
-  ids, first, many, anySection, anyInSection, currentTag, run, onOpenEditor,
+  ids, first, many, anySection, anyInSection, currentTag, movable, run, onOpenEditor,
 }: {
   ids: string[]
   first: Item
@@ -183,6 +187,7 @@ function CardMenu({
   anySection: boolean
   anyInSection: boolean
   currentTag: string | null | undefined
+  movable: number
   run: (fn: () => void) => () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
 }) {
@@ -218,6 +223,30 @@ function CardMenu({
         >
           Connect
         </button>
+      )}
+
+      {movable >= 2 && (
+        <>
+          <div className="menu-sep" />
+          <div className="menu-arrange">
+            <span>Align</span>
+            <button title="Left edges" onClick={run(() => store.align(ids, 'left'))}>L</button>
+            <button title="Centres" onClick={run(() => store.align(ids, 'hcentre'))}>C</button>
+            <button title="Right edges" onClick={run(() => store.align(ids, 'right'))}>R</button>
+            <i />
+            <button title="Tops" onClick={run(() => store.align(ids, 'top'))}>T</button>
+            <button title="Middles" onClick={run(() => store.align(ids, 'vmiddle'))}>M</button>
+            <button title="Bottoms" onClick={run(() => store.align(ids, 'bottom'))}>B</button>
+          </div>
+          {movable >= 3 && (
+            <div className="menu-arrange">
+              <span>Space evenly</span>
+              <button title="Across" onClick={run(() => store.distribute(ids, 'x'))}>↔</button>
+              <button title="Down" onClick={run(() => store.distribute(ids, 'y'))}>↕</button>
+            </div>
+          )}
+          <button onClick={run(() => store.tidy(ids))}>Tidy up</button>
+        </>
       )}
 
       <div className="menu-sep" />

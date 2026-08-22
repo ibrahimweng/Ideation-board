@@ -5,6 +5,8 @@ import { parseQuery, passes, filtering } from '../state/search'
 import type { Item } from '../state/types'
 import { Card } from './Card'
 import { Wires } from './Wires'
+import { guidesFrom, snap } from './snap'
+import type { Guides } from './snap'
 import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
@@ -42,6 +44,13 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
   const tagFilter = useTagFilter()
   const vpRef = useRef<HTMLDivElement | null>(null)
   const surfaceRef = useRef<HTMLDivElement | null>(null)
+  /* Drawn straight to the DOM during a drag, like the surface transform: they
+   * change every frame and mean nothing to anything else. */
+  const guideV = useRef<HTMLElement | null>(null)
+  const guideH = useRef<HTMLElement | null>(null)
+  /* Fingers currently on the board, by pointer id. Kept here rather than in
+   * the gesture, because a second finger arrives as a separate press. */
+  const touches = useRef(new Map<number, { x: number; y: number }>())
   const [visible, setVisible] = useState<string[]>([])
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -163,6 +172,67 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
       const startView = { ...store.peekView() }
       const engine = getEngine()
 
+      /* ---------- fingers ---------- */
+      /* A touch on empty board pans, and two pinch. Marquee selection is a
+       * mouse idea: on a tablet a drag across the board is how you get about,
+       * and there is nothing else to pan with. A press that starts on a card
+       * never reaches here, so dragging a card with one finger still does. */
+      if (e.pointerType === 'touch') {
+        const pts = touches.current
+        pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pts.size > 1) return
+
+        let anchor = { count: 1, view: startView, mid: { x: sx, y: sy }, gap: 1 }
+        let far = 0
+
+        const read = () => {
+          const list = [...pts.values()]
+          const mid = list.reduce((a, p) => ({ x: a.x + p.x / list.length, y: a.y + p.y / list.length }), { x: 0, y: 0 })
+          const gap =
+            list.length > 1 ? Math.max(1, Math.hypot(list[0].x - list[1].x, list[0].y - list[1].y)) : 1
+          return { list, mid: { x: mid.x - r.left, y: mid.y - r.top }, gap }
+        }
+
+        const move = (ev: PointerEvent) => {
+          if (!pts.has(ev.pointerId)) return
+          pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+          const now = read()
+          /* Re-anchor whenever a finger arrives or leaves, or the board would
+           * jump by whatever the new arrangement happens to measure. */
+          if (now.list.length !== anchor.count) {
+            anchor = { count: now.list.length, view: { ...store.peekView() }, mid: now.mid, gap: now.gap }
+            return
+          }
+          engine.touch()
+          const dx = now.mid.x - anchor.mid.x
+          const dy = now.mid.y - anchor.mid.y
+          far = Math.max(far, Math.hypot(dx, dy))
+          if (now.list.length > 1) {
+            const zoomed = zoomAt(anchor.view, anchor.mid.x, anchor.mid.y, now.gap / anchor.gap)
+            store.setViewSilent({ x: zoomed.x + dx, y: zoomed.y + dy, z: zoomed.z })
+          } else {
+            store.setViewSilent({ x: anchor.view.x + dx, y: anchor.view.y + dy })
+          }
+          paintTransform()
+        }
+
+        const up = (ev: PointerEvent) => {
+          pts.delete(ev.pointerId)
+          if (pts.size) return
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          window.removeEventListener('pointercancel', up)
+          store.commitView()
+          /* A tap on empty board clears the selection, the same as a click. */
+          if (far < 6) store.clearSel()
+        }
+
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+        window.addEventListener('pointercancel', up)
+        return
+      }
+
       if (panning) {
         const move = (ev: PointerEvent) => {
           engine.touch()
@@ -245,6 +315,46 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
     let highlight: string | null = null
     const engine = getEngine()
 
+    /* What the dragged card can line up with, worked out once: the lines every
+     * other card offers, and the box the whole drag set starts in. */
+    const dragging = new Set(ids)
+    /* Only what is on screen: a card should not be pulled onto the edge of
+     * something nobody can see, and it keeps the work per frame bounded. */
+    const lines: Guides = guidesFrom(
+      store.all().filter((i) => !dragging.has(i.id) && i.kind !== 'edge' && intersects(i, rectRef.current))
+    )
+    const boxes = [...origin.values()]
+    const startBox = {
+      x: Math.min(...boxes.map((b) => b.x)),
+      y: Math.min(...boxes.map((b) => b.y)),
+      w: 0,
+      h: 0,
+    }
+    startBox.w = Math.max(...boxes.map((b) => b.x + b.w)) - startBox.x
+    startBox.h = Math.max(...boxes.map((b) => b.y + b.h)) - startBox.y
+    const tol = 6 / z
+    const thin = 1 / z
+
+    const drawGuide = (el: HTMLElement | null, line: { at: number; from: number; to: number } | null, vertical: boolean) => {
+      if (!el) return
+      if (!line) {
+        el.style.display = 'none'
+        return
+      }
+      el.style.display = 'block'
+      if (vertical) {
+        el.style.left = `${line.at}px`
+        el.style.top = `${line.from}px`
+        el.style.width = `${thin}px`
+        el.style.height = `${line.to - line.from}px`
+      } else {
+        el.style.left = `${line.from}px`
+        el.style.top = `${line.at}px`
+        el.style.width = `${line.to - line.from}px`
+        el.style.height = `${thin}px`
+      }
+    }
+
     const setHighlight = (sectionId: string | null) => {
       if (sectionId === highlight) return
       document.querySelector('.card-section[data-drop]')?.removeAttribute('data-drop')
@@ -261,11 +371,25 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
       if (!moved) store.beginGesture()
       moved = true
       engine.touch()
-      const snap = ev.shiftKey
+      /* Shift asks for the grid instead, which is the coarser of the two and
+       * should not then be pulled off it by a neighbour. */
+      const toGrid = ev.shiftKey
+      let ox = dx
+      let oy = dy
+      if (toGrid) {
+        ox = Math.round((startBox.x + dx) / SNAP) * SNAP - startBox.x
+        oy = Math.round((startBox.y + dy) / SNAP) * SNAP - startBox.y
+        drawGuide(guideV.current, null, true)
+        drawGuide(guideH.current, null, false)
+      } else {
+        const s = snap({ x: startBox.x + dx, y: startBox.y + dy, w: startBox.w, h: startBox.h }, lines, tol)
+        ox += s.dx
+        oy += s.dy
+        drawGuide(guideV.current, s.vLine, true)
+        drawGuide(guideH.current, s.hLine, false)
+      }
       for (const [iid, o] of origin) {
-        const nx = snap ? Math.round((o.x + dx) / SNAP) * SNAP : o.x + dx
-        const ny = snap ? Math.round((o.y + dy) / SNAP) * SNAP : o.y + dy
-        store.update(iid, { x: Math.round(nx), y: Math.round(ny) }, false)
+        store.update(iid, { x: Math.round(o.x + ox), y: Math.round(o.y + oy) }, false)
       }
       /* Show which section would take the drop. */
       if (testable.length) {
@@ -277,6 +401,8 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       setHighlight(null)
+      drawGuide(guideV.current, null, true)
+      drawGuide(guideH.current, null, false)
       if (moved && testable.length) store.reparentByPosition(testable)
     }
     window.addEventListener('pointermove', move)
@@ -362,6 +488,8 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
     >
       <div className="surface" ref={surfaceRef}>
         <Wires ids={edgeIds} selected={selection} />
+        <i className="guide guide-v" ref={guideV} />
+        <i className="guide guide-h" ref={guideH} />
         {visible.map((id) => {
           const it = store.getItem(id)
           if (!it) return null

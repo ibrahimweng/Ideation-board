@@ -23,6 +23,8 @@
     "test:wires": "node test/wires.mjs",
     "test:notes": "node test/notes.mjs",
     "test:transfer": "node test/transfer.mjs",
+    "test:arrange": "node test/arrange.mjs",
+    "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs"
   },

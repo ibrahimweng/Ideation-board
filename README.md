@@ -71,11 +71,14 @@ You add things in several ways:
 
 Once something is on the board:
 
-- Drag a card to move it. Hold Shift while dragging to snap to a grid.
+- Drag a card to move it. It lines itself up with the cards around it and
+  draws a guide where it has, or hold Shift to snap to a grid instead.
 - Drag a corner handle to resize it.
 - Drag on empty space to select several cards at once.
 - Hover a card and drag one of the four dots on its sides onto another card to
   connect them.
+- Select several and use the right click menu to line them up, space them
+  evenly, or tidy them onto a grid.
 - Hold Alt and drag, or drag with the middle mouse button, to pan the board.
 - Hold Ctrl or Cmd and scroll to zoom.
 - Double click a note, a label or a section to edit its text.
@@ -197,6 +200,24 @@ The note stays one string. That is what keeps search working on it, keeps the
 saved board readable, lets a note pasted in from somewhere else arrive with its
 shape intact, and means none of this needed a migration.
 
+## Tidying up
+
+Cards line themselves up as you drag them: edges with edges, middles with
+middles. A guide is drawn between the two cards that agree, so it is clear what
+has just happened, and Shift asks for the plain grid instead.
+
+Select two or more and the right click menu can line them up by any edge or
+through their middles. Three or more can be spaced evenly across or down, with
+the outermost two left where they are. "Tidy up" lays the selection out on a
+grid, in the order it reads now, keeping roughly the shape it already had: a
+row stays a row and a block stays a block. Each is one step of undo.
+
+## Using it with fingers
+
+One finger on empty board pans it, two pinch to zoom, and a finger on a card
+drags the card. A tap on empty board clears the selection. Dragging a card with
+one finger works because a press that starts on a card never becomes a pan.
+
 ## Connecting cards
 
 Hover a card and four dots appear on its sides. Drag one onto another card and
@@ -311,6 +332,8 @@ npm run test:boards -- http://localhost:5173
 npm run test:wires -- http://localhost:5173
 npm run test:notes -- http://localhost:5173
 npm run test:transfer -- http://localhost:5173
+npm run test:arrange -- http://localhost:5173
+npm run test:touch -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
@@ -324,6 +347,11 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:arrange` drags a card onto a neighbour's edge and checks it is pulled
+  exactly onto it with a guide to say so, then lines up, spaces and tidies a
+  selection from the menu and checks each is a single step of undo.
+- `test:touch` pans with one finger, pinches with two, drags a card with one,
+  and taps to clear the selection.
 - `test:transfer` builds a board with a picture, an arrow and a board nested
   inside it, exports the lot, wipes the browser and drops the file back on an
   empty board, then checks every piece came back — including the picture, which
