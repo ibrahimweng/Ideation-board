@@ -8,6 +8,7 @@ import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import type { Board as BoardModel, Item } from './state/types'
 import { download } from './store/fs'
+import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
 import { KEYS, titleFor } from './ui/shortcuts'
@@ -37,6 +38,7 @@ export default function App() {
   const [engineOk, setEngineOk] = useState(true)
   const [path, setPath] = useState<Crumb[]>([ROOT])
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const importRef = useRef<HTMLInputElement | null>(null)
   /* Read by callbacks that must not be rebuilt every time the path changes. */
   const pathRef = useRef(path)
   pathRef.current = path
@@ -179,9 +181,60 @@ export default function App() {
     }
   }, [])
 
+  /* The board you are on and everything nested inside it, with its media, as
+   * one file. The pending save is forced out first so what leaves is what is
+   * on screen rather than what was there a moment ago. */
+  const exportBoard = useCallback(async () => {
+    setBusy('Packing the board…')
+    try {
+      await saveNow.current()
+      const out = await exportTree(store.id)
+      download(out.blob, out.name)
+      const bits = [out.boards === 1 ? '1 board' : `${out.boards} boards`]
+      if (out.media) bits.push(out.media === 1 ? '1 file' : `${out.media} files`)
+      setBusy(`Exported ${bits.join(' and ')}`)
+      window.setTimeout(() => setBusy(null), 2200)
+    } catch (err) {
+      setBusy(err instanceof Error ? err.message : 'The board could not be exported')
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
+  /* An imported board arrives as a board card on the board you are on, rather
+   * than replacing anything: nothing is lost, and the same file can be brought
+   * in twice as two separate boards. */
+  const importBoard = useCallback(async (file: Blob, at: { x: number; y: number }) => {
+    setBusy('Reading the board…')
+    try {
+      const out = await importTree(file, at)
+      store.add(out.card)
+      store.select([out.card.id])
+      const bits = [out.boards === 1 ? '1 board' : `${out.boards} boards`]
+      if (out.media) bits.push(out.media === 1 ? '1 file' : `${out.media} files`)
+      setBusy(`Imported ${bits.join(' and ')}`)
+      window.setTimeout(() => setBusy(null), 2200)
+      return true
+    } catch (err) {
+      setBusy(err instanceof Error ? err.message : 'That file could not be read')
+      window.setTimeout(() => setBusy(null), 3200)
+      return false
+    }
+  }, [])
+
   const onDropFiles = useCallback(async (files: FileList | File[], at: { x: number; y: number }) => {
-    const list = Array.from(files)
+    let list = Array.from(files)
     if (!list.length) return
+    /* A board file dropped on the board is a board, not an attachment. One
+     * that turns out not to be is added as a file like anything else. */
+    const bundles = list.filter((f) => looksLikeBoardFile(f.name))
+    if (bundles.length) {
+      const rest: File[] = list.filter((f) => !bundles.includes(f))
+      for (const f of bundles) {
+        if (!(await importBoard(f, at))) rest.push(f)
+      }
+      list = rest
+      if (!list.length) return
+    }
     setBusy(`Adding ${list.length} file${list.length > 1 ? 's' : ''}…`)
     let n = 0
     /* Items appear one at a time as they become ready rather than all at the
@@ -194,10 +247,6 @@ export default function App() {
     setBusy(null)
   }, [])
 
-  const exportBoard = useCallback(() => {
-    const b = store.toBoard()
-    download(new Blob([JSON.stringify(b, null, 2)], { type: 'application/json' }), `${b.name || 'board'}.json`)
-  }, [])
 
   /* ---------- keyboard ---------- */
   useEffect(() => {
@@ -226,7 +275,12 @@ export default function App() {
       if (cmd && e.key.toLowerCase() === 's') {
         /* The browser's own save dialog is not useful here. */
         e.preventDefault()
-        exportBoard()
+        void exportBoard()
+        return
+      }
+      if (cmd && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        importRef.current?.click()
         return
       }
 
@@ -305,6 +359,10 @@ export default function App() {
       addLabel: (at: { x: number; y: number }) => store.add(labelItem(at)),
       addSection: (at: { x: number; y: number }) => store.add(sectionItem(at)),
       addBoard: (at: { x: number; y: number }) => void addBoard(at),
+      importBoard: (at: { x: number; y: number }) => {
+        pendingAt.current = at
+        importRef.current?.click()
+      },
       addLink: (at: { x: number; y: number }) => {
         const u = window.prompt('Paste a link. A video URL becomes a playable card.')
         if (u) addUrl(at, u)
@@ -425,8 +483,14 @@ export default function App() {
             Redo <kbd aria-hidden="true">{KEYS.redo.hint}</kbd>
           </button>
           <span className="sep" />
-          <button onClick={exportBoard} title={titleFor('export')}>
+          <button onClick={() => void exportBoard()} title={titleFor('export')}>
             Export <kbd aria-hidden="true">{KEYS.export.hint}</kbd>
+          </button>
+          {/* First to go when the row runs short: importing is also a drop, a
+              menu entry and a shortcut, while nothing else here has a second
+              way in. */}
+          <button className="tools-wide" onClick={() => importRef.current?.click()} title={titleFor('import')}>
+            Import <kbd aria-hidden="true">{KEYS.import.hint}</kbd>
           </button>
           <button
             data-on={panelOpen || undefined}
@@ -442,6 +506,20 @@ export default function App() {
         <Board onDropFiles={onDropFiles} onOpenEditor={openItem} canvasActions={canvasActions} />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} />}
       </main>
+
+      <input
+        ref={importRef}
+        type="file"
+        accept=".zip,.board,application/zip"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          const at = pendingAt.current || centreOfView()
+          pendingAt.current = null
+          if (f) void importBoard(f, at)
+          e.target.value = ''
+        }}
+      />
 
       <input
         ref={fileRef}

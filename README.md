@@ -141,7 +141,8 @@ Keyboard shortcuts:
 | K | New link |
 | E | Show or hide the effects panel |
 | / | Search |
-| Cmd or Ctrl and S | Export |
+| Cmd or Ctrl and S | Export this board and everything in it |
+| Cmd or Ctrl and O | Import a board file |
 | Cmd or Ctrl and Z | Undo |
 | Shift and Cmd or Ctrl and Z | Redo |
 | Cmd or Ctrl and A | Select everything |
@@ -235,9 +236,8 @@ copy rather than a second door onto the same room.
 Deleting a board card takes the card off this board but leaves what was inside
 it alone, so undo brings back the card and everything in it.
 
-Two things to know: search and the tag filter look at the board you are on, not
-the ones inside it, and "Export" writes out the board you are on rather than
-the whole tree.
+One thing to know: search and the tag filter look at the board you are on, not
+the ones inside it. Export does take the whole tree.
 
 ## Video from a link
 
@@ -268,7 +268,20 @@ The board saves itself to IndexedDB in your browser a moment after each change.
 It loads again when you reopen the page. Media files are stored separately from
 the board layout, so opening a board does not load every picture at once.
 
-The "Export" button writes the board out as a JSON file.
+## Taking a board out, and putting one back
+
+"Export" writes the board you are on, every board nested inside it, and every
+picture, video and file any of them use, into one `.board.zip`. It is an
+ordinary zip: a `board.json` describing the tree and a `media` folder beside
+it, so anything can open it and a person can read it.
+
+"Import" reads one back. Drop the file on the board, use the button, press Cmd
+or Ctrl with O, or pick "Board file…" from the right click menu on empty board.
+
+An imported board arrives as a board card on the board you are on. Nothing is
+replaced, everything inside it is renamed on the way in, and so the same file
+can be brought in twice as two separate boards, and a board someone sends you
+cannot land on top of anything you already have.
 
 Because the storage is local to one browser, your boards do not follow you to
 another machine. The storage code sits behind a small set of functions in
@@ -297,6 +310,7 @@ npm run test:sections -- http://localhost:5173
 npm run test:boards -- http://localhost:5173
 npm run test:wires -- http://localhost:5173
 npm run test:notes -- http://localhost:5173
+npm run test:transfer -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
@@ -310,6 +324,12 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:transfer` builds a board with a picture, an arrow and a board nested
+  inside it, exports the lot, wipes the browser and drops the file back on an
+  empty board, then checks every piece came back — including the picture, which
+  is the part the old export could not carry. It also opens the file with
+  Python's own zip reader, so "openable by anything" is checked by something
+  that is not the reader that wrote it.
 - `test:notes` writes a note with every mark in it and checks each one is drawn
   as what it means, that ticking a box on the card writes the tick back into
   the text and survives a reload, and that the editor's buttons put marks where

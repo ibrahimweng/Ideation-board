@@ -228,6 +228,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
    that the left of the bar keeps enough room to say where you are. Only while
    there is a trail to make room for: the root board is as it was. */
 @media (max-width: 1180px) {
+  .tools .tools-wide { display: none; }
   .topbar[data-nested] { gap: 10px; }
   .topbar[data-nested] .search { margin-left: 8px; }
   .topbar[data-nested] .tools button { padding: 6px 8px; }

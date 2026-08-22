@@ -431,18 +431,22 @@ for (const w of [1600, 1440, 1360, 1280, 1024, 900]) {
   await page.waitForTimeout(300)
   const bar = await page.evaluate(() => {
     const tools = document.querySelector('.tools')
-    const btns = [...tools.querySelectorAll('button')]
+    /* Only the buttons that are actually drawn. A button the narrow layout
+     * puts away has no box, and counting its zero as a row said the bar had
+     * wrapped when it had not. */
+    const btns = [...tools.querySelectorAll('button')].filter(b => b.getBoundingClientRect().width > 0)
     const rows = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top)))
     const last = btns[btns.length - 1].getBoundingClientRect()
     return {
       rows: rows.size,
+      shown: btns.length,
       clipped: Math.round(last.right) > window.innerWidth + 1,
       topbarH: Math.round(document.querySelector('.topbar').getBoundingClientRect().height),
     }
   })
   ok(`layout: top bar is one row at ${w}px`,
      bar.rows === 1 && !bar.clipped && bar.topbarH === 52,
-     `rows ${bar.rows}, clipped ${bar.clipped}, height ${bar.topbarH}`)
+     `${bar.shown} buttons, rows ${bar.rows}, clipped ${bar.clipped}, height ${bar.topbarH}`)
 }
 await page.setViewportSize({ width: 1440, height: 900 })
 await page.waitForTimeout(400)

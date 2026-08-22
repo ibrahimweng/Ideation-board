@@ -27,6 +27,7 @@ export interface CanvasActions {
   addLabel: (at: { x: number; y: number }) => void
   addSection: (at: { x: number; y: number }) => void
   addBoard: (at: { x: number; y: number }) => void
+  importBoard: (at: { x: number; y: number }) => void
   addLink: (at: { x: number; y: number }) => void
   pickFiles: (at: { x: number; y: number }) => void
   paste: (at: { x: number; y: number }) => void
@@ -155,6 +156,7 @@ function CanvasMenu({
       <button onClick={run(() => canvas.addBoard(at))}>Board</button>
       <button onClick={run(() => canvas.addLink(at))}>Link</button>
       <button onClick={run(() => canvas.pickFiles(at))}>Files…</button>
+      <button onClick={run(() => canvas.importBoard(at))}>Board file…</button>
 
       <div className="menu-sep" />
 
