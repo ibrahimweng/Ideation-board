@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
+import type { PanelTab } from './ui/EffectsPanel'
 import { store, useSelection } from './state/store'
 import { ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
 import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
@@ -32,7 +33,7 @@ const ROOT: Crumb = { id: BOARD_ID, name: 'Untitled board', card: null }
 
 export default function App() {
   const selection = useSelection()
-  const [tab, setTab] = useState<'effect' | 'adjust'>('effect')
+  const [tab, setTab] = useState<PanelTab>('effect')
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [editing, setEditing] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -181,6 +182,12 @@ export default function App() {
       x: (-v.x + r.width / 2) / v.z - 150 + step,
       y: (-v.y + r.height / 2) / v.z - 100 + step,
     }
+  }, [])
+
+  /* A line along the bottom that takes itself away again. */
+  const say = useCallback((msg: string, ms = 2200) => {
+    setBusy(msg)
+    window.setTimeout(() => setBusy(null), ms)
   }, [])
 
   /* The board you are on and everything nested inside it, with its media, as
@@ -552,7 +559,7 @@ export default function App() {
           onExportPictures={exportPictures}
           canvasActions={canvasActions}
         />
-        {panelOpen && <EffectsPanel tab={tab} onTab={setTab} />}
+        {panelOpen && <EffectsPanel tab={tab} onTab={setTab} say={say} />}
       </main>
 
       <input

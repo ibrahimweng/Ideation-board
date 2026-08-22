@@ -29,7 +29,8 @@
     "test:arrange": "node test/arrange.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
-    "test:search": "node test/search.mjs"
+    "test:search": "node test/search.mjs",
+    "test:looks": "node test/looks.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

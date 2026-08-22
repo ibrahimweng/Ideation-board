@@ -162,11 +162,12 @@ Select an image or a video and open the Effects panel. There are 31 effects,
 grouped by the kind of look they give. Each preview in the panel is a real
 render of your own picture through that effect, not a stock sample.
 
-The panel has two tabs:
+The panel has three tabs:
 
-- Effect. Pick one of the 24 effects and adjust its own settings.
+- Effect. Pick one of the 31 effects and adjust its own settings.
 - Adjust. Change exposure, contrast, saturation, warmth, blur and grain. You
   can also zoom, move, rotate and flip the picture inside its card.
+- Looks. Save what you have arrived at and put it on other pictures.
 
 You can select several images and apply the same effect to all of them at once.
 
@@ -179,6 +180,35 @@ video, the card shows the effected picture and gets its own play button, scrub
 bar and mute button, because the browser's own controls sit behind the effect
 and cannot be reached. Pause anywhere and the card keeps showing the effected
 frame you stopped on.
+
+## Saved looks
+
+A board of photographs is rarely a dozen separate decisions. It is usually one
+decision made a dozen times, and the Looks tab is where that decision is kept.
+
+Set an effect and a tone on one picture, open Looks and press "Save this look".
+It arrives in the grid below under a name taken from what it actually is —
+"Halftone mono grain" — which you can type over then or rename later by double
+clicking it. Every tile in the grid is a live render of the picture you have
+selected through that look, so you are choosing by looking at your own
+photograph rather than at a stock sample.
+
+Click a tile to put that look on everything selected, in one step of undo.
+
+A look carries the treatment and not the composition: the effect, its own
+settings, and exposure, contrast, saturation, warmth, blur and grain. It leaves
+zoom, offset, rotation and flip alone, because those are how one particular
+picture is cropped and carrying them across would wreck eleven framings to copy
+one.
+
+For a look you want once rather than forever, right click a graded card and
+choose "Copy look", then right click another and choose "Paste look". The
+clipboard holds one look and survives a reload.
+
+Saved looks are kept in the browser rather than in the board, because a look is
+how you work rather than what is on this board. The one you saved last week is
+waiting on the board you start today, and it does not travel inside an exported
+`.board.zip`.
 
 ## Notes
 
@@ -357,6 +387,7 @@ npm run test:arrange -- http://localhost:5173
 npm run test:touch -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
+npm run test:looks -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
 npm run test:png -- http://localhost:5173
@@ -374,6 +405,12 @@ npm run bench
 - `test:arrange` drags a card onto a neighbour's edge and checks it is pulled
   exactly onto it with a guide to say so, then lines up, spaces and tidies a
   selection from the menu and checks each is a single step of undo.
+- `test:looks` grades a card, saves the look, puts it on a second card and on a
+  whole selection, and checks the treatment carries while the framing does not
+  — the second card is zoomed first, and stays zoomed. It also copies and
+  pastes a look through the card menu, renames one, deletes one, and reloads
+  the page twice to check that a saved look outlives the browser session and
+  that a deleted one stays deleted.
 - `test:touch` pans with one finger, pinches with two, drags a card with one,
   and taps to clear the selection.
 - `test:transfer` builds a board with a picture, an arrow and a board nested

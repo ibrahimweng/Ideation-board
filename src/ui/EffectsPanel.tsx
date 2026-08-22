@@ -5,6 +5,7 @@ import { isColor, isEnum } from '../engine/types'
 import type { Control, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
+import { LooksTab } from './LooksTab'
 
 /* ---------------------------------------------------------------------------
  * Effects panel.
@@ -30,12 +31,15 @@ const PRESETS: { id: string; name: string; vals: Partial<FxState> }[] = [
   { id: 'print', name: 'Print', vals: { sat: 86, con: 12, grain: 30, warm: 8 } },
 ]
 
+export type PanelTab = 'effect' | 'adjust' | 'looks'
+
 interface Props {
-  tab: 'effect' | 'adjust'
-  onTab: (t: 'effect' | 'adjust') => void
+  tab: PanelTab
+  onTab: (t: PanelTab) => void
+  say: (msg: string) => void
 }
 
-export function EffectsPanel({ tab, onTab }: Props) {
+export function EffectsPanel({ tab, onTab, say }: Props) {
   const selection = useSelection()
   /* Controls edit the first selected media item and apply to all of them. */
   const targets = useMemo(
@@ -105,7 +109,19 @@ export function EffectsPanel({ tab, onTab }: Props) {
         <button data-on={tab === 'adjust' || undefined} onClick={() => onTab('adjust')}>
           Adjust
         </button>
+        <button data-on={tab === 'looks' || undefined} onClick={() => onTab('looks')}>
+          Looks
+        </button>
       </div>
+
+      {tab === 'looks' && (
+        <LooksTab
+          ids={ids}
+          fx={fx}
+          previewKey={previewKey}
+          onApplied={(n) => n > 0 && say(n === 1 ? 'Look applied' : `Look applied to ${n} cards`)}
+        />
+      )}
 
       {tab === 'effect' && !shadeable && (
         <div className="panel-scroll">

@@ -2,6 +2,7 @@ import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
+import type { LookFx } from './looks'
 
 /* ---------------------------------------------------------------------------
  * Board store.
@@ -455,6 +456,22 @@ export class BoardStore {
       this.place(it, Math.round(x0 + col * (cellW + gap)), Math.round(y0 + row * (cellH + gap)))
     })
     this.touch()
+  }
+
+  /* Puts one look on every card that can wear it. The framing each card has
+   * is left alone: a look is the treatment, not the crop. */
+  applyLook(ids: string[], look: LookFx) {
+    const targets = ids
+      .map((id) => this.items.get(id))
+      .filter((i): i is Item => !!i && (i.kind === 'image' || i.kind === 'video' || i.kind === 'embed'))
+    if (!targets.length) return 0
+    this.snapshot()
+    for (const it of targets) {
+      this.items.set(it.id, { ...it, fx: { ...it.fx, ...look, ep: look.ep ? { ...look.ep } : null } })
+      this.pingItem(it.id)
+    }
+    this.touch()
+    return targets.length
   }
 
   setTag(ids: string[], tag: string | null) {

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { store } from '../state/store'
+import { copiedLook, copyLook, isPlain, lookFrom } from '../state/looks'
 import { TAGS } from '../state/types'
 import type { Item } from '../state/types'
 
@@ -107,6 +108,13 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, can
   const movable = items.filter((i) => i!.kind !== 'section' && i!.kind !== 'edge').length
   /* Only a picture or a video has pixels to hand over. */
   const pictures = items.filter((i) => i!.kind === 'image' || i!.kind === 'video').map((i) => i!.id)
+  /* A look can be worn by anything with a picture behind it, an embedded
+   * player included: the tone applies even where a shader cannot. */
+  const targets = items
+    .filter((i) => i!.kind === 'image' || i!.kind === 'video' || i!.kind === 'embed')
+    .map((i) => i!.id)
+  const graded = !!first && targets.includes(first.id) && !isPlain(lookFrom(first.fx))
+  const clip = copiedLook()
   const currentTag = first && items.every((i) => i!.tag === first.tag) ? first.tag : null
 
   const run = (fn: () => void) => () => {
@@ -139,6 +147,9 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, can
             currentTag={currentTag}
             movable={movable}
             pictures={pictures}
+            targets={targets}
+            graded={graded}
+            clip={clip}
             onExportPictures={onExportPictures}
             run={run}
             onOpenEditor={onOpenEditor}
@@ -184,7 +195,8 @@ function CanvasMenu({
 }
 
 function CardMenu({
-  ids, first, many, anySection, anyInSection, currentTag, movable, pictures, run, onOpenEditor, onExportPictures,
+  ids, first, many, anySection, anyInSection, currentTag, movable, pictures, targets, graded, clip,
+  run, onOpenEditor, onExportPictures,
 }: {
   ids: string[]
   first: Item
@@ -194,6 +206,9 @@ function CardMenu({
   currentTag: string | null | undefined
   movable: number
   pictures: string[]
+  targets: string[]
+  graded: boolean
+  clip: ReturnType<typeof copiedLook>
   run: (fn: () => void) => () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
@@ -222,6 +237,17 @@ function CardMenu({
       {pictures.length > 0 && (
         <button onClick={run(() => onExportPictures(pictures))}>
           {pictures.length > 1 ? `Export ${pictures.length} as PNG` : 'Export as PNG'} <em>⌘E</em>
+        </button>
+      )}
+
+      {/* The fast way to make a set look like a set, without opening the
+          panel: take the treatment off one card and put it on the rest. */}
+      {graded && !many && (
+        <button onClick={run(() => copyLook(lookFrom(first.fx)))}>Copy look</button>
+      )}
+      {clip && targets.length > 0 && (
+        <button onClick={run(() => store.applyLook(targets, clip))}>
+          Paste look{targets.length > 1 ? ` onto ${targets.length}` : ''}
         </button>
       )}
       {/* Two cards and nothing else: the one case where what to connect to
