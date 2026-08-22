@@ -149,6 +149,50 @@ check('every effect paints something of its own', unchanged.length === 0, unchan
 check('no two effects paint the same picture', same.length === 0, same.join(', ') || 'all distinct')
 check('none of them paints a flat colour', flat.length === 0, flat.join(', ') || 'all have detail')
 
+/* ---------- the one that used to give up in the shadows ---------- */
+/* ASCII has ten glyphs to spend, and a picture with a large dark mass in it
+ * used to spend all of them on the first one across that whole area: the
+ * mountains came back as a flat black shape with nothing in them. What tells
+ * the two apart is not how bright the card is overall but whether anything is
+ * happening inside the part of the picture that is dark. */
+const spreadIn = (b64, x0, y0, x1, y1) =>
+  page.evaluate(async ({ data, box }) => {
+    const img = new Image()
+    img.src = 'data:image/png;base64,' + data
+    await img.decode()
+    const s = document.createElement('canvas')
+    s.width = img.width
+    s.height = img.height
+    const x = s.getContext('2d')
+    x.drawImage(img, 0, 0)
+    const px = Math.round(img.width * box[0])
+    const py = Math.round(img.height * box[1])
+    const pw = Math.max(1, Math.round(img.width * (box[2] - box[0])))
+    const ph = Math.max(1, Math.round(img.height * (box[3] - box[1])))
+    const d = x.getImageData(px, py, pw, ph).data
+    let n = 0
+    let sum = 0
+    let sum2 = 0
+    for (let i = 0; i < d.length; i += 4) {
+      const v = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]
+      sum += v
+      sum2 += v * v
+      n++
+    }
+    const mean = sum / n
+    return Math.round(Math.sqrt(Math.max(0, sum2 / n - mean * mean)))
+  }, { data: b64, box: [x0, y0, x1, y1] })
+
+/* The bottom left of the fixture is the solid dark mass of the mountain. */
+const asciiShot = shots.find((s) => s.name === 'ASCII')
+const plainShadow = await spreadIn(plainShot, 0.05, 0.62, 0.45, 0.95)
+const asciiShadow = await spreadIn(asciiShot.b64, 0.05, 0.62, 0.45, 0.95)
+check(
+  'ASCII finds something to say in the shadows',
+  asciiShadow > 18,
+  `spread ${asciiShadow} there, ${plainShadow} in the picture itself`
+)
+
 /* The contact sheet, for looking at rather than for asserting on. */
 const sheet = await page.evaluate(async (list) => {
   const cols = 6

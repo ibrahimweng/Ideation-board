@@ -392,8 +392,9 @@ npm run bench
 - `test:effects` applies all 31 to one picture and checks that each paints
   something of its own, that no two paint the same thing, and that none paints
   a flat colour. A shader that fails to compile falls back to Original without
-  saying so, which is exactly what that catches. It leaves a contact sheet of
-  every effect in `.smoke` to look at.
+  saying so, which is exactly what that catches. It also checks that ASCII
+  finds something to say in the picture's shadows, which is where it used to
+  give up. It leaves a contact sheet of every effect in `.smoke` to look at.
 - `test:aspect` puts a circle on a card that is not the shape of its picture
   and checks it is still a circle once an effect is on it, measured on a
   picture of the card rather than on the bitmap behind it.

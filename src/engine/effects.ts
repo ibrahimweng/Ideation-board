@@ -16,18 +16,48 @@ export const EFFECTS: EffectSpec[] = [
 
   {
     id: 'ascii', name: 'ASCII', group: 'Type', blurKey: 'p4',
-    controls: [N('p0', 'Cell size', 5, 40, 1, 15, 'px'), N('p1', 'Contrast', -0.5, 2.5, 0.05, 0.7),
+    controls: [N('p0', 'Cell width', 3, 24, 0.5, 8, 'px'), N('p1', 'Contrast', -0.5, 2.5, 0.05, 0.3),
       E('p2', 'Glyphs', 0, ['Dense', 'Simple', 'Blocks']), E('p3', 'Ink', 0, ['Flat', 'From image']),
-      N('p4', 'Soften', 0, 20, 1, 2), C('c0', 'Ink', '#F2EFE6'), C('c1', 'Paper', '#111114')],
+      N('p4', 'Soften', 0, 20, 1, 2), N('p5', 'Auto tone', 0, 1, 0.02, 0.75),
+      C('c0', 'Ink', '#F2EFE6'), C('c1', 'Paper', '#111114')],
+    /* Cells are the shape of a character, not squares, so the picture reads as
+     * lines of type rather than as a field of dots.
+     *
+     * Auto tone is what makes it work on a photograph. The glyph ramp has ten
+     * steps and a picture that is mostly dark spends all of them on the first
+     * one: the card comes back nearly blank. Centring the picture's own
+     * average on the middle of the ramp spends the glyphs where the detail
+     * actually is, which is what a person doing this by hand would do. */
     frag: `vec4 fx(vec2 uv){
-      float cs = max(4.0, p0*unit());
+      float cw = max(3.0, p0*unit());
+      vec2 cs = vec2(cw, cw*1.667);
       vec2 g = uRes/cs, cell = floor(uv*g), f = fract(uv*g);
       vec3 src = B((cell+0.5)/g).rgb;
-      float v = clamp((luma(src)-0.5)*(1.0+p1)+0.5, 0.0, 1.0);
+      float v = luma(src);
+      float mean = 0.0;
+      for(float y=0.0;y<3.0;y+=1.0){
+        for(float x=0.0;x<3.0;x+=1.0){
+          mean += luma(T(vec2((x*2.0+1.0)/6.0, (y*2.0+1.0)/6.0)).rgb);
+        }
+      }
+      mean /= 9.0;
+      /* Ink on paper is not symmetric. A cell that falls below the first
+       * glyph is simply not drawn, so tone lost at the bottom is lost for
+       * good, while tone crowded at the top still shows as a heavier
+       * character. So a dark picture is lifted firmly and a bright one is
+       * let down gently. */
+      float shift = 0.46 - mean;
+      if(shift < 0.0) shift *= 0.35;
+      v = clamp(v + shift*p5*1.2, 0.0, 1.0);
+      v = clamp((v-0.5)*(1.0+p1)+0.5, 0.0, 1.0);
       int row = int(p2+0.5);
       float count = row==0 ? 10.0 : 5.0;
       float gi = floor(v*(count-0.001));
-      float ink = texture(uGlyph, vec2((gi+f.x)/16.0, (float(row)+f.y)/3.0)).r;
+      /* Kept a fraction of a cell away from the edges of the glyph in the
+       * atlas: sampling right on the border blends in the character next to it
+       * and drew a faint grid over the whole picture. */
+      vec2 gf = clamp(f, 0.03, 0.97);
+      float ink = texture(uGlyph, vec2((gi+gf.x)/16.0, (float(row)+gf.y)/3.0)).r;
       vec3 col = p3<0.5 ? c0 : src;
       return vec4(mix(c1, col, ink), 1.0); }`
   },
