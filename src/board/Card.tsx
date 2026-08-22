@@ -8,6 +8,8 @@ import { BoardCard } from './BoardCard'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
+import { RichText } from './RichText'
+import { todoCount } from '../state/rich'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
 import { screenToBoard } from './viewport'
@@ -72,6 +74,8 @@ export const Card = memo(function Card({
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null
+  /* A checklist says how far along it is without being opened. */
+  const todo = it.kind === 'note' ? todoCount(it.text || '') : { done: 0, total: 0 }
 
   const shell: React.CSSProperties = {
     transform: `translate3d(${it.x}px, ${it.y}px, 0)`,
@@ -144,6 +148,11 @@ export const Card = memo(function Card({
         <span className="card-name" title={it.name}>
           {it.name || 'Untitled'}
         </span>
+        {todo.total > 0 && (
+          <span className="card-todo" title="Ticked off">
+            {todo.done}/{todo.total}
+          </span>
+        )}
         {tag && <i className="card-tag" style={{ background: tag.c }} />}
       </div>
 
@@ -211,7 +220,7 @@ export const Card = memo(function Card({
 
           {it.kind === 'note' && (
             <div className="note" style={{ background: it.color || '#FBEFC4' }}>
-              {it.text || ''}
+              <RichText id={id} text={it.text || ''} />
             </div>
           )}
 

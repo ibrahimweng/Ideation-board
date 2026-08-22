@@ -3,8 +3,8 @@
 A board where you drop ideas and work on them. You can drop images, video,
 audio, notes, links and other files. You can apply visual effects to the images
 and video, move things around, group them into sections and label them, draw
-connections between them, and put a board inside a board when one canvas is no
-longer enough.
+connections between them, keep checklists in your notes, and put a board inside
+a board when one canvas is no longer enough.
 
 Everything is stored in your own browser. There is no server and no account.
 
@@ -170,6 +170,32 @@ bar and mute button, because the browser's own controls sit behind the effect
 and cannot be reached. Pause anywhere and the card keeps showing the effected
 frame you stopped on.
 
+## Notes
+
+A note holds more than a block of text. Headings, bold, italic, code, quotes,
+bullet and numbered lists, links and checkboxes all work, and the buttons above
+the editor write them for you — or you can type them, since they are the same
+marks people already use in plain text:
+
+```
+# A heading
+**bold**  *italic*  `code`
+- a list
+1. a numbered list
+> something borrowed
+- [ ] still to do
+- [x] done
+https://example.com
+```
+
+Checkboxes can be ticked on the card itself, without opening anything, and the
+card's title bar counts how many are done. Cmd or Ctrl with B and I work in the
+editor.
+
+The note stays one string. That is what keeps search working on it, keeps the
+saved board readable, lets a note pasted in from somewhere else arrive with its
+shape intact, and means none of this needed a migration.
+
 ## Connecting cards
 
 Hover a card and four dots appear on its sides. Drag one onto another card and
@@ -270,6 +296,7 @@ npm run test:ui -- http://localhost:5173
 npm run test:sections -- http://localhost:5173
 npm run test:boards -- http://localhost:5173
 npm run test:wires -- http://localhost:5173
+npm run test:notes -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
@@ -283,6 +310,10 @@ npm run bench
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
   and saving. It clears the board's stored data first, so do not point it at a
   browser holding work you want to keep.
+- `test:notes` writes a note with every mark in it and checks each one is drawn
+  as what it means, that ticking a box on the card writes the tick back into
+  the text and survives a reload, and that the editor's buttons put marks where
+  the cursor is and take them off again.
 - `test:wires` connects two cards by dragging from a port, checks the arrow
   follows them when they move, that the same pair cannot be joined twice, that
   an arrow can be selected and removed on its own, that deleting a card takes
