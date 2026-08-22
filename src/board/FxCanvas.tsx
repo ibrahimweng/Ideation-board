@@ -62,6 +62,18 @@ function useFxSink(id: string, onSettled?: () => void, onTeardown?: () => void) 
           settledRef.current?.()
           return
         }
+        /* The element keeps whatever width and height it was given, and a
+         * canvas that has never been told otherwise is 300 by 150. The
+         * transferred bitmap was then squeezed into that shape before
+         * object-fit ever saw it, so every effected card was drawn through a
+         * two-to-one lens: mild on a landscape card, and a card twice as tall
+         * as it was wide came out flattened. Setting the size first also
+         * clears the canvas, which is why it happens before the transfer and
+         * not after. */
+        if (cv.width !== bitmap.width || cv.height !== bitmap.height) {
+          cv.width = bitmap.width
+          cv.height = bitmap.height
+        }
         /* Transfers ownership of the bitmap into the canvas. No copy, no
          * decode, no readback. */
         ctxRef.current.transferFromImageBitmap(bitmap)

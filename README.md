@@ -156,7 +156,7 @@ Keyboard shortcuts:
 
 ## Effects
 
-Select an image or a video and open the Effects panel. There are 24 effects,
+Select an image or a video and open the Effects panel. There are 31 effects,
 grouped by the kind of look they give. Each preview in the panel is a real
 render of your own picture through that effect, not a stock sample.
 
@@ -167,6 +167,10 @@ The panel has two tabs:
   can also zoom, move, rotate and flip the picture inside its card.
 
 You can select several images and apply the same effect to all of them at once.
+
+An effect never changes the shape of what it is applied to. A card that is not
+the shape of its picture crops it to fill, exactly as it does with no effect on
+it, so turning one on changes the look and nothing else.
 
 Effects work on playing video as well as on stills. When you put an effect on a
 video, the card shows the effected picture and gets its own play button, scrub
@@ -337,6 +341,8 @@ npm run test:touch -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
+npm run test:effects -- http://localhost:5173
+npm run test:aspect -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:urlvideo -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
@@ -383,6 +389,14 @@ npm run bench
   narrows the board and combines with the text.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
+- `test:effects` applies all 31 to one picture and checks that each paints
+  something of its own, that no two paint the same thing, and that none paints
+  a flat colour. A shader that fails to compile falls back to Original without
+  saying so, which is exactly what that catches. It leaves a contact sheet of
+  every effect in `.smoke` to look at.
+- `test:aspect` puts a circle on a card that is not the shape of its picture
+  and checks it is still a circle once an effect is on it, measured on a
+  picture of the card rather than on the bitmap behind it.
 - `test:video` records a short clip in the page, drops it on the board, applies
   an effect and checks that the picture keeps changing while the video plays.
   It also reloads the page to check the card comes back.

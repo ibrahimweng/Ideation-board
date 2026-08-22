@@ -22,11 +22,16 @@ void main(){
 export const PRE = `#version 300 es
 precision highp float;
 uniform sampler2D uTex, uBlur, uGlyph;
-uniform vec2 uRes, uBlurScale, uBlurOff;
+uniform vec2 uRes, uBlurScale, uBlurOff, uCover, uCoverOff;
 uniform float p0,p1,p2,p3,p4,p5,uSeed;
 uniform vec3 c0,c1,c2;
 in vec2 vUv; out vec4 outColor;
-vec4 T(vec2 uv){ return texture(uTex, clamp(uv,0.001,0.999)); }
+/* The card is not the shape of the picture, so the picture is cropped to fill
+   it rather than squashed into it. Same framing an uneffected card gets from
+   object-fit: cover, so turning an effect on changes the look and nothing
+   else. uv stays the position on the card, which is what the patterned
+   effects measure their cells and grids in. */
+vec4 T(vec2 uv){ return texture(uTex, clamp(uv*uCover + uCoverOff, 0.001, 0.999)); }
 vec4 B(vec2 uv){ return texture(uBlur, clamp(uv,0.0,1.0)*uBlurScale + uBlurOff); }
 float luma(vec3 c){ return dot(c, vec3(0.2126,0.7152,0.0722)); }
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)+uSeed*0.137); p += dot(p,p+45.32); return fract(p.x*p.y); }

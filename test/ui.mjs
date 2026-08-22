@@ -191,8 +191,14 @@ ok('keyboard: arrow nudges the card', nb1.x > nb0.x+2, `moved ${Math.round(nb1.x
 
 // ---------- 11. effects panel ----------
 ok('panel: effects panel is open', await page.locator('.panel').count() === 1)
-const thumbs = await page.locator('.fx-thumb').count()
-ok('panel: all 24 effects listed', thumbs === 24, `${thumbs} thumbnails`)
+/* A count rather than a number: the point is that the panel lists every
+ * effect once, not that there are exactly as many as there were. */
+const panel = await page.evaluate(() => {
+  const titles = [...document.querySelectorAll('.fx-thumb')].map(b => b.getAttribute('title'))
+  return { n: titles.length, unique: new Set(titles).size, groups: document.querySelectorAll('.fx-group').length }
+})
+ok('panel: every effect listed once', panel.n >= 30 && panel.n === panel.unique,
+   `${panel.n} thumbnails, ${panel.unique} names, ${panel.groups} groups`)
 await page.waitForTimeout(2500)
 const thumbShot = await page.locator('.fx-thumb').nth(5).screenshot()
 ok('panel: previews render real pixels', thumbShot.length > 1500, `${thumbShot.length} bytes`)

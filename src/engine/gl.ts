@@ -79,6 +79,32 @@ const TEX_BUDGET = 220 * 1024 * 1024
  * every single render. This cap bounds what the pool itself holds. */
 const POOL_BUDGET = 64 * 1024 * 1024
 
+export interface Cover {
+  sx: number
+  sy: number
+  ox: number
+  oy: number
+}
+
+/* The part of the picture a card of this shape can show, as a scale and an
+ * offset in texture coordinates. Wider than the card and it loses its sides,
+ * taller and it loses its top and bottom: cropping to fill, which is what an
+ * uneffected card already does through object-fit. */
+export function coverUv(sw: number, sh: number, w: number, h: number): Cover {
+  if (!(sw > 0 && sh > 0 && w > 0 && h > 0)) return { sx: 1, sy: 1, ox: 0, oy: 0 }
+  const src = sw / sh
+  const out = w / h
+  if (Math.abs(src - out) < 1e-4) return { sx: 1, sy: 1, ox: 0, oy: 0 }
+  if (src > out) {
+    /* The picture is wider than the card: keep its height, take a slice out
+     * of the middle. */
+    const sx = out / src
+    return { sx, sy: 1, ox: (1 - sx) / 2, oy: 0 }
+  }
+  const sy = src / out
+  return { sx: 1, sy, ox: 0, oy: (1 - sy) / 2 }
+}
+
 export class Renderer {
   readonly ok: boolean
   private cv: AnyCanvas
@@ -400,8 +426,10 @@ export class Renderer {
 
   /* Blur runs at reduced resolution: a wide blur destroys the detail anyway,
    * so full-resolution passes are wasted fill rate. */
-  private blurChain(src: WebGLTexture, radius: number, w: number, h: number) {
-    const flat = { tex: src, sx: 1, sy: 1, ox: 0, oy: 0 }
+  private blurChain(src: WebGLTexture, radius: number, w: number, h: number, cover: Cover) {
+    /* Unblurred, the effect samples the source itself, so it needs the same
+     * crop the sharp path uses. */
+    const flat = { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
     if (!radius || radius < 0.5) return flat
     const gl = this.gl
     const ds = Math.max(1, Math.min(16, Math.round(radius / 6)))
@@ -428,15 +456,16 @@ export class Renderer {
         gl.viewport(0, 0, bw, bh)
         gl.bindTexture(gl.TEXTURE_2D, read)
         gl.uniform2f(pr.u.uDir!, axis ? 0 : step / bw, axis ? step / bh : 0)
-        gl.uniform2f(pr.u.uScale!, 1, 1)
-        gl.uniform2f(pr.u.uOff!, 0, 0)
+        /* Only the first pass reads the picture; the rest read what the pass
+         * before wrote, which is already cropped. */
+        gl.uniform2f(pr.u.uScale!, first ? cover.sx : 1, first ? cover.sy : 1)
+        gl.uniform2f(pr.u.uOff!, first ? cover.ox : 0, first ? cover.oy : 0)
         this.draw()
         read = fb.tex
         target = 1 - target
         first = false
       }
     }
-    void first
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     return { tex: read, sx: 1, sy: 1, ox: 0, oy: 0 }
   }
@@ -463,9 +492,11 @@ export class Renderer {
     const src = key ? this.uploadCached(key, source, srcW, srcH) : this.uploadLive(source)
     const p = job.params || {}
 
+    /* How much of the picture the card can show without distorting it. */
+    const cover = coverUv(srcW, srcH, w, h)
     const bl = spec.blurKey
-      ? this.blurChain(src, ((p[spec.blurKey] as number) || 0) * (h / 420), w, h)
-      : { tex: src, sx: 1, sy: 1, ox: 0, oy: 0 }
+      ? this.blurChain(src, ((p[spec.blurKey] as number) || 0) * (h / 420), w, h, cover)
+      : { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
 
     const pr = this.prog(job.effectId)
     if (pr.failed || !pr.u || !pr.p) return false
@@ -485,6 +516,8 @@ export class Renderer {
     if (pr.u.uBlur) gl.uniform1i(pr.u.uBlur, 1)
     if (pr.u.uGlyph) gl.uniform1i(pr.u.uGlyph, 2)
     if (pr.u.uRes) gl.uniform2f(pr.u.uRes, w, h)
+    if (pr.u.uCover) gl.uniform2f(pr.u.uCover, cover.sx, cover.sy)
+    if (pr.u.uCoverOff) gl.uniform2f(pr.u.uCoverOff, cover.ox, cover.oy)
     if (pr.u.uSeed) gl.uniform1f(pr.u.uSeed, (job.seed || 1) % 997)
 
     for (let i = 0; i < 6; i++) {

@@ -46,6 +46,32 @@ export const EFFECTS: EffectSpec[] = [
   },
 
   {
+    id: 'hatch', name: 'Cross-hatch', group: 'Type', blurKey: 'p5',
+    controls: [N('p0', 'Spacing', 3, 30, 0.5, 8, 'px'), N('p1', 'Line width', 0.05, 0.9, 0.01, 0.34),
+      N('p2', 'Angle', 0, 180, 1, 35, '°'), N('p3', 'Layers', 1, 4, 1, 3),
+      N('p4', 'Contrast', -0.5, 2.5, 0.05, 0.6), N('p5', 'Soften', 0, 20, 1, 3),
+      C('c0', 'Ink', '#16161A'), C('c1', 'Paper', '#F5F2EA')],
+    /* Tone by how many sets of lines have been laid over each other, which is
+     * how an engraver builds a shadow: one direction for the mid tones, a
+     * second across it for the darks, a third for the darkest. */
+    frag: `vec4 fx(vec2 uv){
+      float v = clamp((luma(B(uv).rgb)-0.5)*(1.0+p4)+0.5, 0.0, 1.0);
+      float sp = max(2.0, p0*unit());
+      float layers = clamp(floor(p3), 1.0, 4.0);
+      float ink = 0.0;
+      for(float i=0.0;i<4.0;i+=1.0){
+        if(i>=layers) break;
+        float t = 1.0 - (i+1.0)/(layers+1.0);
+        if(v>t) continue;
+        float y = rot(uv*uRes, radians(p2 + i*43.0)).y;
+        float d = abs(fract(y/sp)-0.5)*2.0;
+        float w = clamp(p1*(1.0 + (t-v)*1.5), 0.02, 0.98);
+        ink = max(ink, 1.0-smoothstep(w, w+0.28, d));
+      }
+      return vec4(mix(c1,c0,ink),1.0); }`
+  },
+
+  {
     id: 'halftone', name: 'Halftone', group: 'Print', blurKey: 'p4',
     controls: [N('p0', 'Dot pitch', 3, 26, 0.5, 7, 'px'), N('p1', 'Angle', 0, 90, 1, 45, '°'),
       N('p2', 'Contrast', -0.5, 2.5, 0.05, 0.5), E('p3', 'Shape', 0, ['Dot', 'Line', 'Square']),
@@ -104,6 +130,18 @@ export const EFFECTS: EffectSpec[] = [
   },
 
   {
+    id: 'threshold', name: 'Threshold', group: 'Print', blurKey: 'p2',
+    controls: [N('p0', 'Level', 0.05, 0.95, 0.01, 0.5), N('p1', 'Softness', 0, 0.5, 0.01, 0.03),
+      N('p2', 'Soften', 0, 24, 1, 2), E('p3', 'Read', 0, ['Dark is ink', 'Light is ink']),
+      N('p4', 'Grain', 0, 0.5, 0.01, 0), C('c0', 'Ink', '#111114'), C('c1', 'Paper', '#F5F2EA')],
+    frag: `vec4 fx(vec2 uv){
+      float v = luma(B(uv).rgb) + (hash(uv*uRes)-0.5)*p4;
+      float ink = 1.0-smoothstep(p0-p1*0.5-0.004, p0+p1*0.5+0.004, v);
+      if(p3>0.5) ink = 1.0-ink;
+      return vec4(mix(c1,c0,ink),1.0); }`
+  },
+
+  {
     id: 'depth', name: 'Depth map', group: 'Map', blurKey: 'p0',
     controls: [N('p0', 'Falloff', 0, 90, 1, 34), N('p1', 'Contrast', -0.5, 3, 0.05, 0.9),
       E('p2', 'Palette', 2, PALS), N('p3', 'Bands', 0, 12, 1, 0), E('p4', 'Read', 0, ['Light = near', 'Dark = near'])],
@@ -147,6 +185,26 @@ export const EFFECTS: EffectSpec[] = [
       vec3 q = mix(floor(c*lv)/(lv-1.0), c, p1);
       float v = luma(q);
       return vec4(clamp(mix(vec3(v), q, p2),0.0,1.0),1.0); }`
+  },
+
+  {
+    id: 'splittone', name: 'Split tone', group: 'Map',
+    controls: [N('p0', 'Strength', 0, 1.4, 0.02, 0.6), N('p1', 'Balance', -0.4, 0.4, 0.01, 0),
+      N('p2', 'Contrast', -0.4, 1.6, 0.02, 0.15), N('p3', 'Saturation', 0, 2, 0.02, 0.9),
+      C('c0', 'Shadows', '#2E5A72'), C('c1', 'Highlights', '#E8B06A')],
+    /* The picture keeps its own colour; only the two ends of the range are
+     * pushed, which is what separates this from a duotone. */
+    frag: `vec4 fx(vec2 uv){
+      vec3 c = T(uv).rgb;
+      float v = luma(c);
+      c = mix(vec3(v), c, p3);
+      c = clamp((c-0.5)*(1.0+p2)+0.5, 0.0, 1.0);
+      v = luma(c);
+      float sh = 1.0-smoothstep(0.0, 0.55+p1, v);
+      float hl = smoothstep(0.45+p1, 1.0, v);
+      c *= mix(vec3(1.0), c0*2.0, sh*p0);
+      c *= mix(vec3(1.0), c1*2.0, hl*p0);
+      return vec4(clamp(c,0.0,1.0),1.0); }`
   },
 
   {
@@ -210,6 +268,33 @@ export const EFFECTS: EffectSpec[] = [
       return vec4(mix(c0, T(uv+off).rgb, m),1.0); }`
   },
   {
+    id: 'crystal', name: 'Crystallise', group: 'Grid',
+    controls: [N('p0', 'Cell size', 6, 90, 1, 26, 'px'), N('p1', 'Irregularity', 0, 1, 0.02, 0.85),
+      N('p2', 'Outline', 0, 0.5, 0.01, 0.06), N('p3', 'Flatten', 0, 1, 0.02, 1),
+      N('p4', 'Seed', 0, 40, 1, 4), C('c0', 'Outline', '#14141A')],
+    /* Each pixel takes the colour of the nearest scattered point, which breaks
+     * the picture into facets rather than the squares a pixelate gives. The
+     * second nearest gives the seam between two of them. */
+    frag: `vec4 fx(vec2 uv){
+      float cs = max(4.0, p0*unit());
+      vec2 g = uRes/cs, p = uv*g, ip = floor(p), fp = fract(p);
+      float d1 = 9.0, d2 = 9.0; vec2 best = vec2(0.5);
+      for(float y=-1.0;y<=1.0;y+=1.0){
+        for(float x=-1.0;x<=1.0;x+=1.0){
+          vec2 o = vec2(x,y);
+          vec2 j = vec2(hash(ip+o+p4), hash(ip+o+p4+31.7));
+          vec2 pt = o + 0.5 + (j-0.5)*p1;
+          float d = length(pt-fp);
+          if(d<d1){ d2=d1; d1=d; best=ip+o+0.5+(j-0.5)*p1; }
+          else if(d<d2){ d2=d; }
+        }
+      }
+      vec3 c = mix(T(uv).rgb, T(best/g).rgb, p3);
+      float edge = smoothstep(0.0, max(0.004,p2), d2-d1);
+      return vec4(mix(c0, c, edge),1.0); }`
+  },
+
+  {
     id: 'weave', name: 'Weave', group: 'Grid',
     controls: [N('p0', 'Cell size', 8, 140, 1, 46, 'px'), N('p1', 'Row shift', 0, 2, 0.02, 0.55),
       N('p2', 'Column shift', 0, 2, 0.02, 0.3), N('p3', 'Gap', 0, 0.4, 0.01, 0.02), C('c0', 'Gap', '#F4F2EC')],
@@ -265,6 +350,83 @@ export const EFFECTS: EffectSpec[] = [
       vec3 c = vec3(T(uv2+vec2(rs,0.0)).r, T(uv2).g, T(uv2-vec2(rs,0.0)).b);
       c *= 1.0 - p3*0.55*step(0.5, fract(uv.y*uRes.y*0.5));
       return vec4(c,1.0); }`
+  },
+
+  {
+    id: 'oil', name: 'Oil paint', group: 'Paint',
+    controls: [N('p0', 'Brush', 1, 6, 1, 4, 'px'), N('p1', 'Spread', 0.5, 4, 0.1, 2.4),
+      N('p2', 'Saturation', 0, 2, 0.02, 1.15), N('p3', 'Contrast', -0.4, 1.6, 0.02, 0.1),
+      N('p4', 'Edge ink', 0, 1, 0.02, 0), C('c0', 'Edge', '#1A1712')],
+    /* Kuwahara: four squares meeting at the pixel, and the flattest of them
+     * wins. Flat areas turn into strokes of one colour while edges stay put,
+     * which is what makes it read as paint rather than blur. */
+    frag: `vec4 fx(vec2 uv){
+      float r = clamp(floor(p0), 1.0, 6.0);
+      vec2 px = p1/uRes;
+      vec3 best = T(uv).rgb; float bestVar = 1e9;
+      for(float q=0.0;q<4.0;q+=1.0){
+        vec2 dir = vec2(q==0.0||q==3.0 ? 1.0 : -1.0, q<2.0 ? 1.0 : -1.0);
+        vec3 sum = vec3(0.0), sum2 = vec3(0.0); float n = 0.0;
+        for(float i=0.0;i<=6.0;i+=1.0){
+          if(i>r) break;
+          for(float j=0.0;j<=6.0;j+=1.0){
+            if(j>r) break;
+            vec3 c = T(uv + vec2(i*dir.x, j*dir.y)*px).rgb;
+            sum += c; sum2 += c*c; n += 1.0;
+          }
+        }
+        vec3 m = sum/n;
+        vec3 va = abs(sum2/n - m*m);
+        float v = va.r+va.g+va.b;
+        if(v < bestVar){ bestVar = v; best = m; }
+      }
+      float lv = luma(best);
+      best = mix(vec3(lv), best, p2);
+      best = clamp((best-0.5)*(1.0+p3)+0.5, 0.0, 1.0);
+      /* The variance that lost is where the strokes meet. */
+      float edge = smoothstep(0.0006, 0.02, bestVar)*p4;
+      return vec4(mix(best, c0, edge),1.0); }`
+  },
+
+  {
+    id: 'bloom', name: 'Bloom', group: 'Light', blurKey: 'p0',
+    controls: [N('p0', 'Spread', 4, 140, 1, 54), N('p1', 'Threshold', 0, 1, 0.01, 0.5),
+      N('p2', 'Amount', 0, 2, 0.02, 1.15), N('p3', 'Diffusion', 0, 1, 0.02, 0.22),
+      N('p4', 'Contrast', -0.4, 1.6, 0.02, 0), C('c0', 'Glow', '#FFF0D6')],
+    /* Only the bright parts of the blurred copy are screened back over the
+     * picture, which is what a lens does with a highlight and what a print
+     * does with a light source. */
+    frag: `vec4 fx(vec2 uv){
+      vec3 c = T(uv).rgb;
+      vec3 b = B(uv).rgb;
+      c = mix(c, b, p3);
+      c = clamp((c-0.5)*(1.0+p4)+0.5, 0.0, 1.0);
+      float lb = smoothstep(p1, min(1.0, p1+0.28), luma(b));
+      vec3 glow = clamp(b*lb*c0*p2, 0.0, 1.0);
+      return vec4(1.0-(1.0-c)*(1.0-glow), 1.0); }`
+  },
+  {
+    id: 'lens', name: 'Lens', group: 'Light',
+    controls: [N('p0', 'Fringing', 0, 30, 0.5, 6, 'px'), N('p1', 'Vignette', 0, 1.2, 0.02, 0.45),
+      N('p2', 'Distortion', -0.4, 0.6, 0.01, 0.08), N('p3', 'Falloff', 0.1, 1, 0.02, 0.55),
+      N('p4', 'Edge softness', 0, 1, 0.02, 0.35)],
+    /* Everything a lens does at its edges and nothing at its middle: the
+     * colours part, the corners fall away, the frame bows. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 d = uv-0.5;
+      float r2 = dot(d,d);
+      vec2 w = uv + d*r2*p2;
+      vec2 dir = d*(0.4+r2*4.0)*(p0/uRes.x);
+      vec3 c = vec3(T(w+dir).r, T(w).g, T(w-dir).b);
+      /* Soft at the edges the way an open aperture is, sharp in the middle. */
+      float soft = smoothstep(0.12, 0.5, length(d))*p4;
+      if(soft>0.001){
+        vec2 e = soft*2.5/uRes;
+        c = mix(c, (T(w+e).rgb + T(w-e).rgb + T(w+vec2(e.x,-e.y)).rgb + T(w-vec2(e.x,-e.y)).rgb)*0.25, soft);
+      }
+      float rad = length(d*vec2(uRes.x/uRes.y, 1.0))*1.4;
+      c *= 1.0 - p1*smoothstep(p3*0.6, 1.0, rad);
+      return vec4(clamp(c,0.0,1.0),1.0); }`
   },
 
   {
