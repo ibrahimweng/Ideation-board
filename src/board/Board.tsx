@@ -32,12 +32,13 @@ interface Props {
   /* 'open' follows the card: a board card opens its board, everything else
    * opens the editor. 'edit' always means the editor. */
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
+  onExportPictures: (ids: string[]) => void
   canvasActions: CanvasActions
 }
 
 const SNAP = 8
 
-export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
+export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
   const query = useQuery()
@@ -521,6 +522,7 @@ export function Board({ onDropFiles, onOpenEditor, canvasActions }: Props) {
           menu={menu}
           onClose={() => setMenu(null)}
           onOpenEditor={onOpenEditor}
+          onExportPictures={onExportPictures}
           canvas={canvasActions}
         />
       )}

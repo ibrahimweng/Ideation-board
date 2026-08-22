@@ -3,8 +3,9 @@
 A board where you drop ideas and work on them. You can drop images, video,
 audio, notes, links and other files. You can apply visual effects to the images
 and video, move things around, group them into sections and label them, draw
-connections between them, keep checklists in your notes, and put a board inside
-a board when one canvas is no longer enough.
+connections between them, keep checklists in your notes, put a board inside a
+board when one canvas is no longer enough, and take any of it out as a
+full-resolution picture.
 
 Everything is stored in your own browser. There is no server and no account.
 
@@ -146,6 +147,7 @@ Keyboard shortcuts:
 | / | Search |
 | Cmd or Ctrl and S | Export this board and everything in it |
 | Cmd or Ctrl and O | Import a board file |
+| Cmd or Ctrl and E | Export the selected pictures as PNG |
 | Cmd or Ctrl and Z | Undo |
 | Shift and Cmd or Ctrl and Z | Redo |
 | Cmd or Ctrl and A | Select everything |
@@ -293,6 +295,21 @@ The board saves itself to IndexedDB in your browser a moment after each change.
 It loads again when you reopen the page. Media files are stored separately from
 the board layout, so opening a board does not load every picture at once.
 
+## Getting a picture out
+
+Right click a picture or a video and choose "Export as PNG", or press Cmd or
+Ctrl with E. Select several and they come out together as a zip of PNGs.
+
+The file is the picture at its own resolution rather than at the size of the
+card, cropped the way the card crops it. A card showing a narrow slice of a
+wide photograph exports the pixels of that slice, not a stretched copy of the
+whole thing.
+
+What comes out is the card, not just the shader. The effect, the tone, the
+framing and the grain are all in the file, in the order the card applies them,
+because an export carrying only the effect would hand back something you were
+never looking at. Exporting a video card exports the frame you are looking at.
+
 ## Taking a board out, and putting one back
 
 "Export" writes the board you are on, every board nested inside it, and every
@@ -342,6 +359,7 @@ npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
+npm run test:png -- http://localhost:5173
 npm run test:aspect -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:urlvideo -- http://localhost:5173
@@ -395,6 +413,10 @@ npm run bench
   saying so, which is exactly what that catches. It also checks that ASCII
   finds something to say in the picture's shadows, which is where it used to
   give up. It leaves a contact sheet of every effect in `.smoke` to look at.
+- `test:png` exports a card and checks the file is the picture's own
+  resolution rather than the card's, that it is the shape of the card, and that
+  the effect, the tone, the framing and the grain are each really in it. It
+  also exports two cards at once and opens the zip with Python's own reader.
 - `test:aspect` puts a circle on a card that is not the shape of its picture
   and checks it is still a circle once an effect is on it, measured on a
   picture of the card rather than on the bitmap behind it.

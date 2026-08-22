@@ -272,6 +272,69 @@ export class FxEngine {
     }
   }
 
+  /* One render at a size the caller picks, from a source the caller holds,
+   * delivered back rather than painted onto a card.
+   *
+   * Everything else here is sized for the screen: a card asks for its own
+   * dimensions and the engine caps them at what the screen can show. An export
+   * is not for the screen, so it says exactly how big it wants to be and hands
+   * over a full-resolution decode to draw from. */
+  renderOnce(
+    source: ImageBitmap,
+    job: { effectId: string; params: Params | null; seed: number; width: number; height: number }
+  ): Promise<ImageBitmap | null> {
+    if (!this.ok) {
+      source.close()
+      return Promise.resolve(null)
+    }
+    const id = 'export:' + ++this.exportSeq
+    const jobId = --this.liveSeq
+    this.latest.set(id, jobId)
+
+    return new Promise((resolve) => {
+      let done = false
+      const finish = (bmp: ImageBitmap | null) => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        this.unsubscribe(id)
+        resolve(bmp)
+      }
+      /* An export that never comes back would leave the caller waiting for
+       * good; better a missing file than a stuck one. */
+      const timer = setTimeout(() => finish(null), 20000)
+      this.subscribe(id, (bmp) => finish(bmp), () => finish(null))
+
+      if (this.worker) {
+        this.inflight++
+        this.send(
+          { t: 'live', id, jobId, bitmap: source, effectId: job.effectId, params: job.params,
+            width: job.width, height: job.height, seed: job.seed },
+          [source]
+        )
+        return
+      }
+      const r = this.local
+      if (!r) {
+        source.close()
+        finish(null)
+        return
+      }
+      try {
+        const okRender = r.render(source, source.width, source.height, null, {
+          effectId: job.effectId, params: job.params, width: job.width, height: job.height, seed: job.seed,
+        })
+        finish(okRender ? r.takeBitmap() : null)
+      } catch {
+        finish(null)
+      } finally {
+        source.close()
+      }
+    })
+  }
+
+  private exportSeq = 0
+
   /* ---------- the pump ---------- */
 
   private loop = () => {

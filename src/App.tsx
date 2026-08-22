@@ -7,8 +7,10 @@ import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import type { Board as BoardModel, Item } from './state/types'
-import { download } from './store/fs'
+import { download, safeName } from './store/fs'
 import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
+import { exportCards } from './state/exportImage'
+import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
 import { KEYS, titleFor } from './ui/shortcuts'
@@ -200,6 +202,42 @@ export default function App() {
     }
   }, [])
 
+  /* The picture, as a picture. One card comes out as a PNG; several come out
+   * as a zip of them, which is the only sensible thing a browser can hand over
+   * in one gesture. */
+  const exportPictures = useCallback(async (ids: string[]) => {
+    const items = ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)
+    const shootable = items.filter((i) => i.kind === 'image' || i.kind === 'video')
+    if (!shootable.length) {
+      setBusy('Select a picture or a video to export')
+      window.setTimeout(() => setBusy(null), 2200)
+      return
+    }
+    setBusy(shootable.length > 1 ? `Rendering ${shootable.length} pictures…` : 'Rendering…')
+    try {
+      const made = await exportCards(shootable)
+      if (!made.length) {
+        setBusy('Nothing there could be exported')
+        window.setTimeout(() => setBusy(null), 2600)
+        return
+      }
+      if (made.length === 1) {
+        download(made[0].blob, made[0].name)
+        setBusy(`Exported ${made[0].name} at ${made[0].w}×${made[0].h}`)
+      } else {
+        const bundle = await zip(made.map((m) => ({ name: m.name, blob: m.blob })))
+        download(bundle, `${safeName(store.name || 'board')}-pictures.zip`)
+        setBusy(`Exported ${made.length} pictures`)
+      }
+      const missed = shootable.length - made.length
+      if (missed > 0) setBusy(`Exported ${made.length}, ${missed} could not be read`)
+      window.setTimeout(() => setBusy(null), 2600)
+    } catch (err) {
+      setBusy(err instanceof Error ? err.message : 'That could not be exported')
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
   /* An imported board arrives as a board card on the board you are on, rather
    * than replacing anything: nothing is lost, and the same file can be brought
    * in twice as two separate boards. */
@@ -278,6 +316,11 @@ export default function App() {
         void exportBoard()
         return
       }
+      if (cmd && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        void exportPictures(store.getSelection())
+        return
+      }
       if (cmd && e.key.toLowerCase() === 'o') {
         e.preventDefault()
         importRef.current?.click()
@@ -328,7 +371,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [centreOfView, exportBoard, addBoard])
+  }, [centreOfView, exportBoard, addBoard, exportPictures])
 
   /* ---------- paste ---------- */
   useEffect(() => {
@@ -503,7 +546,12 @@ export default function App() {
       </header>
 
       <main className="main">
-        <Board onDropFiles={onDropFiles} onOpenEditor={openItem} canvasActions={canvasActions} />
+        <Board
+          onDropFiles={onDropFiles}
+          onOpenEditor={openItem}
+          onExportPictures={exportPictures}
+          canvasActions={canvasActions}
+        />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} />}
       </main>
 

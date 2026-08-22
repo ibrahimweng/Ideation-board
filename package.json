@@ -15,6 +15,7 @@
     "test:smoke": "node test/smoke.mjs",
     "test:aspect": "node test/aspect.mjs",
     "test:effects": "node test/effects.mjs",
+    "test:png": "node test/png.mjs",
     "test:load": "node test/load.mjs",
     "bench": "node test/bench.mjs",
     "test:video": "node test/video.mjs",

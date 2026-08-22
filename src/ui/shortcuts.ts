@@ -24,6 +24,7 @@ export const KEYS = {
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },
   export: { key: 's', mod: true, hint: join(MOD, 'S'), label: 'Export board and everything in it' },
   import: { key: 'o', mod: true, hint: join(MOD, 'O'), label: 'Import a board file' },
+  picture: { key: 'e', mod: true, hint: join(MOD, 'E'), label: 'Export the selected pictures' },
 } as const
 
 export type ShortcutName = keyof typeof KEYS

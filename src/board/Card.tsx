@@ -5,6 +5,7 @@ import { FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
 import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
+import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
@@ -244,7 +245,9 @@ export const Card = memo(function Card({
           )}
         </div>
 
-        {fx.grain > 0 && <div className="grain" style={{ opacity: fx.grain / 100 }} />}
+        {fx.grain > 0 && (
+          <div className="grain" style={{ opacity: fx.grain / 100, backgroundImage: GRAIN_URL }} />
+        )}
       </div>
       )}
 

@@ -504,8 +504,11 @@ export class Renderer {
     if (!this.ok || !source) return false
     const gl = this.gl
     const spec: EffectSpec = BY_ID[job.effectId] || BY_ID.none
-    const w = Math.max(2, Math.min(2048, Math.round(job.width)))
-    const h = Math.max(2, Math.min(2048, Math.round(job.height)))
+    /* Four thousand and ninety six rather than two thousand: nothing on the
+     * board asks for more than fifteen hundred, but an export asks for the
+     * picture's own resolution and that is the point of it. */
+    const w = Math.max(2, Math.min(4096, Math.round(job.width)))
+    const h = Math.max(2, Math.min(4096, Math.round(job.height)))
 
     if (this.w !== w || this.h !== h) {
       this.cv.width = w

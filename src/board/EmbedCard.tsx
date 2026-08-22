@@ -1,3 +1,5 @@
+import { GRAIN_URL } from './grain'
+
 /* ---------------------------------------------------------------------------
  * A YouTube or Vimeo card.
  *
@@ -38,7 +40,7 @@ export function EmbedCard({ embed, name, selected, filter, frame, grain }: Props
         />
         {!selected && <div className="embed-shield" />}
       </div>
-      {grain > 0 && <div className="grain" style={{ opacity: grain / 100 }} />}
+      {grain > 0 && <div className="grain" style={{ opacity: grain / 100, backgroundImage: GRAIN_URL }} />}
     </div>
   )
 }

@@ -309,10 +309,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .placeholder { background: linear-gradient(100deg, #e8e5de 30%, #f2f0ea 50%, #e8e5de 70%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
-.grain {
-  position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.55'/></svg>");
-}
+/* The noise itself is set inline from src/board/grain.ts, so the card and an
+   export of the card lay down the same one. */
+.grain { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; }
 
 /* ---------- video ---------- */
 

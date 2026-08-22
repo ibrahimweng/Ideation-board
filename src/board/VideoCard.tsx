@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FxVideoCanvas } from './FxCanvas'
+import { GRAIN_URL } from './grain'
 import type { Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -130,7 +131,7 @@ export function VideoCard({
       <div className="card-frame" style={{ transform: frame || undefined }}>
         {inner}
       </div>
-      {grain > 0 && <div className="grain" style={{ opacity: grain / 100 }} />}
+      {grain > 0 && <div className="grain" style={{ opacity: grain / 100, backgroundImage: GRAIN_URL }} />}
       {blocked && <div className="fx-blocked">Effects unavailable for this source</div>}
     </div>
   )

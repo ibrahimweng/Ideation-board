@@ -37,10 +37,11 @@ interface Props {
   menu: MenuState
   onClose: () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
+  onExportPictures: (ids: string[]) => void
   canvas: CanvasActions
 }
 
-export function ContextMenu({ menu, onClose, onOpenEditor, canvas }: Props) {
+export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, canvas }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ x: menu.x, y: menu.y })
   /* Held in a ref so the listeners below can attach once and stay attached.
@@ -104,6 +105,8 @@ export function ContextMenu({ menu, onClose, onOpenEditor, canvas }: Props) {
   /* Sections are the ground and wires have no box, so neither can be lined up
    * with anything. Two cards that can is what makes the row worth showing. */
   const movable = items.filter((i) => i!.kind !== 'section' && i!.kind !== 'edge').length
+  /* Only a picture or a video has pixels to hand over. */
+  const pictures = items.filter((i) => i!.kind === 'image' || i!.kind === 'video').map((i) => i!.id)
   const currentTag = first && items.every((i) => i!.tag === first.tag) ? first.tag : null
 
   const run = (fn: () => void) => () => {
@@ -135,6 +138,8 @@ export function ContextMenu({ menu, onClose, onOpenEditor, canvas }: Props) {
             anyInSection={anyInSection}
             currentTag={currentTag}
             movable={movable}
+            pictures={pictures}
+            onExportPictures={onExportPictures}
             run={run}
             onOpenEditor={onOpenEditor}
           />
@@ -179,7 +184,7 @@ function CanvasMenu({
 }
 
 function CardMenu({
-  ids, first, many, anySection, anyInSection, currentTag, movable, run, onOpenEditor,
+  ids, first, many, anySection, anyInSection, currentTag, movable, pictures, run, onOpenEditor, onExportPictures,
 }: {
   ids: string[]
   first: Item
@@ -188,8 +193,10 @@ function CardMenu({
   anyInSection: boolean
   currentTag: string | null | undefined
   movable: number
+  pictures: string[]
   run: (fn: () => void) => () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
+  onExportPictures: (ids: string[]) => void
 }) {
   return (
     <>
@@ -212,6 +219,11 @@ function CardMenu({
       <button onClick={run(() => { const made = store.duplicate(ids); if (made.length) store.select(made) })}>
         Duplicate <em>⌘D</em>
       </button>
+      {pictures.length > 0 && (
+        <button onClick={run(() => onExportPictures(pictures))}>
+          {pictures.length > 1 ? `Export ${pictures.length} as PNG` : 'Export as PNG'} <em>⌘E</em>
+        </button>
+      )}
       {/* Two cards and nothing else: the one case where what to connect to
           what is not a question. */}
       {ids.length === 2 && !anySection && (
