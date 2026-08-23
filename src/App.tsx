@@ -18,6 +18,8 @@ import { KEYS, titleFor } from './ui/shortcuts'
 import { nameFor } from './ui/shortcuts'
 import type { ShortcutName } from './ui/shortcuts'
 import { CommandPalette } from './ui/CommandPalette'
+import { Present } from './ui/Present'
+import { paletteOf, swatchItems } from './state/palette'
 import type { Command } from './ui/CommandPalette'
 import { setTheme, themeWant } from './ui/theme'
 import {
@@ -45,6 +47,7 @@ export default function App() {
   const [tab, setTab] = useState<PanelTab>('effect')
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [palette, setPalette] = useState(false)
+  const [presenting, setPresenting] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('Untitled board')
@@ -303,6 +306,28 @@ export default function App() {
   }, [])
 
 
+  /* The colours out of a picture, as swatches under it. One undo step for the
+     lot, and they arrive selected so they can be moved somewhere else at once. */
+  const pullColours = useCallback(async (ids: string[]) => {
+    const from = ids
+      .map((id) => store.getItem(id))
+      .find((i): i is Item => !!i && (i.kind === 'image' || i.kind === 'video'))
+    if (!from) {
+      say('Select a picture or a video to read the colours out of it')
+      return
+    }
+    say('Reading the colours…', 6000)
+    const found = await paletteOf(from)
+    if (!found.length) {
+      say('Those pixels could not be read')
+      return
+    }
+    const made = swatchItems(found, from)
+    store.addMany(made)
+    store.select(made.map((m) => m.id))
+    say(`${made.length} colours from ${from.name || 'the picture'}`)
+  }, [say])
+
   /* One prompt, reached from the toolbar, from K, and from the command list. */
   const askForLink = useCallback(
     (at?: { x: number; y: number }) => {
@@ -345,6 +370,8 @@ export default function App() {
       cmd('out.board', 'Export this board and everything in it', 'Take out', () => void exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
       cmd('in.board', 'Import a board file', 'Take out', () => importRef.current?.click(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
 
+      cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => void pullColours(sel()), { disabled: !selection.some((id) => { const i = store.getItem(id); return i && (i.kind === 'image' || i.kind === 'video') }), keywords: 'palette swatch colour color hex sample' }),
+      cmd('view.present', selection.length > 1 ? `Present the ${selection.length} selected` : 'Present this board', 'View', () => setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
       cmd('view.effects', panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
       cmd('view.looks', 'Saved looks', 'View', () => { setPanelOpen(true); setTab('looks') }, { keywords: 'preset grade style' }),
       cmd('view.search', 'Search this board', 'View', () => document.querySelector<HTMLInputElement>('.search input')?.focus(), { hint: KEYS.search.hint, keywords: 'find filter' }),
@@ -352,7 +379,7 @@ export default function App() {
       cmd('view.dark', 'Dark theme', 'View', () => setTheme('dark'), { disabled: themeWant() === 'dark', keywords: 'night appearance' }),
       cmd('view.system', 'Follow the system theme', 'View', () => setTheme('system'), { disabled: themeWant() === 'system', keywords: 'auto appearance' }),
     ]
-  }, [selection, panelOpen, centreOfView, addBoard, askForLink, exportBoard, exportPictures])
+  }, [selection, panelOpen, centreOfView, addBoard, askForLink, exportBoard, exportPictures, pullColours])
 
   /* ---------- keyboard ---------- */
   useEffect(() => {
@@ -414,6 +441,7 @@ export default function App() {
         if (k === KEYS.link.key) { e.preventDefault(); askForLink(at); return }
         if (k === KEYS.addFiles.key) { e.preventDefault(); fileRef.current?.click(); return }
         if (k === KEYS.effects.key) { e.preventDefault(); setPanelOpen((v) => !v); return }
+        if (k === KEYS.present.key) { e.preventDefault(); setPresenting(true); return }
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -635,6 +663,7 @@ export default function App() {
           onDropFiles={onDropFiles}
           onOpenEditor={openItem}
           onExportPictures={exportPictures}
+          onPullColours={(ids) => void pullColours(ids)}
           canvasActions={canvasActions}
         />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} say={say} />}
@@ -667,6 +696,7 @@ export default function App() {
         }}
       />
 
+      {presenting && <Present ids={selection} onClose={() => setPresenting(false)} />}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
       {busy && <div className="toast">{busy}</div>}

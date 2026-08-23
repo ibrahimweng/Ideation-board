@@ -39,10 +39,11 @@ interface Props {
   onClose: () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
+  onPullColours: (ids: string[]) => void
   canvas: CanvasActions
 }
 
-export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, canvas }: Props) {
+export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onPullColours, canvas }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ x: menu.x, y: menu.y })
   /* Held in a ref so the listeners below can attach once and stay attached.
@@ -151,6 +152,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, can
             graded={graded}
             clip={clip}
             onExportPictures={onExportPictures}
+            onPullColours={onPullColours}
             run={run}
             onOpenEditor={onOpenEditor}
           />
@@ -196,7 +198,7 @@ function CanvasMenu({
 
 function CardMenu({
   ids, first, many, anySection, anyInSection, currentTag, movable, pictures, targets, graded, clip,
-  run, onOpenEditor, onExportPictures,
+  run, onOpenEditor, onExportPictures, onPullColours,
 }: {
   ids: string[]
   first: Item
@@ -212,6 +214,7 @@ function CardMenu({
   run: (fn: () => void) => () => void
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
+  onPullColours: (ids: string[]) => void
 }) {
   return (
     <>
@@ -235,9 +238,14 @@ function CardMenu({
         Duplicate <em>⌘D</em>
       </button>
       {pictures.length > 0 && (
-        <button onClick={run(() => onExportPictures(pictures))}>
-          {pictures.length > 1 ? `Export ${pictures.length} as PNG` : 'Export as PNG'} <em>⌘E</em>
-        </button>
+        <>
+          {/* Half of what a moodboard is about is colour, and until now the
+              colour was locked inside the photographs. */}
+          <button onClick={run(() => onPullColours(pictures))}>Pull the colours out</button>
+          <button onClick={run(() => onExportPictures(pictures))}>
+            {pictures.length > 1 ? `Export ${pictures.length} as PNG` : 'Export as PNG'} <em>⌘E</em>
+          </button>
+        </>
       )}
 
       {/* The fast way to make a set look like a set, without opening the

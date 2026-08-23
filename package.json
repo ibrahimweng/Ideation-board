@@ -31,7 +31,8 @@
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",
     "test:looks": "node test/looks.mjs",
-    "test:palette": "node test/palette.mjs"
+    "test:palette": "node test/palette.mjs",
+    "test:present": "node test/present.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

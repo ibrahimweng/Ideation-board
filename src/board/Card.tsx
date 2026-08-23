@@ -11,6 +11,7 @@ import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
+import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
 import { screenToBoard } from './viewport'
@@ -225,7 +226,12 @@ export const Card = memo(function Card({
             ))}
 
           {it.kind === 'note' && (
-            <div className="note" style={{ background: it.color || '#FBEFC4' }}>
+            /* The writing takes its colour from the paper. A note can be any
+               colour the swatches offer, black among them, and dark ink on
+               dark paper is a note you cannot read — which was true before
+               swatches existed and is unmissable now that a palette makes
+               five dark ones at a time. */
+            <div className="note" style={{ background: it.color || '#FBEFC4', color: inkOn(it.color || '#FBEFC4') }}>
               <RichText id={id} text={it.text || ''} />
             </div>
           )}

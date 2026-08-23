@@ -605,30 +605,33 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .rich-h1 { font-size: var(--t-lg); }
 .rich-h2 { font-size: var(--t-lg); }
 .rich-h3 { font-size: var(--t-md); letter-spacing: 0.01em; }
-.rich-hr { border: 0; border-top: 1px solid var(--line); margin: 7px 0; }
+.rich-hr { border: 0; border-top: 1px solid currentColor; opacity: 0.22; margin: 7px 0; }
+/* Inside a note these follow the paper rather than the theme: a note can be
+   any colour, black included, and a quote drawn in the theme's grey is
+   invisible on half of them. */
 .rich-quote {
-  padding-left: 9px; border-left: 2px solid var(--line);
-  color: var(--ink-2); font-style: italic;
+  padding-left: 9px; border-left: 2px solid currentColor;
+  opacity: 0.78; font-style: italic;
 }
 .rich-li { display: flex; gap: 7px; align-items: baseline; }
-.rich-bullet { flex: none; min-width: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rich-bullet { flex: none; min-width: 12px; opacity: 0.6; font-variant-numeric: tabular-nums; }
 .rich-code {
-  font: 400 var(--t-xs)/1.5 var(--mono); background: var(--press);
+  font: 400 var(--t-xs)/1.5 var(--mono); background: rgba(128, 128, 136, 0.22);
   padding: 1px 4px; border-radius: var(--r-sm);
 }
 .rich-link { color: var(--sel); text-decoration: underline; text-underline-offset: 2px; }
 
 .rich-todo { display: flex; gap: 7px; align-items: flex-start; }
-.rich-todo[data-done] { color: var(--faint); text-decoration: line-through; }
+.rich-todo[data-done] { opacity: 0.55; text-decoration: line-through; }
 .rich-box {
   flex: none; width: 14px; height: 14px; margin-top: 2px;
-  border: 1.5px solid var(--scrim); border-radius: var(--r-sm);
-  background: var(--surface);
-  font: 700 var(--t-xs)/1 var(--sans); line-height: 1; color: var(--ink);
+  border: 1.5px solid currentColor; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.2);
+  font: 700 var(--t-xs)/1 var(--sans); line-height: 1; color: inherit;
   display: grid; place-items: center; cursor: pointer;
 }
-.rich-box:hover { border-color: var(--ink); }
-.rich-todo[data-done] .rich-box { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.rich-box:hover { background: rgba(255, 255, 255, 0.4); }
+.rich-todo[data-done] .rich-box { background: currentColor; color: inherit; }
 
 /* How far along a checklist is, without opening it. */
 /* How far along a checklist is, without opening it. */
@@ -927,6 +930,69 @@ body[data-dragging] .card-chrome { opacity: 0; }
   border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
 }
 .look-rename:focus { outline: none; }
+
+/* ---------- presenting ---------- */
+
+/* Deliberately not the theme's background. A picture being shown is judged
+   against the darkest ground there is, which is what a screening room and a
+   gallery both arrange for, and what the board itself cannot be because you
+   have to work on the board. */
+.present {
+  position: fixed; inset: 0; z-index: 90;
+  background: #08080a;
+  display: grid; place-items: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+.present-none { color: #8a8a92; font-size: var(--t-lg); }
+
+.present-stage { position: relative; }
+.present-body { position: absolute; inset: 0; overflow: hidden; border-radius: var(--r-sm); }
+.present-frame { position: absolute; inset: 0; }
+.present-media { width: 100%; height: 100%; object-fit: contain; display: block; }
+.present-media:is(canvas) { object-fit: cover; }
+.present-embed { border: 0; background: #000; }
+
+.present-note {
+  width: 100%; height: 100%; padding: var(--s6);
+  font-size: var(--t-xl); line-height: 1.5; color: #17171a; overflow: auto;
+}
+.present-label {
+  width: 100%; height: 100%;
+  display: grid; place-items: center; text-align: center;
+  font-weight: 600; font-size: clamp(28px, 7vw, 96px); line-height: 1.1;
+  color: #f4f4f5;
+}
+.present-plain {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3);
+  color: #f4f4f5; text-align: center; padding: var(--s5);
+}
+.present-host { font-size: var(--t-xl); font-weight: 600; }
+.present-sub { font-size: var(--t-md); color: #8a8a92; word-break: break-all; }
+
+/* Along the bottom, and out of the way once you have stopped moving. */
+.present-bar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  color: rgba(255, 255, 255, 0.72);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+  transition: opacity 0.4s ease;
+}
+.present[data-idle] .present-bar { opacity: 0; }
+.present-name {
+  flex: 1; min-width: 0; font-size: var(--t-md);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.present-count { flex: none; font-size: var(--t-sm); color: rgba(255, 255, 255, 0.5); font-variant-numeric: tabular-nums; }
+.present-close {
+  flex: none; padding: var(--s2) var(--s4); border-radius: var(--r-md);
+  font-size: var(--t-sm); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+.present-close:hover { background: rgba(255, 255, 255, 0.18); }
 
 /* ---------- the command list ---------- */
 

@@ -354,6 +354,49 @@ The board saves itself to IndexedDB in your browser a moment after each change.
 It loads again when you reopen the page. Media files are stored separately from
 the board layout, so opening a board does not load every picture at once.
 
+## Showing the board
+
+Press P, or pick "Present this board" from the command list, and the board
+fills the screen with one thing at a time and nothing else: no toolbar, no
+panel, no grid of dots, no other cards around the one being talked about. The
+arrow keys and the space bar move through it, clicking the left third goes
+back and clicking anywhere else goes on, and Escape leaves.
+
+The order is the one on the board, not the order things were made in. Somebody
+who arranged twelve photographs into three rows meant those rows, so it reads
+top to bottom in bands and left to right inside each band, the way an eye
+crosses a wall of pictures.
+
+Select more than one thing first and it shows only those.
+
+The ground is near black whatever theme you are in, which is what a screening
+room and a gallery both arrange for, and what a board cannot be because you
+have to work on the board.
+
+## Pulling the colours out
+
+Right click a picture or a video and choose "Pull the colours out", and the
+five colours it is made of arrive as swatches in a row underneath it. All five
+are one step of undo.
+
+Half of what a moodboard is about is colour, and until now the colour was
+locked inside the photographs: you could look at it, but you could not write it
+down, hand it to anyone, or hold it beside the colour out of another picture.
+
+A swatch is a note whose paper is the colour and whose text is the hex. That is
+not a shortcut. It means a swatch is something the board already knows how to
+do everything with — move it, tag it, search it, group it in a section, carry
+it into an exported file and back out again — where a tenth kind of card would
+have had to learn all of that over again. The writing on a note takes its
+colour from the paper, so the hex is readable on a black swatch and on a pale
+one.
+
+The colours are counted rather than guessed at: the picture is sampled small,
+its colours are bucketed, and the buckets are weighted so that a photograph
+which is two thirds pale sky does not spend three of its five swatches on the
+sky, and the one red thing in a grey picture still makes the list. No two
+swatches are allowed to be the same colour under two names.
+
 ## Getting a picture out
 
 Right click a picture or a video and choose "Export as PNG", or press Cmd or
@@ -418,6 +461,7 @@ npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:looks -- http://localhost:5173
 npm run test:palette -- http://localhost:5173
+npm run test:present -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
 npm run test:png -- http://localhost:5173
@@ -435,6 +479,12 @@ npm run bench
 - `test:arrange` drags a card onto a neighbour's edge and checks it is pulled
   exactly onto it with a guide to say so, then lines up, spaces and tidies a
   selection from the menu and checks each is a single step of undo.
+- `test:present` puts a picture with five known colours in it on the board,
+  pulls the colours out and checks that the five it finds are the five that
+  went in, that none of them is the same colour twice, that the hex is legible
+  on every swatch, and that all five are one step of undo. Then it shows the
+  board and checks the order is the board's reading order, that the arrows
+  move through it, and that a selection of two out of three shows two.
 - `test:palette` checks that every button in the top bar is an icon that still
   says what it is, that the command list opens, narrows as you type, runs what
   you pick and refuses what has nothing to act on, that a command the toolbar

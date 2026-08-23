@@ -34,12 +34,13 @@ interface Props {
    * opens the editor. 'edit' always means the editor. */
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
+  onPullColours: (ids: string[]) => void
   canvasActions: CanvasActions
 }
 
 const SNAP = 8
 
-export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActions }: Props) {
+export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColours, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
   const query = useQuery()
@@ -538,6 +539,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActio
           onClose={() => setMenu(null)}
           onOpenEditor={onOpenEditor}
           onExportPictures={onExportPictures}
+          onPullColours={onPullColours}
           canvas={canvasActions}
         />
       )}

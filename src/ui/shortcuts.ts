@@ -23,6 +23,7 @@ export const KEYS = {
   board: { key: 'b', hint: 'B', label: 'A board inside this one', short: 'Board' },
   link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
   effects: { key: 'e', hint: 'E', label: 'Effects panel', short: 'Effects' },
+  present: { key: 'p', hint: 'P', label: 'Present the board', short: 'Present' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },
