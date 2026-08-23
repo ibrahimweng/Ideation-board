@@ -395,6 +395,8 @@ ok('board: name field accepts input', await page.locator('.board-name').inputVal
 
 // ---------- 16b. shortcut hints and the keys themselves ----------
 const hints = await page.evaluate(() =>
+  /* Icon-only buttons carry no words to hang a hint on, and say what they
+     are through their title instead. */
   [...document.querySelectorAll('.tools button')].map(b => ({
     label: (b.childNodes[0]?.textContent || '').trim(),
     kbd: b.querySelector('kbd')?.textContent || null,

@@ -11,6 +11,7 @@ import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
 import { ContextMenu } from '../ui/ContextMenu'
+import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
 /* ---------------------------------------------------------------------------
@@ -485,6 +486,14 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActio
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
+      /* Cards are moved with pointer events. The browser's own drag is a
+         different mechanism that wants the same gesture, and when it wins it
+         sends pointercancel and strands the card half way across the board.
+         It starts on whatever is under the press — a run of text, an image, a
+         live text selection — so the reliable place to refuse it is here,
+         above all of them. Dropping files in is a different pair of events
+         and is untouched by this. */
+      onDragStart={(e) => e.preventDefault()}
       data-dragover={dragOver || undefined}
     >
       <div className="surface" ref={surfaceRef}>
@@ -544,6 +553,11 @@ function ZoomBar({ onZoom, onReset }: { onZoom: (factor: number) => void; onRese
       <button onClick={() => onZoom(1.25)} title="Zoom in">
         +
       </button>
+      {/* Which surround the board is judged against belongs with how close you
+          are standing to it, not up in a row of things that make and move
+          cards. It also leaves the top bar's width to the work. */}
+      <span className="zoom-sep" />
+      <ThemeButton />
     </div>
   )
 }

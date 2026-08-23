@@ -123,12 +123,33 @@ await page.getByRole('button', { name: 'Note', exact: true }).click()
 await page.waitForTimeout(500)
 const corner = page.locator('.card[data-kind="note"]').first()
 const cb = await corner.boundingBox()
-/* Pressing selects the card, which draws a resize handle right here. The
- * contextmenu that follows must still reach the card. */
+const cornerMenu = async () =>
+  (await page.locator('.menu').count()) === 1 &&
+  !/add here/i.test(await page.locator('.menu-head').innerText().catch(() => ''))
+
+/* The corner of a card belongs to the card. Rounding it means the very corner
+ * pixel does not, so this asks for three pixels in, which is inside the arc
+ * at the radius a card is drawn with. */
 await page.mouse.click(Math.round(cb.x + 3), Math.round(cb.y + 3), { button: 'right' })
 await page.waitForTimeout(500)
-ok('menu: right clicking a corner still opens the card menu',
-   await page.locator('.menu').count() === 1 && !/add here/i.test(await page.locator('.menu-head').innerText().catch(() => '')),
+ok('menu: right clicking a corner opens the card menu', await cornerMenu(),
+   `${await page.locator('.menu').count()} menu(s)`)
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
+
+/* And again with the card selected, which puts a resize handle over that
+ * exact spot. The press lands on the handle rather than on the card, so the
+ * contextmenu has to reach the card through it. This is what the check was
+ * always for; it used to be made against an unselected card, where there was
+ * no handle in the way and nothing was being proved. */
+await page.mouse.click(Math.round(cb.x + 60), Math.round(cb.y + 8))
+await page.waitForTimeout(400)
+ok('menu: the card is selected, so a handle covers the corner',
+   (await page.locator('.handle-nw').count()) === 1 &&
+     (await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.classList.contains('handle'),
+       [Math.round(cb.x + 3), Math.round(cb.y + 3)])) === true)
+await page.mouse.click(Math.round(cb.x + 3), Math.round(cb.y + 3), { button: 'right' })
+await page.waitForTimeout(500)
+ok('menu: right clicking that handle still opens the card menu', await cornerMenu(),
    `${await page.locator('.menu').count()} menu(s)`)
 await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 

@@ -43,7 +43,13 @@ const check = (name, ok, extra) => {
 }
 
 /* A wide picture with a true circle in the middle, small enough to survive
- * being cropped either way. */
+ * being cropped either way.
+ *
+ * The circle is magenta rather than red because the interface's accent is an
+ * orange, and a selected card wears it on its border, its handles and its
+ * ports. Hunting for red found those too and measured the chrome instead of
+ * the picture. Nothing here is magenta, so nothing here can be mistaken for
+ * the circle. */
 await page.evaluate(async () => {
   const c = document.createElement('canvas')
   c.width = 600
@@ -51,7 +57,7 @@ await page.evaluate(async () => {
   const x = c.getContext('2d')
   x.fillStyle = '#ffffff'
   x.fillRect(0, 0, 600, 300)
-  x.fillStyle = '#e5251f'
+  x.fillStyle = '#e51fbf'
   x.beginPath()
   x.arc(300, 150, 55, 0, Math.PI * 2)
   x.fill()
@@ -89,7 +95,7 @@ const measure = async (sel) => {
     for (let py = 0; py < s.height; py++) {
       for (let px = 0; px < s.width; px++) {
         const i = (py * s.width + px) * 4
-        if (d[i] > 140 && d[i + 1] < 120 && d[i + 2] < 120) {
+        if (d[i] > 140 && d[i + 1] < 110 && d[i + 2] > 140) {
           if (px < x0) x0 = px
           if (px > x1) x1 = px
           if (py < y0) y0 = py

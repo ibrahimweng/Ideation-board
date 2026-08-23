@@ -11,6 +11,23 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d0d0f" media="(prefers-color-scheme: dark)" />
+    <!-- The theme is resolved to light or dark here, before anything paints,
+         so the stylesheet needs one palette per theme rather than one per
+         theme per way of choosing it, and so a dark session never opens with
+         a white flash. -->
+    <script>
+      (function () {
+        try {
+          var want = localStorage.getItem('ideation.theme') || 'system'
+          var dark = want === 'dark' || (want === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
