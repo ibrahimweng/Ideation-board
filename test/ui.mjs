@@ -394,18 +394,23 @@ await page.waitForTimeout(900)
 ok('board: name field accepts input', await page.locator('.board-name').inputValue() === 'Audit Board')
 
 // ---------- 16b. shortcut hints and the keys themselves ----------
+/* The toolbar is icons now. A button with no words in it has to say what it
+ * is some other way, or it is a picture of a mystery: every one carries an
+ * accessible name for anything reading the page aloud, and a title that names
+ * it and gives the key that runs it. */
 const hints = await page.evaluate(() =>
-  /* Icon-only buttons carry no words to hang a hint on, and say what they
-     are through their title instead. */
   [...document.querySelectorAll('.tools button')].map(b => ({
-    label: (b.childNodes[0]?.textContent || '').trim(),
-    kbd: b.querySelector('kbd')?.textContent || null,
+    name: b.getAttribute('aria-label'),
     title: b.getAttribute('title'),
+    words: b.textContent.trim(),
   }))
 )
-ok('hints: every toolbar button shows one', hints.every(h => h.kbd),
-   hints.map(h => `${h.label}:${h.kbd}`).join(' '))
-ok('hints: buttons carry a title too', hints.every(h => h.title && h.title.includes('(')))
+ok('toolbar: every button has an accessible name', hints.length > 6 && hints.every(h => h.name),
+   hints.map(h => h.name || '?').join(' '))
+ok('toolbar: and a title with its shortcut in it', hints.every(h => h.title && h.title.includes('(')),
+   hints.filter(h => !(h.title || '').includes('(')).map(h => h.name).join(' ') || 'all have one')
+ok('toolbar: only the mode button carries words', hints.filter(h => h.words).length === 1,
+   hints.filter(h => h.words).map(h => h.words).join(' '))
 
 /* The board name field was the last thing touched, and a shortcut must not
  * fire while a field has focus, so move focus off it before testing them. */
@@ -443,7 +448,12 @@ for (const w of [1600, 1440, 1360, 1280, 1024, 900]) {
      * puts away has no box, and counting its zero as a row said the bar had
      * wrapped when it had not. */
     const btns = [...tools.querySelectorAll('button')].filter(b => b.getBoundingClientRect().width > 0)
-    const rows = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top)))
+    /* A row is buttons sitting at the same height, not buttons whose top edges
+     * agree to the pixel: they are different heights on purpose — the one mode
+     * button in the row is taller than the icons — so what says they are on one
+     * row is that their middles line up. */
+    const mids = btns.map(b => { const r = b.getBoundingClientRect(); return r.top + r.height / 2 })
+    const rows = new Set(mids.map(m => Math.round(m / 8)))
     const last = btns[btns.length - 1].getBoundingClientRect()
     return {
       rows: rows.size,

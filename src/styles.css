@@ -298,15 +298,44 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   .tagfilter { padding: 0 6px; }
 }
 
-.tools { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-wrap: nowrap; flex: none; }
-.tools button {
-  padding: 6px 11px; border-radius: var(--r-sm);
-  font-size: var(--t-md); font-weight: 500; color: var(--muted);
-  border: 1px solid transparent;
+.tools { display: flex; align-items: center; gap: var(--s2); margin-left: auto; flex-wrap: nowrap; flex: none; }
+
+/* Buttons that belong together sit in one well, which is what says they
+   belong together. It replaces a hairline rule between groups and reads at a
+   glance rather than on inspection. */
+.tool-group {
+  display: flex; align-items: center; gap: 1px;
+  padding: 2px; border-radius: var(--r-md);
+  background: var(--sunk);
 }
-.tools button:hover { background: var(--hover); color: var(--ink); }
-.tools button[data-on] { background: var(--ink); color: var(--on-ink); }
-.tools .sep { width: 1px; height: 20px; background: var(--line); margin: 0 5px; }
+
+.tool {
+  width: 28px; height: 26px; flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--muted);
+}
+.tool:hover { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); }
+.tool:active { background: var(--press); box-shadow: none; }
+.tools > .tool { background: var(--sunk); }
+.tools > .tool:hover { background: var(--surface); }
+
+/* The one thing in the row that is a mode rather than an action, so the one
+   thing that keeps its name and can look pressed. */
+.tool-mode {
+  display: flex; align-items: center; gap: var(--s1); flex: none;
+  height: 30px; padding: 0 var(--s3) 0 var(--s2);
+  border-radius: var(--r-md);
+  font-size: var(--t-md); font-weight: 500;
+  color: var(--muted); border: 1px solid var(--line);
+  background: var(--surface);
+}
+.tool-mode:hover { color: var(--ink); }
+.tool-mode[data-on] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+
+@media (max-width: 1180px) {
+  .tool-mode span { display: none; }
+  .tool-mode { padding: 0 var(--s2); }
+}
 
 /* An icon on its own, sized so it sits on the same baseline grid as a button
    with words in it. */
@@ -327,48 +356,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   background: var(--accent);
 }
 
-/* The shortcut on each button. Quiet enough to read past, there when looked
-   for. Hidden on narrow screens, where the toolbar needs the room more than
-   the hint helps. */
-.tools kbd {
-  font: 400 var(--t-xs)/1.4 var(--sans);
-  color: var(--faint);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 1px 4px;
-  margin-left: 6px;
-  line-height: 1.4;
-}
-.tools button:hover kbd { color: var(--muted); border-color: var(--line); }
-.tools button[data-on] kbd { color: var(--on-ink); border-color: var(--line); opacity: 0.6; }
-
-/* Below this the row cannot hold the hints as well as the buttons, and the
-   buttons matter more. The hints cost about 380px across the toolbar, which is
-   what the board name, the search box and the trail need between them; the
-   shortcut is still on every button's tooltip. */
-@media (max-width: 1560px) {
-  .tools kbd { display: none; }
-}
-/* Inside a board the bar carries the trail as well, which costs about what
-   the hints cost, so the hints stand down for as long as you are in one. The
-   shortcut is still on every button's tooltip. */
-.topbar[data-nested] .tools kbd { display: none; }
-
-/* Narrower still, and the buttons themselves have to give up their padding so
-   that the left of the bar keeps enough room to say where you are. Only while
-   there is a trail to make room for: the root board is as it was. */
+/* Inside a board the row carries the trail as well. The two things with a
+   second way in — importing and exporting, which are also a drop, a menu
+   entry, a shortcut and a line in the command list — stand down first. */
 @media (max-width: 1180px) {
   .tools .tools-wide { display: none; }
-  /* A step down the type scale for the row, which is the last thing that can
-     give before something has to be dropped from it. */
-  .tools button, .crumbs button { font-size: var(--t-sm); }
-  /* The dividers are the cheapest thing in the row to give up: they group the
-     buttons, and a grouping is worth less than the buttons being there. */
-  .tools .sep { display: none; }
-  .topbar[data-nested] { gap: 10px; }
-  .topbar[data-nested] .search { margin-left: 8px; }
-  .topbar[data-nested] .tools button { padding: 6px 8px; }
-  .topbar[data-nested] .tools .sep { margin: 0 2px; }
+  .crumbs button { font-size: var(--t-sm); }
+  .topbar[data-nested] { gap: var(--s3); }
+  .topbar[data-nested] .search { margin-left: var(--s2); }
 }
 
 .main { flex: 1; display: flex; min-height: 0; position: relative; }
@@ -802,6 +797,13 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }
 
+/* Open, with nothing selected. Everything the panel would say needs a picture
+   to say it about, so it stands down to a rail and hands the width back. */
+.panel-rail {
+  width: 52px; align-items: center; padding-top: var(--s4);
+  color: var(--faint);
+}
+
 .panel-tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
 .panel-tabs button {
   flex: 1; padding: 11px; font-size: var(--t-md); font-weight: 500; color: var(--muted);
@@ -815,6 +817,26 @@ body[data-dragging] .card-chrome { opacity: 0; }
   font: 500 var(--t-xs)/1.4 var(--sans); letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--muted); margin-bottom: 9px;
 }
+
+/* Find an effect by name, for when you know which one you want. */
+.fx-find {
+  display: flex; align-items: center; gap: var(--s2); flex: none;
+  height: 30px; padding: 0 var(--s2);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--sunk); color: var(--muted);
+}
+.fx-find:focus-within { background: var(--surface); border-color: var(--accent); }
+.fx-find input {
+  flex: 1; min-width: 0; border: none; background: none; outline: none;
+  font: 400 var(--t-md)/1 var(--sans); color: var(--ink);
+}
+.fx-find input::placeholder { color: var(--faint); }
+.fx-find-clear {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  color: var(--muted); font-size: var(--t-md); line-height: 1;
+  display: grid; place-items: center;
+}
+.fx-find-clear:hover { background: var(--press); color: var(--ink); }
 
 .fx-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 
@@ -905,6 +927,60 @@ body[data-dragging] .card-chrome { opacity: 0; }
   border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--surface); color: var(--ink);
 }
 .look-rename:focus { outline: none; }
+
+/* ---------- the command list ---------- */
+
+.cmd-veil {
+  position: fixed; inset: 0; z-index: 80;
+  background: var(--scrim);
+  /* flex-start, or the box stretches to the height it is allowed rather than
+     the height it needs, and two results sit in a half screen of nothing. */
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 12vh var(--s4) var(--s4);
+}
+.cmd {
+  width: min(560px, 100%); max-height: 62vh;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-3);
+  overflow: hidden;
+}
+.cmd-input {
+  flex: none; height: 50px; padding: 0 var(--s4);
+  border: none; border-bottom: 1px solid var(--line-soft);
+  background: none; color: var(--ink);
+  font: 400 var(--t-lg)/1 var(--sans);
+  outline: none;
+}
+.cmd-input::placeholder { color: var(--faint); }
+
+.cmd-list { overflow-y: auto; padding: var(--s2); display: flex; flex-direction: column; gap: 1px; }
+.cmd-none { padding: var(--s4); color: var(--muted); font-size: var(--t-md); }
+
+.cmd-row {
+  display: flex; align-items: baseline; gap: var(--s3);
+  width: 100%; padding: var(--s2) var(--s3);
+  border-radius: var(--r-sm); text-align: left;
+}
+/* Whichever row Enter would run, whether it was arrowed to or hovered. */
+.cmd-row[data-at] { background: var(--accent-wash); }
+.cmd-row:disabled { opacity: 0.42; cursor: default; }
+.cmd-row:disabled[data-at] { background: var(--hover); }
+
+/* Which part of the board this belongs to, in the margin rather than as a
+   heading, so the list stays one list however you have narrowed it. */
+.cmd-group {
+  flex: none; width: 62px;
+  font-size: var(--t-xs); color: var(--faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cmd-name { flex: 1; min-width: 0; font-size: var(--t-md); color: var(--ink); }
+.cmd-hint {
+  flex: none; font-style: normal; font-size: var(--t-xs); color: var(--muted);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 1px 5px;
+}
 
 /* ---------- context menu ---------- */
 

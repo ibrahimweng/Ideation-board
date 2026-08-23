@@ -41,7 +41,8 @@ const check = (name, ok, extra) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra === undefined ? '' : `  — ${extra}`}`)
 }
 
-const tool = (label) => page.locator('.tools button', { hasText: label }).first()
+/* The toolbar is icons: found by accessible name, not by printed words. */
+const tool = (label) => page.locator(`.tools button[aria-label="${label}"]`).first()
 const cards = () => page.locator('.card')
 const boardCards = () => page.locator('.card[data-kind="board"]')
 const crumbs = () => page.locator('.crumbs button')

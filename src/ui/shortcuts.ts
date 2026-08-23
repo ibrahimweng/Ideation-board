@@ -11,23 +11,34 @@ export const MOD = isApple ? '⌘' : 'Ctrl'
 export const SHIFT = isApple ? '⇧' : 'Shift'
 const join = (...parts: string[]) => (isApple ? parts.join('') : parts.join('+'))
 
+/* `label` is the sentence on the tooltip. `short` is the name of the thing,
+ * which is what a button without words has to be called: it is the accessible
+ * name, so it is what a screen reader says and what a test asks for. Where
+ * they are the same only one is written. */
 export const KEYS = {
   addFiles: { key: 'f', hint: 'F', label: 'Add files' },
   note: { key: 'n', hint: 'N', label: 'Note' },
   label: { key: 'l', hint: 'L', label: 'Label' },
   section: { key: 's', hint: 'S', label: 'Section' },
-  board: { key: 'b', hint: 'B', label: 'New board' },
-  link: { key: 'k', hint: 'K', label: 'Link' },
-  effects: { key: 'e', hint: 'E', label: 'Effects panel' },
+  board: { key: 'b', hint: 'B', label: 'A board inside this one', short: 'Board' },
+  link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
+  effects: { key: 'e', hint: 'E', label: 'Effects panel', short: 'Effects' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },
-  export: { key: 's', mod: true, hint: join(MOD, 'S'), label: 'Export board and everything in it' },
-  import: { key: 'o', mod: true, hint: join(MOD, 'O'), label: 'Import a board file' },
-  picture: { key: 'e', mod: true, hint: join(MOD, 'E'), label: 'Export the selected pictures' },
+  export: { key: 's', mod: true, hint: join(MOD, 'S'), label: 'Export board and everything in it', short: 'Export' },
+  import: { key: 'o', mod: true, hint: join(MOD, 'O'), label: 'Import a board file', short: 'Import' },
+  picture: { key: 'e', mod: true, hint: join(MOD, 'E'), label: 'Export the selected pictures', short: 'Export pictures' },
+  commands: { key: 'k', mod: true, hint: join(MOD, 'K'), label: 'Commands', short: 'Commands' },
 } as const
 
 export type ShortcutName = keyof typeof KEYS
 
 /* Title text for a button, e.g. "Note  (N)". */
 export const titleFor = (n: ShortcutName) => `${KEYS[n].label}  (${KEYS[n].hint})`
+
+/* What the button is called when it has no words in it. */
+export const nameFor = (n: ShortcutName): string => {
+  const k = KEYS[n] as { label: string; short?: string }
+  return k.short || k.label
+}

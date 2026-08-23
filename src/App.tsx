@@ -15,6 +15,15 @@ import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
 import { KEYS, titleFor } from './ui/shortcuts'
+import { nameFor } from './ui/shortcuts'
+import type { ShortcutName } from './ui/shortcuts'
+import { CommandPalette } from './ui/CommandPalette'
+import type { Command } from './ui/CommandPalette'
+import { setTheme, themeWant } from './ui/theme'
+import {
+  IconBoard, IconCommand, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
+  IconNote, IconSection, IconUndo, IconRedo,
+} from './ui/icons'
 import { SearchBar } from './ui/SearchBar'
 import { TagFilter } from './ui/TagFilter'
 
@@ -35,6 +44,7 @@ export default function App() {
   const selection = useSelection()
   const [tab, setTab] = useState<PanelTab>('effect')
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
+  const [palette, setPalette] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('Untitled board')
@@ -293,10 +303,68 @@ export default function App() {
   }, [])
 
 
+  /* One prompt, reached from the toolbar, from K, and from the command list. */
+  const askForLink = useCallback(
+    (at?: { x: number; y: number }) => {
+      const u = window.prompt('Paste a link. A video URL becomes a playable card.')
+      if (u) addUrl(at || centreOfView(), u)
+    },
+    [centreOfView]
+  )
+
+  /* Everything the board can do, as a list. Built here because this is where
+     the actions are; the palette only searches it and runs what you pick. */
+  const commands = useMemo<Command[]>(() => {
+    const sel = () => store.getSelection()
+    const some = selection.length > 0
+    const at = () => centreOfView()
+    const cmd = (id: string, name: string, group: string, run: () => void, extra: Partial<Command> = {}): Command => ({
+      id, name, group, run, ...extra,
+    })
+    return [
+      cmd('add.files', 'Add files', 'Add', () => fileRef.current?.click(), { hint: KEYS.addFiles.hint, keywords: 'image photo picture video upload import' }),
+      cmd('add.note', 'Note', 'Add', () => store.add(noteItem(at())), { hint: KEYS.note.hint, keywords: 'text write checklist' }),
+      cmd('add.label', 'Label', 'Add', () => store.add(labelItem(at())), { hint: KEYS.label.hint, keywords: 'title heading caption' }),
+      cmd('add.section', 'Section', 'Add', () => store.add(sectionItem(at())), { hint: KEYS.section.hint, keywords: 'group area frame' }),
+      cmd('add.board', 'Board inside this one', 'Add', () => void addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
+      cmd('add.link', 'Link or video URL', 'Add', () => askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
+
+      cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
+      cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),
+      cmd('edit.all', 'Select everything', 'Edit', () => store.select(store.all().filter((i) => i.kind !== 'section').map((i) => i.id))),
+      cmd('edit.dup', 'Duplicate the selection', 'Edit', () => { const made = store.duplicate(sel()); if (made.length) store.select(made) }, { disabled: !some }),
+      cmd('edit.del', 'Delete the selection', 'Edit', () => store.remove(sel()), { disabled: !some, keywords: 'remove' }),
+
+      cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => i.kind !== 'edge').map((i) => i.id)), { keywords: 'grid align layout sort' }),
+      cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: selection.length < 2 }),
+      cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: selection.length < 2 }),
+      cmd('arrange.spreadx', 'Space the selection out across', 'Arrange', () => store.distribute(sel(), 'x'), { disabled: selection.length < 3 }),
+      cmd('arrange.spready', 'Space the selection out down', 'Arrange', () => store.distribute(sel(), 'y'), { disabled: selection.length < 3 }),
+
+      cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => void exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
+      cmd('out.board', 'Export this board and everything in it', 'Take out', () => void exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
+      cmd('in.board', 'Import a board file', 'Take out', () => importRef.current?.click(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
+
+      cmd('view.effects', panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
+      cmd('view.looks', 'Saved looks', 'View', () => { setPanelOpen(true); setTab('looks') }, { keywords: 'preset grade style' }),
+      cmd('view.search', 'Search this board', 'View', () => document.querySelector<HTMLInputElement>('.search input')?.focus(), { hint: KEYS.search.hint, keywords: 'find filter' }),
+      cmd('view.light', 'Light theme', 'View', () => setTheme('light'), { disabled: themeWant() === 'light', keywords: 'bright day appearance' }),
+      cmd('view.dark', 'Dark theme', 'View', () => setTheme('dark'), { disabled: themeWant() === 'dark', keywords: 'night appearance' }),
+      cmd('view.system', 'Follow the system theme', 'View', () => setTheme('system'), { disabled: themeWant() === 'system', keywords: 'auto appearance' }),
+    ]
+  }, [selection, panelOpen, centreOfView, addBoard, askForLink, exportBoard, exportPictures])
+
   /* ---------- keyboard ---------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
+      /* The command list opens from anywhere, a half typed note included: it
+         is how you get out of whatever you are in and do something else. */
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === KEYS.commands.key) {
+        e.preventDefault()
+        setPalette((v) => !v)
+        return
+      }
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
       const cmd = e.metaKey || e.ctrlKey
 
@@ -343,12 +411,7 @@ export default function App() {
         if (k === KEYS.label.key) { e.preventDefault(); store.add(labelItem(at)); return }
         if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
         if (k === KEYS.board.key) { e.preventDefault(); void addBoard(at); return }
-        if (k === KEYS.link.key) {
-          e.preventDefault()
-          const u = window.prompt('Paste a link. A video URL becomes a playable card.')
-          if (u) addUrl(at, u)
-          return
-        }
+        if (k === KEYS.link.key) { e.preventDefault(); askForLink(at); return }
         if (k === KEYS.addFiles.key) { e.preventDefault(); fileRef.current?.click(); return }
         if (k === KEYS.effects.key) { e.preventDefault(); setPanelOpen((v) => !v); return }
       }
@@ -500,54 +563,69 @@ export default function App() {
         <SearchBar />
         <TagFilter />
 
+        {/* Icons in three groups rather than eleven grey words in a row.
+            The words told you nothing the icon does not — they were all the
+            same size, weight and colour, so nothing in the row stood out and
+            the row itself was as wide as the window would allow. What each one
+            is, and the key that runs it, is on its tooltip and in the command
+            list. Effects keeps its name because it is the only thing here that
+            is a mode rather than an action. */}
         <div className="tools">
-          <button onClick={() => fileRef.current?.click()} title={titleFor('addFiles')}>
-            Add files <kbd aria-hidden="true">{KEYS.addFiles.hint}</kbd>
-          </button>
-          <button onClick={() => store.add(noteItem(centreOfView()))} title={titleFor('note')}>
-            Note <kbd aria-hidden="true">{KEYS.note.hint}</kbd>
-          </button>
-          <button onClick={() => store.add(labelItem(centreOfView()))} title={titleFor('label')}>
-            Label <kbd aria-hidden="true">{KEYS.label.hint}</kbd>
-          </button>
-          <button onClick={() => store.add(sectionItem(centreOfView()))} title={titleFor('section')}>
-            Section <kbd aria-hidden="true">{KEYS.section.hint}</kbd>
-          </button>
-          <button onClick={() => void addBoard(centreOfView())} title={titleFor('board')}>
-            Board <kbd aria-hidden="true">{KEYS.board.hint}</kbd>
-          </button>
+          <div className="tool-group">
+            <ToolButton name="addFiles" onClick={() => fileRef.current?.click()}>
+              <IconFiles />
+            </ToolButton>
+            <ToolButton name="note" onClick={() => store.add(noteItem(centreOfView()))}>
+              <IconNote />
+            </ToolButton>
+            <ToolButton name="label" onClick={() => store.add(labelItem(centreOfView()))}>
+              <IconLabel />
+            </ToolButton>
+            <ToolButton name="section" onClick={() => store.add(sectionItem(centreOfView()))}>
+              <IconSection />
+            </ToolButton>
+            <ToolButton name="board" onClick={() => void addBoard(centreOfView())}>
+              <IconBoard />
+            </ToolButton>
+            <ToolButton name="link" onClick={() => askForLink()}>
+              <IconLink />
+            </ToolButton>
+          </div>
+
+          <div className="tool-group">
+            <ToolButton name="undo" onClick={() => store.undo()}>
+              <IconUndo />
+            </ToolButton>
+            <ToolButton name="redo" onClick={() => store.redo()}>
+              <IconRedo />
+            </ToolButton>
+          </div>
+
+          {/* First to go when the row runs short: both are also a drop, a menu
+              entry, a shortcut and a line in the command list, while nothing
+              else here has a second way in. */}
+          <div className="tool-group tools-wide">
+            <ToolButton name="import" onClick={() => importRef.current?.click()}>
+              <IconImport />
+            </ToolButton>
+            <ToolButton name="export" onClick={() => void exportBoard()}>
+              <IconExport />
+            </ToolButton>
+          </div>
+
+          <ToolButton name="commands" onClick={() => setPalette(true)}>
+            <IconCommand />
+          </ToolButton>
+
           <button
-            title={titleFor('link')}
-            onClick={() => {
-              const u = window.prompt('Paste a link. A video URL becomes a playable card.')
-              if (u) addUrl(centreOfView(), u)
-            }}
-          >
-            Link <kbd aria-hidden="true">{KEYS.link.hint}</kbd>
-          </button>
-          <span className="sep" />
-          <button onClick={() => store.undo()} title={titleFor('undo')}>
-            Undo <kbd aria-hidden="true">{KEYS.undo.hint}</kbd>
-          </button>
-          <button onClick={() => store.redo()} title={titleFor('redo')}>
-            Redo <kbd aria-hidden="true">{KEYS.redo.hint}</kbd>
-          </button>
-          <span className="sep" />
-          <button onClick={() => void exportBoard()} title={titleFor('export')}>
-            Export <kbd aria-hidden="true">{KEYS.export.hint}</kbd>
-          </button>
-          {/* First to go when the row runs short: importing is also a drop, a
-              menu entry and a shortcut, while nothing else here has a second
-              way in. */}
-          <button className="tools-wide" onClick={() => importRef.current?.click()} title={titleFor('import')}>
-            Import <kbd aria-hidden="true">{KEYS.import.hint}</kbd>
-          </button>
-          <button
+            className="tool-mode"
             data-on={panelOpen || undefined}
             onClick={() => setPanelOpen((v) => !v)}
             title={titleFor('effects')}
+            aria-label="Effects"
           >
-            Effects <kbd aria-hidden="true">{KEYS.effects.hint}</kbd>
+            <IconEffects />
+            <span>Effects</span>
           </button>
         </div>
       </header>
@@ -589,6 +667,7 @@ export default function App() {
         }}
       />
 
+      {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
       {busy && <div className="toast">{busy}</div>}
       {!engineOk && (
@@ -598,5 +677,21 @@ export default function App() {
       )}
       <Stats count={selection.length} />
     </div>
+  )
+}
+
+/* A button in the top row: an icon, and the name and key it runs on its
+   tooltip and for anything reading the page aloud. */
+function ToolButton({
+  name, onClick, children,
+}: {
+  name: ShortcutName
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button className="tool" onClick={onClick} title={titleFor(name)} aria-label={nameFor(name)}>
+      {children}
+    </button>
   )
 }

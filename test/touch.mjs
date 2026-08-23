@@ -129,7 +129,7 @@ check('and closing them zooms out again', back.z < zoomed.z * 0.8, `${zoomed.z} 
 check('the zoom readout keeps up', /\d+%/.test(await page.locator('.zoombar').innerText()))
 
 /* ---------- a card still moves under one finger ---------- */
-await page.locator('.tools button', { hasText: 'Note' }).first().click()
+await page.locator('.tools button[aria-label="Note"]').first().click()
 await page.waitForTimeout(500)
 const made = (await cards())[0]
 const at = await page.evaluate((cid) => {

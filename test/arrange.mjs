@@ -40,7 +40,9 @@ const check = (name, ok, extra) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra === undefined ? '' : `  — ${extra}`}`)
 }
 
-const tool = (t) => page.locator('.tools button', { hasText: t }).first()
+/* The toolbar is icons, so a button is found by the name it carries for
+ * anything reading the page rather than by the words printed on it. */
+const tool = (t) => page.locator(`.tools button[aria-label="${t}"]`).first()
 const blur = () => page.evaluate(() => document.activeElement?.blur?.())
 
 /* Positions as the board holds them, not as the screen shows them. */

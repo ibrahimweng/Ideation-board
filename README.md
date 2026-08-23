@@ -58,17 +58,40 @@ Nothing in the app runs on a server. The build is a set of static files, and
 all the work happens in the browser, so there are no environment variables or
 secrets to set.
 
+## The top bar, and the command list
+
+The top bar carries icons rather than words. Every one of them says what it is
+and which key runs it when you hover it, and every one of them is also in the
+command list, which is the real answer to "where is that thing".
+
+Press Cmd or Ctrl with K, or the ⌘ button in the bar, and type. It searches
+everything the board can do, including the things there was never room for in
+the bar: tidy up, line a selection up, space it out, export the selected
+pictures, open the saved looks, switch the theme. The letters only have to be
+in order, so "tdy" finds "Tidy up the whole board", and every entry shows the
+shortcut that runs it, so using the list is how you learn to stop using it.
+
+## Light and dark
+
+The button beside the zoom control cycles between following your system,
+light, and dark. A dot on it means it is following the system.
+
+This is not decoration. What surrounds a photograph changes what you see in
+it — the same picture reads warmer on a pale ground and flatter on a dark one
+— and a board is where photographs are judged, so it is worth being able to
+say which surround you are judging against.
+
 ## Using the board
 
 You add things in several ways:
 
 - Drag files from your computer onto the board.
-- Press the "Add files" button in the top bar.
+- Press the picture button in the top bar.
 - Paste an image, a block of text or a link.
 - Paste or drop the address of a video file and it becomes a video card you can
   play and put effects on. A YouTube or Vimeo link becomes an embedded player.
-- Press "Board" for a board inside this one, for work that has outgrown a
-  corner of the canvas.
+- Press the nested-frame button for a board inside this one, for work that has
+  outgrown a corner of the canvas.
 
 Once something is on the board:
 
@@ -160,7 +183,13 @@ Keyboard shortcuts:
 
 Select an image or a video and open the Effects panel. There are 31 effects,
 grouped by the kind of look they give. Each preview in the panel is a real
-render of your own picture through that effect, not a stock sample.
+render of your own picture through that effect, not a stock sample. Thirty one
+previews is more than anyone can scan, so there is a field at the top to find
+one by name.
+
+With nothing selected the panel stands down to a narrow rail and gives the
+board back the width, since everything it has to say needs a picture to say it
+about.
 
 The panel has three tabs:
 
@@ -388,6 +417,7 @@ npm run test:touch -- http://localhost:5173
 npm run test:menu -- http://localhost:5173
 npm run test:search -- http://localhost:5173
 npm run test:looks -- http://localhost:5173
+npm run test:palette -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
 npm run test:png -- http://localhost:5173
@@ -405,6 +435,11 @@ npm run bench
 - `test:arrange` drags a card onto a neighbour's edge and checks it is pulled
   exactly onto it with a guide to say so, then lines up, spaces and tidies a
   selection from the menu and checks each is a single step of undo.
+- `test:palette` checks that every button in the top bar is an icon that still
+  says what it is, that the command list opens, narrows as you type, runs what
+  you pick and refuses what has nothing to act on, that a command the toolbar
+  never had room for works from it, that the panel collapses to a rail with
+  nothing selected, and that an effect can be found by name.
 - `test:looks` grades a card, saves the look, puts it on a second card and on a
   whole selection, and checks the treatment carries while the framing does not
   — the second card is zoomed first, and stays zoomed. It also copies and

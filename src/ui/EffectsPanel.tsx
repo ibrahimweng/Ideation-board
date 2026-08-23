@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
 import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
 import { isColor, isEnum } from '../engine/types'
@@ -6,6 +6,7 @@ import type { Control, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { LooksTab } from './LooksTab'
+import { IconEffects, IconSearch } from './icons'
 
 /* ---------------------------------------------------------------------------
  * Effects panel.
@@ -41,6 +42,14 @@ interface Props {
 
 export function EffectsPanel({ tab, onTab, say }: Props) {
   const selection = useSelection()
+  const [find, setFind] = useState('')
+  const found = useMemo(() => {
+    const q = find.trim().toLowerCase()
+    if (!q) return GROUPS
+    return GROUPS.map((g) => ({ ...g, items: g.items.filter((e) => e.name.toLowerCase().includes(q)) })).filter(
+      (g) => g.items.length
+    )
+  }, [find])
   /* Controls edit the first selected media item and apply to all of them. */
   const targets = useMemo(
     () =>
@@ -52,10 +61,13 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const primaryId = targets[0]?.id
   const primary = useItem(primaryId || '')
 
+  /* Open, with nothing to work on. A full width column of one sentence takes
+   * three hundred and twenty pixels off the board to say nothing; a rail says
+   * the same thing and gives them back. */
   if (!primary) {
     return (
-      <aside className="panel">
-        <div className="panel-empty">Select an image or video to apply effects.</div>
+      <aside className="panel panel-rail" title="Select a picture or a video to work on it">
+        <IconEffects />
       </aside>
     )
   }
@@ -137,7 +149,28 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
-          {GROUPS.map((g) => (
+          {/* Thirty one of them in a three across grid is more than anyone can
+              scan, and knowing the name is faster than finding the picture. */}
+          <div className="fx-find">
+            <IconSearch />
+            <input
+              value={find}
+              placeholder="Find an effect"
+              spellCheck={false}
+              onChange={(e) => setFind(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setFind('')
+                e.stopPropagation()
+              }}
+            />
+            {!!find && (
+              <button className="fx-find-clear" onClick={() => setFind('')} title="Clear">
+                ×
+              </button>
+            )}
+          </div>
+
+          {found.map((g) => (
             <section key={g.name} className="fx-group">
               <h4>{g.name}</h4>
               <div className="fx-grid">
@@ -154,6 +187,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
               </div>
             </section>
           ))}
+          {!found.length && <p className="panel-note">No effect is called that.</p>}
 
           {!!spec.controls.length && (
             <section className="fx-controls">

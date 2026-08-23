@@ -40,7 +40,8 @@ const check = (name, ok, extra) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra === undefined ? '' : `  — ${extra}`}`)
 }
 
-const tool = (t) => page.locator('.tools button', { hasText: t }).first()
+/* The toolbar is icons: found by accessible name, not by printed words. */
+const tool = (t) => page.locator(`.tools button[aria-label="${t}"]`).first()
 const wires = () => page.locator('.wire-line')
 const boxes = () =>
   page.evaluate(() =>
