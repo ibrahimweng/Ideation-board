@@ -11,6 +11,7 @@ import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
 import { ContextMenu } from '../ui/ContextMenu'
+import { isSection, isThing, isWire } from '../state/kinds'
 import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
@@ -62,7 +63,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
   const selSet = useMemo(() => new Set(selection), [selection])
   /* Recomputed only when the text changes, not on every render. */
   const words = useMemo(() => parseQuery(query), [query])
-  const edgeIds = useMemo(() => order.filter((id) => store.getItem(id)?.kind === 'edge'), [order])
+  const edgeIds = useMemo(() => order.filter((id) => isWire(store.getItem(id))), [order])
   const isFiltering = filtering(words, tagFilter)
 
   /* Applies the current viewport to the DOM without touching React state. */
@@ -112,7 +113,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
         const it = store.getItem(id)
         /* Wires are not cards and are not virtualised: they have no box to
          * test, and a wire whose cards are both off screen costs one path. */
-        if (it && it.kind !== 'edge' && intersects(it, r)) ids.push(id)
+        if (it && !isWire(it) && intersects(it, r)) ids.push(id)
       }
       const key = ids.join(',')
       /* setState only when membership changed, so a pan across empty board
@@ -279,7 +280,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
         if (last && (last.w > 4 || last.h > 4)) {
           const hits = store
             .all()
-            .filter((i) => i.kind !== 'section' && i.kind !== 'edge' && intersects(i, last!))
+            .filter((i) => isThing(i) && intersects(i, last!))
             .map((i) => i.id)
           store.select(hits, e.shiftKey)
         }
@@ -302,7 +303,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
     else if (!store.isSelected(id)) store.select([id])
     /* Sections sit behind their contents by design, so raising one would put
      * it over the very items it holds. */
-    if (store.getItem(id)?.kind !== 'section') store.raise(id)
+    if (!isSection(store.getItem(id))) store.raise(id)
 
     const selected = store.getSelection().includes(id) ? store.getSelection() : [id]
     const { ids, carried } = store.dragSet(selected)
@@ -313,7 +314,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
     /* Only what was dragged directly is re-tested against the sections.
      * Something that moved because its section moved is still in that
      * section, wherever the section went. */
-    const testable = selected.filter((i) => !carried.has(i) && store.getItem(i)?.kind !== 'section')
+    const testable = selected.filter((i) => !carried.has(i) && !isSection(store.getItem(i)))
     let moved = false
     let highlight: string | null = null
     const engine = getEngine()
@@ -324,7 +325,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
     /* Only what is on screen: a card should not be pulled onto the edge of
      * something nobody can see, and it keeps the work per frame bounded. */
     const lines: Guides = guidesFrom(
-      store.all().filter((i) => !dragging.has(i.id) && i.kind !== 'edge' && intersects(i, rectRef.current))
+      store.all().filter((i) => !dragging.has(i.id) && !isWire(i) && intersects(i, rectRef.current))
     )
     const boxes = [...origin.values()]
     const startBox = {

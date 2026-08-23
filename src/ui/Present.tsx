@@ -8,6 +8,8 @@ import { adjustCSS, frameCSS, hasEffect } from '../board/adjust'
 import { GRAIN_URL } from '../board/grain'
 import { RichText } from '../board/RichText'
 import { hostOf } from '../state/urls'
+import { readingOrder } from '../state/order'
+import { canShade } from '../state/kinds'
 import { inkOn } from '../state/palette'
 
 /* ---------------------------------------------------------------------------
@@ -31,27 +33,10 @@ import { inkOn } from '../state/palette'
  * card.
  * ------------------------------------------------------------------------- */
 
-/* Sections are the ground and arrows are between things, so neither is a thing
- * to show. Everything else on a board is something somebody put there. */
-const showable = (i: Item) => i.kind !== 'section' && i.kind !== 'edge'
-
-/* Bands of roughly one card's height, so a row of pictures that do not line up
- * to the pixel is still read as a row. */
-export function presentOrder(items: Item[]): Item[] {
-  const list = items.filter(showable)
-  if (!list.length) return []
-  const band = Math.max(80, Math.min(...list.map((i) => i.h)) * 0.6)
-  return [...list].sort((a, b) => {
-    const ra = Math.floor(a.y / band)
-    const rb = Math.floor(b.y / band)
-    return ra !== rb ? ra - rb : a.x - b.x
-  })
-}
-
 export function Present({ ids, onClose }: { ids: string[]; onClose: () => void }) {
   const items = useMemo(() => {
     const chosen = ids.length > 1 ? ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i) : store.all()
-    return presentOrder(chosen)
+    return readingOrder(chosen)
   }, [ids])
 
   const [at, setAt] = useState(0)
@@ -186,7 +171,7 @@ function Stage({ item }: { item: Item }) {
   const fx = item.fx
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
-  const effected = hasEffect(fx) && item.kind === 'image' && item.readable !== false
+  const effected = hasEffect(fx) && item.kind === 'image' && canShade(item)
 
   return (
     <div className="present-stage" style={{ width: box.w, height: box.h }}>

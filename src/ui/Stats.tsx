@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { store } from '../state/store'
 import { getEngine } from '../engine/client'
+import { describeSpace, measure, spaceNow, subscribeSpace, TIGHT as SPACE_TIGHT } from '../store/space'
+import type { Space } from '../store/space'
 
 /* ---------------------------------------------------------------------------
  * What the board is holding.
@@ -20,6 +22,9 @@ const TIGHT = 0.82
 export function Stats({ count }: { count: number }) {
   const [gpu, setGpu] = useState<{ textures: number; textureBytes: number } | null>(null)
   const [items, setItems] = useState(0)
+  const [space, setSpace] = useState<Space>(spaceNow)
+
+  useEffect(() => subscribeSpace(setSpace), [])
 
   useEffect(() => {
     const engine = getEngine()
@@ -27,6 +32,7 @@ export function Stats({ count }: { count: number }) {
     const t = setInterval(() => {
       setItems(store.count())
       engine.requestStats()
+      void measure()
     }, 1500)
     return () => {
       clearInterval(t)
@@ -40,13 +46,23 @@ export function Stats({ count }: { count: number }) {
     ? `${gpu.textures} picture${gpu.textures === 1 ? '' : 's'} on the GPU, ${mb.toFixed(0)}MB of ${BUDGET_MB}MB`
     : 'Nothing on the GPU yet'
 
+  /* The disk is worth more of the corner than the GPU is: running out of the
+   * one costs you a slower effect, and running out of the other costs you the
+   * work. */
+  const cramped = space.known && space.ratio > SPACE_TIGHT
+
   return (
     <div className="stats" title={detail}>
       <span>
         {items} item{items === 1 ? '' : 's'}
       </span>
       {count > 0 && <span>{count} selected</span>}
-      {tight && (
+      {cramped && (
+        <span className="stats-tight" title={describeSpace(space)}>
+          Storage {Math.round(space.ratio * 100)}% full
+        </span>
+      )}
+      {tight && !cramped && (
         <span className="stats-tight" title={detail}>
           GPU memory full
         </span>

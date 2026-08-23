@@ -1,3 +1,5 @@
+import { reportWriteFailure, reportWriteOk } from './space'
+
 /* IndexedDB persistence. Boards hold metadata; media blobs live in their own
  * store so a board can be read without pulling every image into memory. */
 
@@ -51,9 +53,17 @@ async function tx<T>(store: 'boards' | 'blobs', mode: IDBTransactionMode, fn: (s
   })
 }
 
+/* The memory copy is a fallback for reading back within this session, not a
+ * save. A write that fails has to be reported, or a board that is not being
+ * saved looks exactly like one that is until the tab is reloaded. */
 export async function putBoard(b: StoredBoard) {
   mem.boards.set(b.id, b)
-  try { await tx('boards', 'readwrite', (s) => s.put(b)) } catch { /* memory copy stands */ }
+  try {
+    await tx('boards', 'readwrite', (s) => s.put(b))
+    reportWriteOk()
+  } catch (err) {
+    reportWriteFailure(err)
+  }
 }
 export async function getBoard(id: string): Promise<StoredBoard | undefined> {
   try {
@@ -75,7 +85,12 @@ export async function delBoard(id: string) {
 }
 export async function putBlob(k: string, b: Blob) {
   mem.blobs.set(k, b)
-  try { await tx('blobs', 'readwrite', (s) => s.put(b, k)) } catch { /* memory copy stands */ }
+  try {
+    await tx('blobs', 'readwrite', (s) => s.put(b, k))
+    reportWriteOk(b.size)
+  } catch (err) {
+    reportWriteFailure(err)
+  }
 }
 export async function getBlob(k: string): Promise<Blob | undefined> {
   try {

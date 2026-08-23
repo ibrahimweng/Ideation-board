@@ -5,6 +5,7 @@ import { coverUv } from '../engine/gl'
 import { adjustCSS, hasEffect } from '../board/adjust'
 import { GRAIN_SVG, GRAIN_TILE } from '../board/grain'
 import { safeName } from '../store/fs'
+import { hasPixels } from './kinds'
 
 /* ---------------------------------------------------------------------------
  * A card, as a picture you can hand to someone.
@@ -162,7 +163,7 @@ async function compose(
 /* One card as a PNG, or null when there is nothing to export: a card with no
  * picture behind it, or a video whose host will not let its pixels be read. */
 export async function exportCard(item: Item): Promise<ExportedImage | null> {
-  if (item.kind !== 'image' && item.kind !== 'video') return null
+  if (!hasPixels(item)) return null
   const src = await sourceFor(item)
   if (!src) return null
 

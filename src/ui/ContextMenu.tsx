@@ -3,6 +3,7 @@ import { store } from '../state/store'
 import { copiedLook, copyLook, isPlain, lookFrom } from '../state/looks'
 import { TAGS } from '../state/types'
 import type { Item } from '../state/types'
+import { hasPixels, isGradeable, isSection, isThing } from '../state/kinds'
 
 /* ---------------------------------------------------------------------------
  * Right click menu for cards.
@@ -103,17 +104,17 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
   const many = ids.length > 1
   const first = items[0]
   const anyInSection = items.some((i) => i!.parent)
-  const anySection = items.some((i) => i!.kind === 'section')
+  const anySection = items.some(isSection)
   /* Sections are the ground and wires have no box, so neither can be lined up
    * with anything. Two cards that can is what makes the row worth showing. */
-  const movable = items.filter((i) => i!.kind !== 'section' && i!.kind !== 'edge').length
+  const movable = items.filter(isThing).length
   /* Only a picture or a video has pixels to hand over. */
-  const pictures = items.filter((i) => i!.kind === 'image' || i!.kind === 'video').map((i) => i!.id)
+  const pictures = items.filter(hasPixels).map((i) => i.id)
   /* A look can be worn by anything with a picture behind it, an embedded
    * player included: the tone applies even where a shader cannot. */
   const targets = items
-    .filter((i) => i!.kind === 'image' || i!.kind === 'video' || i!.kind === 'embed')
-    .map((i) => i!.id)
+    .filter(isGradeable)
+    .map((i) => i.id)
   const graded = !!first && targets.includes(first.id) && !isPlain(lookFrom(first.fx))
   const clip = copiedLook()
   const currentTag = first && items.every((i) => i!.tag === first.tag) ? first.tag : null
@@ -187,7 +188,7 @@ function CanvasMenu({
       </button>
       <button
         onClick={run(() =>
-          store.select(store.all().filter((i) => i.kind !== 'section').map((i) => i.id))
+          store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))
         )}
       >
         Select all <em>⌘A</em>

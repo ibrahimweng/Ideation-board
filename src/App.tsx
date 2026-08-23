@@ -19,7 +19,10 @@ import { nameFor } from './ui/shortcuts'
 import type { ShortcutName } from './ui/shortcuts'
 import { CommandPalette } from './ui/CommandPalette'
 import { Present } from './ui/Present'
+import { SpaceAlarm } from './ui/SpaceAlarm'
+import { describeSpace, measure, roomFor, spaceNow } from './store/space'
 import { paletteOf, swatchItems } from './state/palette'
+import { hasPixels, isSection, isWire } from './state/kinds'
 import type { Command } from './ui/CommandPalette'
 import { setTheme, themeWant } from './ui/theme'
 import {
@@ -227,7 +230,7 @@ export default function App() {
    * in one gesture. */
   const exportPictures = useCallback(async (ids: string[]) => {
     const items = ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)
-    const shootable = items.filter((i) => i.kind === 'image' || i.kind === 'video')
+    const shootable = items.filter(hasPixels)
     if (!shootable.length) {
       setBusy('Select a picture or a video to export')
       window.setTimeout(() => setBusy(null), 2200)
@@ -293,6 +296,20 @@ export default function App() {
       list = rest
       if (!list.length) return
     }
+    /* Asked before the drop rather than discovered half way through it. A
+       browser that will not say how much room is left says yes, because
+       refusing a drop on a guess is worse than letting it fail and saying so. */
+    await measure()
+    const bytes = list.reduce((n, f) => n + f.size, 0)
+    if (!roomFor(bytes)) {
+      const mb = (v: number) => `${Math.round(v / 1048576)}MB`
+      say(
+        `Not enough room for ${mb(bytes)}. ${describeSpace(spaceNow())}. Export this board and remove what you do not need.`,
+        6000
+      )
+      return
+    }
+
     setBusy(`Adding ${list.length} file${list.length > 1 ? 's' : ''}…`)
     let n = 0
     /* Items appear one at a time as they become ready rather than all at the
@@ -303,7 +320,7 @@ export default function App() {
       setBusy(n < list.length ? `Adding ${n + 1} of ${list.length}…` : null)
     }
     setBusy(null)
-  }, [])
+  }, [say])
 
 
   /* The colours out of a picture, as swatches under it. One undo step for the
@@ -311,7 +328,7 @@ export default function App() {
   const pullColours = useCallback(async (ids: string[]) => {
     const from = ids
       .map((id) => store.getItem(id))
-      .find((i): i is Item => !!i && (i.kind === 'image' || i.kind === 'video'))
+      .find(hasPixels)
     if (!from) {
       say('Select a picture or a video to read the colours out of it')
       return
@@ -356,11 +373,11 @@ export default function App() {
 
       cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
       cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),
-      cmd('edit.all', 'Select everything', 'Edit', () => store.select(store.all().filter((i) => i.kind !== 'section').map((i) => i.id))),
+      cmd('edit.all', 'Select everything', 'Edit', () => store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))),
       cmd('edit.dup', 'Duplicate the selection', 'Edit', () => { const made = store.duplicate(sel()); if (made.length) store.select(made) }, { disabled: !some }),
       cmd('edit.del', 'Delete the selection', 'Edit', () => store.remove(sel()), { disabled: !some, keywords: 'remove' }),
 
-      cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => i.kind !== 'edge').map((i) => i.id)), { keywords: 'grid align layout sort' }),
+      cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => !isWire(i)).map((i) => i.id)), { keywords: 'grid align layout sort' }),
       cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: selection.length < 2 }),
       cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: selection.length < 2 }),
       cmd('arrange.spreadx', 'Space the selection out across', 'Arrange', () => store.distribute(sel(), 'x'), { disabled: selection.length < 3 }),
@@ -370,7 +387,7 @@ export default function App() {
       cmd('out.board', 'Export this board and everything in it', 'Take out', () => void exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
       cmd('in.board', 'Import a board file', 'Take out', () => importRef.current?.click(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
 
-      cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => void pullColours(sel()), { disabled: !selection.some((id) => { const i = store.getItem(id); return i && (i.kind === 'image' || i.kind === 'video') }), keywords: 'palette swatch colour color hex sample' }),
+      cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => void pullColours(sel()), { disabled: !selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
       cmd('view.present', selection.length > 1 ? `Present the ${selection.length} selected` : 'Present this board', 'View', () => setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
       cmd('view.effects', panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
       cmd('view.looks', 'Saved looks', 'View', () => { setPanelOpen(true); setTab('looks') }, { keywords: 'preset grade style' }),
@@ -403,7 +420,7 @@ export default function App() {
       }
       if (cmd && e.key.toLowerCase() === 'a') {
         e.preventDefault()
-        store.select(store.all().filter((i) => i.kind !== 'section').map((i) => i.id))
+        store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))
         return
       }
       if (cmd && e.key.toLowerCase() === 'd') {
@@ -696,6 +713,7 @@ export default function App() {
         }}
       />
 
+      <SpaceAlarm onExport={() => void exportBoard()} />
       {presenting && <Present ids={selection} onClose={() => setPresenting(false)} />}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { store, useItem } from '../state/store'
 import { SWATCH, TAGS } from '../state/types'
 import { renameBoard } from '../state/boards'
+import { hasWords } from '../state/kinds'
 
 /* Inline editor for the text-bearing card kinds. Edits are written on close
  * rather than on every keystroke, so typing never touches the board. */
@@ -16,7 +17,7 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
   }, [])
 
   if (!it) return null
-  const isText = it.kind === 'note' || it.kind === 'label' || it.kind === 'section'
+  const isText = hasWords(it)
 
   /* The buttons write the same marks a person would have typed, so what is
    * stored stays a plain string and nothing has to agree with anything. */

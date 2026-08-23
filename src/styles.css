@@ -1137,6 +1137,30 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 /* ---------- chrome ---------- */
 
+/* Not a toast. A toast is for things that have gone right and can be missed;
+   this is for the one state where missing it costs you the work, so it holds
+   its place until it is answered. */
+.alarm {
+  position: fixed; right: var(--s4); bottom: var(--s4); z-index: 75;
+  width: min(360px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: var(--s2);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--warn);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-3);
+}
+.alarm strong { font-size: var(--t-md); color: var(--warn); }
+.alarm span { font-size: var(--t-sm); line-height: 1.55; color: var(--ink-2); }
+.alarm-do { display: flex; gap: var(--s2); margin-top: var(--s1); }
+.alarm-do button {
+  flex: 1; padding: var(--s2); border-radius: var(--r-sm); font-size: var(--t-sm);
+  background: var(--ink); color: var(--on-ink); border: 1px solid var(--ink);
+}
+.alarm-do button.ghost { flex: none; background: var(--surface); color: var(--muted); border-color: var(--line); }
+.app[data-panel] .alarm { right: calc(var(--panel-w) + var(--s4)); }
+
 .toast {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: var(--r-md);

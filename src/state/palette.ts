@@ -1,6 +1,7 @@
 import type { Item } from './types'
 import { getBlob } from '../store/idb'
 import { newId } from './ingest'
+import { hasPixels } from './kinds'
 import { FX_0 } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -103,10 +104,18 @@ export function paletteFrom(data: Uint8ClampedArray, want = 5): Swatch[] {
    * Relaxed if that leaves the list short, because five swatches from a
    * monochrome photograph should still be five. */
   const out: typeof bins = []
+  const taken = new Set<(typeof bins)[number]>()
   for (const gap of [72, 46, 26, 12, 0]) {
     for (const bin of bins) {
       if (out.length >= want) break
-      if (out.every((o) => apart(o.rgb, bin.rgb) >= gap)) out.push(bin)
+      /* Once a bin is in, it is in. Without this the last pass — which lets
+       * anything through — would hand back colours already in the list, and a
+       * palette would offer you the same blue twice under one name. */
+      if (taken.has(bin)) continue
+      if (out.every((o) => apart(o.rgb, bin.rgb) >= gap)) {
+        out.push(bin)
+        taken.add(bin)
+      }
     }
     if (out.length >= want) break
   }
@@ -157,7 +166,7 @@ async function samplesFor(item: Item): Promise<Uint8ClampedArray | null> {
 }
 
 export async function paletteOf(item: Item, want = 5): Promise<Swatch[]> {
-  if (item.kind !== 'image' && item.kind !== 'video') return []
+  if (!hasPixels(item)) return []
   const data = await samplesFor(item)
   return data ? paletteFrom(data, want) : []
 }

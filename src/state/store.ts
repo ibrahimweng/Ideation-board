@@ -2,6 +2,7 @@ import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
+import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
 import type { LookFx } from './looks'
 
 /* ---------------------------------------------------------------------------
@@ -143,11 +144,11 @@ export class BoardStore {
   dragSet(ids: string[]): { ids: string[]; carried: Set<string> } {
     /* Wires are drawn from their two ends, so there is nothing about one to
      * move. Selecting everything and dragging must not try. */
-    const out = new Set(ids.filter((id) => this.items.get(id)?.kind !== 'edge'))
+    const out = new Set(ids.filter((id) => !isWire(this.items.get(id))))
     const carried = new Set<string>()
     for (const id of ids) {
       const it = this.items.get(id)
-      if (!it || it.kind !== 'section') continue
+      if (!isSection(it)) continue
       for (const m of this.membersOf(id)) {
         out.add(m.id)
         carried.add(m.id)
@@ -161,7 +162,7 @@ export class BoardStore {
   sectionAt(x: number, y: number): string | null {
     for (let i = this.order.length - 1; i >= 0; i--) {
       const it = this.items.get(this.order[i])
-      if (!it || it.kind !== 'section') continue
+      if (!it || !isSection(it)) continue
       if (x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + it.h) return it.id
     }
     return null
@@ -172,7 +173,7 @@ export class BoardStore {
   reparentByPosition(ids: string[]) {
     for (const id of ids) {
       const it = this.items.get(id)
-      if (!it || it.kind === 'section' || it.kind === 'edge') continue
+      if (!isThing(it)) continue
       const parent = this.sectionAt(it.x + it.w / 2, it.y + it.h / 2)
       if ((it.parent || null) === parent) continue
       this.items.set(id, { ...it, parent })
@@ -216,9 +217,9 @@ export class BoardStore {
     if (from === to) return null
     const a = this.items.get(from)
     const b = this.items.get(to)
-    if (!a || !b || a.kind === 'edge' || b.kind === 'edge') return null
+    if (!a || !b || isWire(a) || isWire(b)) return null
     for (const it of this.items.values()) {
-      if (it.kind !== 'edge') continue
+      if (!isWire(it)) continue
       if ((it.from === from && it.to === to) || (it.from === to && it.to === from)) return it.id
     }
     /* Built here rather than pulled from the item factories: those import the
@@ -258,13 +259,14 @@ export class BoardStore {
     const all = new Set(ids)
     for (const id of ids) {
       const it = this.items.get(id)
-      if (it && it.kind === 'section') for (const m of this.membersOf(id)) all.add(m.id)
+      if (isSection(it)) for (const m of this.membersOf(id)) all.add(m.id)
     }
     /* A wire to a card that is no longer there is not a wire. Undo brings the
      * card and its connections back together, since both are in the snapshot
      * taken above. */
     for (const it of this.items.values()) {
-      if (it.kind === 'edge' && (all.has(it.from!) || all.has(it.to!))) all.add(it.id)
+      const ends = endsOf(it)
+      if (ends && (all.has(ends[0]) || all.has(ends[1]))) all.add(it.id)
     }
     ids = [...all]
     for (const id of ids) {
@@ -280,8 +282,20 @@ export class BoardStore {
   /* Copies items, taking the contents of any copied section along and
    * pointing the copies at the copied section rather than the original. */
   duplicate(ids: string[], dx = 28, dy = 28): string[] {
-    const { ids: full } = this.dragSet(ids)
-    if (!full.length) return []
+    const { ids: moved } = this.dragSet(ids)
+    if (!moved.length) return []
+    /* dragSet drops the wires, because a wire is drawn from its two ends and
+     * there is nothing about one to move. A copy is not a move: a pair of
+     * connected cards copied together should come out still connected, and
+     * without this the code below that joins the copies never saw an edge to
+     * join. */
+    const inSet = new Set(moved)
+    const full = [
+      ...moved,
+      ...this.all()
+        .filter((i) => { const e = endsOf(i); return !!e && inSet.has(e[0]) && inSet.has(e[1]) })
+        .map((i) => i.id),
+    ]
     this.snapshot()
     const remap = new Map<string, string>()
     for (const id of full) remap.set(id, 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36))
@@ -292,13 +306,14 @@ export class BoardStore {
       /* A copied wire joins the copies. With only one end in the selection
        * there is nothing sensible to join, so it is left out rather than
        * quietly drawn back to the original. */
-      if (src.kind === 'edge' && !(remap.has(src.from!) && remap.has(src.to!))) continue
+      const ends = endsOf(src)
+      if (ends && !(remap.has(ends[0]) && remap.has(ends[1]))) continue
       const nid = remap.get(id)!
       const parent = src.parent && remap.has(src.parent) ? remap.get(src.parent)! : src.parent ?? null
       const copy: Item = { ...src, id: nid, x: src.x + dx, y: src.y + dy, z: ++this.topZ, parent }
-      if (src.kind === 'edge') {
-        copy.from = remap.get(src.from!)!
-        copy.to = remap.get(src.to!)!
+      if (ends) {
+        copy.from = remap.get(ends[0])!
+        copy.to = remap.get(ends[1])!
       }
       this.items.set(nid, copy)
       this.order.push(nid)
@@ -334,7 +349,7 @@ export class BoardStore {
     this.snapshot()
     for (const id of ids) {
       const cur = this.items.get(id)
-      if (!cur || cur.kind === 'section') continue
+      if (!cur || isSection(cur)) continue
       this.items.set(id, { ...cur, z: ++this.topZ })
       this.pingItem(id)
     }
@@ -348,12 +363,12 @@ export class BoardStore {
     this.snapshot()
     let min = Infinity
     for (const it of this.items.values()) {
-      if (it.kind !== 'section' && !ids.includes(it.id)) min = Math.min(min, it.z)
+      if (!isSection(it) && !ids.includes(it.id)) min = Math.min(min, it.z)
     }
     let z = Math.max(2, (Number.isFinite(min) ? min : 20) - ids.length)
     for (const id of ids) {
       const cur = this.items.get(id)
-      if (!cur || cur.kind === 'section') continue
+      if (!cur || isSection(cur)) continue
       this.items.set(id, { ...cur, z: z++ })
       this.pingItem(id)
     }
@@ -381,7 +396,7 @@ export class BoardStore {
   private arrangeable(ids: string[]): Item[] {
     return ids
       .map((id) => this.items.get(id))
-      .filter((i): i is Item => !!i && i.kind !== 'edge' && i.kind !== 'section')
+      .filter(isThing)
   }
 
   private place(it: Item, x: number, y: number) {
@@ -463,7 +478,7 @@ export class BoardStore {
   applyLook(ids: string[], look: LookFx) {
     const targets = ids
       .map((id) => this.items.get(id))
-      .filter((i): i is Item => !!i && (i.kind === 'image' || i.kind === 'video' || i.kind === 'embed'))
+      .filter((i): i is Item => isGradeable(i))
     if (!targets.length) return 0
     this.snapshot()
     for (const it of targets) {

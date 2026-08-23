@@ -1,0 +1,68 @@
+# Every push and every pull request, so nothing goes to main on the strength of
+# "it worked on my machine".
+#
+# Two jobs on purpose. The fast one — types, then eighty odd unit tests — is
+# done in well under a minute and catches most mistakes; the slow one drives a
+# real browser through every suite and takes several minutes. Splitting them
+# means a typo is reported while you are still looking at the tab.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 3
+
+  browser:
+    name: Browser suites
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Chromium only: the app is one page and the suites all launch chromium
+      # by name, so the other two browsers would be download time for nothing.
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      # The runners have no GPU. SwiftShader is what the suites already use
+      # locally, and every one of them passes the flag itself.
+      - run: npm run test:browser
+      # The screenshots each suite leaves behind are the fastest way to see
+      # what a failure actually looked like.
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: .smoke
+          retention-days: 7
+          if-no-files-found: ignore

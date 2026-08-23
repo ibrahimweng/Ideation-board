@@ -1,4 +1,5 @@
 import type { Item } from '../state/types'
+import { isThing } from '../state/kinds'
 
 /* ---------------------------------------------------------------------------
  * Lining a card up with the ones already there.
@@ -39,7 +40,7 @@ export function guidesFrom(items: Item[]): Guides {
   const v: Line[] = []
   const h: Line[] = []
   for (const it of items) {
-    if (it.kind === 'edge') continue
+    if (!isThing(it)) continue
     v.push({ at: it.x, from: it.y, to: it.y + it.h })
     v.push({ at: it.x + it.w / 2, from: it.y, to: it.y + it.h })
     v.push({ at: it.x + it.w, from: it.y, to: it.y + it.h })

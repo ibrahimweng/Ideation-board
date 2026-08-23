@@ -6,6 +6,7 @@ import type { Control, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { LooksTab } from './LooksTab'
+import { canShade, isGradeable } from '../state/kinds'
 import { IconEffects, IconSearch } from './icons'
 
 /* ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
     () =>
       selection
         .map((id) => store.getItem(id))
-        .filter((i) => i && (i.kind === 'image' || i.kind === 'video' || i.kind === 'embed')),
+        .filter(isGradeable),
     [selection]
   )
   const primaryId = targets[0]?.id
@@ -80,7 +81,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
    * and neither does a video whose host refused cross-origin access. Tone,
    * framing and grain are CSS and work on both, so the Adjust tab stays. */
   const shadeable =
-    primary.kind === 'embed' ? false : primary.kind === 'video' ? primary.readable !== false : true
+    canShade(primary)
   const why =
     primary.kind === 'embed'
       ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`

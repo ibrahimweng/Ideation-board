@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { store, useTagFilter, useOrder } from '../state/store'
 import { TAGS } from '../state/types'
 import { UNTAGGED } from '../state/search'
+import { isSection } from '../state/kinds'
 
 /* ---------------------------------------------------------------------------
  * Filter the board down to one tag.
@@ -49,7 +50,7 @@ export function TagFilter() {
     }
   }, [open])
 
-  const items = store.all().filter((i) => i.kind !== 'section')
+  const items = store.all().filter((i) => !isSection(i))
   const countFor = (t: string | null) =>
     t === null ? items.length : t === UNTAGGED ? items.filter((i) => !i.tag).length : items.filter((i) => i.tag === t).length
   void order

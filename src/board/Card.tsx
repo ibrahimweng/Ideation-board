@@ -11,6 +11,7 @@ import { urlForKey } from '../store/media'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
+import { canShade, hasPixels } from '../state/kinds'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
@@ -71,8 +72,8 @@ export const Card = memo(function Card({
   const fx = it.fx
   /* `readable` is only ever false for a remote video whose host refused us
    * cross-origin access. Everything else can be shaded. */
-  const shadeable = it.kind === 'video' ? it.readable !== false : true
-  const effected = hasEffect(fx) && (it.kind === 'image' || (it.kind === 'video' && shadeable))
+  const shadeable = canShade(it) || !hasPixels(it)
+  const effected = hasEffect(fx) && canShade(it)
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null

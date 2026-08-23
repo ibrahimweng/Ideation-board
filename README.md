@@ -350,9 +350,29 @@ An address that turns out not to be a video stays an ordinary link card.
 
 ## Where your work is stored
 
-The board saves itself to IndexedDB in your browser a moment after each change.
-It loads again when you reopen the page. Media files are stored separately from
-the board layout, so opening a board does not load every picture at once.
+Everything lives in this browser and nowhere else: the boards in IndexedDB,
+the pictures beside them as blobs. Nothing is uploaded, and there is no
+account.
+
+That means the only copy of your work is on this machine, in this browser, so
+the app takes it seriously:
+
+- It asks the browser to keep the data rather than treat it as a cache it may
+  clear when the disk gets tight. Chrome decides on its own, Firefox asks you,
+  Safari grants it once you have used the site a few times. Whether it was
+  granted is on the tooltip of the counter in the corner.
+- It watches how full the storage is and says so in that corner once it is
+  past eighty per cent.
+- It checks that a drop will fit before starting it, rather than finding out
+  half way through.
+- If a write does fail, it says so and does not go away until you answer.
+  Every write used to swallow its own error, which meant a board that would
+  not save looked exactly like one that had — the pictures were still on
+  screen because they were still in memory — and you found out on the next
+  reload, when they were gone.
+
+The way out of a full disk is the same as the way onto another machine:
+"Export" writes the board and everything in it to a file.
 
 ## Showing the board
 
@@ -444,8 +464,49 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 
 ## Tests
 
-The tests drive a real browser with Playwright, so a server must already be
-running.
+Two kinds. The fast ones are arithmetic and run in about a second; the slow
+ones drive a real browser and take about twenty minutes.
+
+```bash
+npm test            # types, then 107 unit tests — about a second
+npm run test:all    # the above, then a build, then every browser suite
+```
+
+Both run on every push through `.github/workflows/ci.yml`, as two jobs, so a
+typo is reported while you are still looking at the tab.
+
+### The fast ones
+
+```bash
+npm run test:unit     # once
+npm run test:watch    # and again on every save
+```
+
+They cover the arithmetic underneath the interface: how a picture is cropped
+to a card and how big the file that comes out of it is, what a note's markup
+parses to, which colours come out of an image and whether the hex is legible
+on them, where a dragged card snaps to, what a pasted address turns into, what
+a saved look carries and what it leaves behind, how the store lines cards up
+and spaces them out and joins them, what each kind of card can do, and what
+happens when the disk runs out.
+
+They found two real bugs on the day they were written: a palette could offer
+the same colour twice under one name, and duplicating two connected cards
+dropped the arrow between them, because the code that copies a wire was
+looking at a list the wire had already been filtered out of.
+
+### The slow ones
+
+```bash
+npm run build
+npm run test:browser              # all of them, one after another
+npm run test:browser -- ui menu   # or just these
+npm run test:browser -- --network # and the one that reaches the internet
+```
+
+`test:browser` starts the preview server, runs the suites against it, and puts
+it away afterwards. To run one by hand instead, start a server and point a
+suite at it:
 
 ```bash
 npm run dev &
@@ -560,7 +621,9 @@ npm run bench
 | --- | --- |
 | `src/engine` | The effects engine, the worker and the job scheduler |
 | `src/board` | The board surface, the cards and the pan and zoom code |
-| `src/state` | The board contents, undo and redo, the board tree, and reading what is dropped in |
-| `src/store` | Saving to IndexedDB and to a folder on disk |
+| `src/state` | The board contents, undo and redo, the board tree, what each kind of card can do, and reading what is dropped in |
+| `src/store` | Saving to IndexedDB and to a folder on disk, and watching how much room is left |
 | `src/ui` | The effects panel and the small dialogs |
-| `test` | Browser tests and the benchmark |
+| `test` | Browser suites and the benchmark |
+| `test/unit` | The fast tests, on the arithmetic underneath |
+| `scripts` | The runner that drives every browser suite in one command |
