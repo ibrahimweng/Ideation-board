@@ -21,7 +21,7 @@ const MAX_H = 420
 
 function fitBox(nw: number, nh: number) {
   const s = Math.min(MAX_W / nw, MAX_H / nh, 1)
-  return { w: Math.round(nw * s), h: Math.round(nh * s) + 30 }
+  return { w: Math.round(nw * s), h: Math.round(nh * s) }
 }
 
 export function kindOf(mime: string, name: string): Kind {

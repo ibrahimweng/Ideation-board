@@ -2,9 +2,21 @@ import { useEffect, useState } from 'react'
 import { store } from '../state/store'
 import { getEngine } from '../engine/client'
 
-/* A small readout of what the board and the GPU are holding. Useful when
- * judging whether a board has grown past what the texture budget can keep
- * resident, which is the point where effects start re-uploading. */
+/* ---------------------------------------------------------------------------
+ * What the board is holding.
+ *
+ * This used to read "12 items  3 selected  41 tex · 180MB", which is the
+ * renderer talking to whoever wrote it. The count of things on the board is
+ * worth a corner of the screen; how many textures are resident is not, until
+ * the moment the board has grown past what can be kept on the GPU and effects
+ * begin re-uploading. So the number is on the tooltip, and it only says
+ * anything out loud when it is about to matter.
+ * ------------------------------------------------------------------------- */
+
+/* Matches TEX_BUDGET in the worker. */
+const BUDGET_MB = 220
+const TIGHT = 0.82
+
 export function Stats({ count }: { count: number }) {
   const [gpu, setGpu] = useState<{ textures: number; textureBytes: number } | null>(null)
   const [items, setItems] = useState(0)
@@ -22,13 +34,21 @@ export function Stats({ count }: { count: number }) {
     }
   }, [])
 
+  const mb = gpu ? gpu.textureBytes / 1048576 : 0
+  const tight = mb > BUDGET_MB * TIGHT
+  const detail = gpu
+    ? `${gpu.textures} picture${gpu.textures === 1 ? '' : 's'} on the GPU, ${mb.toFixed(0)}MB of ${BUDGET_MB}MB`
+    : 'Nothing on the GPU yet'
+
   return (
-    <div className="stats" title="Board and GPU residency">
-      <span>{items} items</span>
+    <div className="stats" title={detail}>
+      <span>
+        {items} item{items === 1 ? '' : 's'}
+      </span>
       {count > 0 && <span>{count} selected</span>}
-      {gpu && (
-        <span>
-          {gpu.textures} tex · {(gpu.textureBytes / 1048576).toFixed(0)}MB
+      {tight && (
+        <span className="stats-tight" title={detail}>
+          GPU memory full
         </span>
       )}
     </div>

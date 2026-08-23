@@ -136,7 +136,7 @@ const at = await page.evaluate((cid) => {
   const r = document.querySelector(`.card[data-id="${cid}"]`).getBoundingClientRect()
   return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + 10) }
 }, made.id)
-const drag = [{ t: 'pointerdown', id: 9, x: at.x, y: at.y, on: `.card[data-id="${made.id}"] .card-bar` }]
+const drag = [{ t: 'pointerdown', id: 9, x: at.x, y: at.y, on: `.card[data-id="${made.id}"]` }]
 for (let i = 1; i <= 8; i++) drag.push({ t: 'pointermove', id: 9, x: at.x + i * 12, y: at.y + i * 6 })
 drag.push({ t: 'pointerup', id: 9, x: at.x + 96, y: at.y + 48 })
 const viewBefore = await view()

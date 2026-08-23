@@ -166,8 +166,8 @@ export async function exportCard(item: Item): Promise<ExportedImage | null> {
   const src = await sourceFor(item)
   if (!src) return null
 
-  const body = Math.max(2, item.h - 30)
-  const size = exportSize(src.width, src.height, item.w, body)
+  /* The card is the picture now: nothing is reserved above it. */
+  const size = exportSize(src.width, src.height, item.w, item.h)
 
   let picture: ImageBitmap | HTMLCanvasElement | null = null
   if (hasEffect(item.fx) && item.readable !== false) {

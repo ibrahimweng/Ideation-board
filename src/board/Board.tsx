@@ -370,7 +370,12 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActio
       const dx = (ev.clientX - startX) / z
       const dy = (ev.clientY - startY) / z
       if (!moved && Math.hypot(dx, dy) < 2) return
-      if (!moved) store.beginGesture()
+      if (!moved) {
+        store.beginGesture()
+        /* A card that is moving is a card you are already looking at, so its
+           name plate stands down until the drag ends. */
+        document.body.dataset.dragging = 'card'
+      }
       moved = true
       engine.touch()
       /* Shift asks for the grid instead, which is the coarser of the two and
@@ -402,6 +407,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, canvasActio
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      delete document.body.dataset.dragging
       setHighlight(null)
       drawGuide(guideV.current, null, true)
       drawGuide(guideH.current, null, false)

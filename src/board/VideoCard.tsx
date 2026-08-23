@@ -21,6 +21,10 @@ interface Props {
   id: string
   url: string | null
   effected: boolean
+  /* The card's own selection. An unselected card hands the first press to the
+   * board so it can be picked up and moved; a selected one hands it to the
+   * player. */
+  selected: boolean
   /* Set for a video loaded from a URL whose host allows cross-origin reads.
    * It has to be on the element before the source is fetched, so changing it
    * remounts the element rather than editing it in place. */
@@ -51,7 +55,7 @@ const fmt = (s: number) => {
 }
 
 export function VideoCard({
-  id, url, effected, crossOrigin, blocked, effectId, params, seed, w, h, filter, frame, grain,
+  id, url, effected, selected, crossOrigin, blocked, effectId, params, seed, w, h, filter, frame, grain,
 }: Props) {
   /* State rather than a ref: the canvas needs to re-render once the element
    * exists so it can start pulling frames from it. */
@@ -138,8 +142,9 @@ export function VideoCard({
 
   if (!url) return body(<div className="media placeholder" />)
 
-  /* Leave room for the control bar only when we are drawing it ourselves. */
-  const pictureH = effected ? Math.max(24, h - 28) : h
+  /* The controls float over the picture rather than taking a strip below it,
+     so the card is the picture at every size. */
+  const pictureH = h
 
   return (
     <>
@@ -160,6 +165,15 @@ export function VideoCard({
             preload={effected ? 'auto' : 'metadata'}
             onPointerDown={(e) => e.stopPropagation()}
           />
+
+          {/* The browser's own controls swallow every pointer event they get,
+              and the video element has to swallow them too or the controls
+              cannot be used. That was fine while every card had a title bar to
+              be picked up by. Without one, an unselected video card had
+              nothing left to grab, so the first press goes to the board and
+              the player takes over once the card is selected — the same
+              bargain an embedded player has always made. */}
+          {!effected && !selected && <div className="embed-shield" />}
 
           {/* One canvas, always mounted while an effect is on. It stays
               transparent until its first frame arrives, so there is no swap
@@ -184,7 +198,7 @@ export function VideoCard({
       {effected && (
         <div className="video-bar" onPointerDown={(e) => e.stopPropagation()}>
           <button className="video-play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
-            {playing ? '❚❚' : '▶'}
+            {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <div className="video-scrub" ref={barRef} onPointerDown={onScrubDown}>
             <i style={{ width: duration ? `${(time / duration) * 100}%` : '0%' }} />
@@ -193,10 +207,36 @@ export function VideoCard({
             {fmt(time)} / {fmt(duration)}
           </span>
           <button className="video-mute" onClick={() => setMuted((m) => !m)} title={muted ? 'Unmute' : 'Mute'}>
-            {muted ? 'M' : 'A'}
+            {muted ? <MutedIcon /> : <SoundIcon />}
           </button>
         </div>
       )}
     </>
   )
 }
+
+/* Drawn rather than typed. The controls used to read "▶", "❚❚", "M" and "A",
+   which asked you to work out that A meant audio. */
+const PlayIcon = () => (
+  <svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor" aria-hidden="true">
+    <path d="M3 1.5v9l7-4.5z" />
+  </svg>
+)
+const PauseIcon = () => (
+  <svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor" aria-hidden="true">
+    <rect x="3" y="1.5" width="2.4" height="9" rx="0.6" />
+    <rect x="6.6" y="1.5" width="2.4" height="9" rx="0.6" />
+  </svg>
+)
+const SoundIcon = () => (
+  <svg viewBox="0 0 14 12" width="12" height="10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 4.4h2L6.6 2v8L4 7.6H2z" fill="currentColor" />
+    <path d="M9 4.2a2.6 2.6 0 0 1 0 3.6M10.9 2.6a5 5 0 0 1 0 6.8" strokeLinecap="round" />
+  </svg>
+)
+const MutedIcon = () => (
+  <svg viewBox="0 0 14 12" width="12" height="10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 4.4h2L6.6 2v8L4 7.6H2z" fill="currentColor" />
+    <path d="M9.2 4.4l3.4 3.2M12.6 4.4L9.2 7.6" strokeLinecap="round" />
+  </svg>
+)

@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react'
 import { useItem, store } from '../state/store'
-import { TYPE_LABEL, TAGS } from '../state/types'
+import { TAGS } from '../state/types'
 import { FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
 import { EmbedCard } from './EmbedCard'
@@ -144,8 +144,12 @@ export const Card = memo(function Card({
       onContextMenu={(e) => onContextMenu(e, id)}
       onDoubleClick={() => onOpenEditor(id)}
     >
-      <div className="card-bar">
-        <span className="card-type">{TYPE_LABEL[it.kind]}</span>
+      {/* The picture is the card. What the card is called, and how far along
+          its checklist is, come forward when you are on it and go away again
+          when you are not — a board of photographs should look like a board of
+          photographs rather than like a list of filenames. The tag stays,
+          because a tag is something you scan a whole board for. */}
+      <div className="card-chrome">
         <span className="card-name" title={it.name}>
           {it.name || 'Untitled'}
         </span>
@@ -154,14 +158,15 @@ export const Card = memo(function Card({
             {todo.done}/{todo.total}
           </span>
         )}
-        {tag && <i className="card-tag" style={{ background: tag.c }} />}
       </div>
+      {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
 
       {it.kind === 'video' ? (
         <VideoCard
           id={id}
           url={url}
           effected={effected}
+          selected={selected}
           /* Optimistic while the probe is still out: asking for cross-origin
              access and being refused costs one reload, asking for it too late
              costs a cached response that can never be read. */
@@ -171,7 +176,7 @@ export const Card = memo(function Card({
           params={fx.ep}
           seed={hashSeed(id)}
           w={it.w}
-          h={it.h - 30}
+          h={it.h}
           filter={filter}
           frame={frame}
           grain={fx.grain}
@@ -199,7 +204,7 @@ export const Card = memo(function Card({
                 params={fx.ep}
                 seed={hashSeed(id)}
                 w={it.w}
-                h={it.h - 30}
+                h={it.h}
                 distance={distance}
                 className="media"
               />

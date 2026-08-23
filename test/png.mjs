@@ -156,8 +156,9 @@ check(
   plain.w > cardBox.width * 3,
   `${plain.w}x${plain.h} from a card ${Math.round(cardBox.width)} wide`
 )
-check('and the shape the card is', Math.abs(plain.w / plain.h - cardBox.width / (cardBox.height - 30)) < 0.03,
-  `${(plain.w / plain.h).toFixed(2)} vs ${(cardBox.width / (cardBox.height - 30)).toFixed(2)}`)
+/* The card is the picture: there is no title bar taking height off it. */
+check('and the shape the card is', Math.abs(plain.w / plain.h - cardBox.width / cardBox.height) < 0.03,
+  `${(plain.w / plain.h).toFixed(2)} vs ${(cardBox.width / cardBox.height).toFixed(2)}`)
 check('the circle is a circle', plain.circle && Math.abs(plain.circle.w / plain.circle.h - 1) < 0.05, JSON.stringify(plain.circle))
 check('and it is in colour', plain.colour > 20, `channel spread ${plain.colour}`)
 
@@ -251,6 +252,7 @@ const flatness = (file) =>
 /* Measured against the card rather than against a number: overlay blending on
  * a pale background is subtle by nature, and what matters is that the export
  * carries as much of it as the card shows. */
+/* Unused by the grain check now, kept for reading a file's local variance. */
 const noiseOn = (shot) =>
   page.evaluate(async (data) => {
     const img = new Image()
@@ -262,7 +264,10 @@ const noiseOn = (shot) =>
     const x = s.getContext('2d')
     x.drawImage(img, 0, 0)
     const side = Math.min(60, Math.floor(Math.min(img.width, img.height) / 4))
-    const d = x.getImageData(4, 4, side, side).data
+    /* From the bottom of the card, not the top. The name plate is a scrim
+     * that fades from dark to nothing across the top of a picture, and a
+     * gradient read as noise is a very noisy corner indeed. */
+    const d = x.getImageData(4, img.height - side - 4, side, side).data
     let sum = 0
     let sum2 = 0
     let n = 0
@@ -275,7 +280,38 @@ const noiseOn = (shot) =>
     return Math.round(Math.sqrt(Math.max(0, sum2 / n - mean * mean)) * 10) / 10
   }, shot)
 
+const cardShot = async () =>
+  (await page.locator('.card[data-kind="image"] .card-body').first().screenshot()).toString('base64')
+
+/* How much two pictures of the card differ, per pixel. Grain over a pale
+ * ground in overlay is a fraction of a level per pixel — too little to find as
+ * variance inside one picture, and unmistakable as a difference between two. */
+const perPixelDiff = (a, b) =>
+  page.evaluate(async ([d1, d2]) => {
+    const load = async (data) => {
+      const img = new Image()
+      img.src = 'data:image/png;base64,' + data
+      await img.decode()
+      const s = document.createElement('canvas')
+      s.width = img.width
+      s.height = img.height
+      s.getContext('2d').drawImage(img, 0, 0)
+      return s.getContext('2d').getImageData(0, 0, s.width, s.height).data
+    }
+    const A = await load(d1)
+    const B = await load(d2)
+    if (A.length !== B.length) return -1
+    let sum = 0
+    let n = 0
+    for (let i = 0; i < A.length; i += 4) {
+      sum += Math.abs(A[i] - B[i])
+      n++
+    }
+    return Math.round((sum / n) * 100) / 100
+  }, [a, b])
+
 const before = await flatness(plainFile)
+const cardBefore = await cardShot()
 await page.evaluate(() => {
   const row = [...document.querySelectorAll('.panel .ctl')].find((r) => r.textContent.includes('Grain'))
   const input = row.querySelector('input[type="range"]')
@@ -283,13 +319,17 @@ await page.evaluate(() => {
   input.dispatchEvent(new Event('input', { bubbles: true }))
 })
 await page.waitForTimeout(1200)
-const onCard = await noiseOn((await page.locator('.card[data-kind="image"] .card-body').first().screenshot()).toString('base64'))
+const onCard = await cardShot()
 const grainFile = await exportNow('grain')
 const after = await flatness(grainFile)
+/* Both ends of the promise: the slider does something to the card, and the
+ * file carries what the card shows. */
+const moved = await perPixelDiff(cardBefore, onCard)
+check('the grain shows on the card', moved > 0.5, `${moved} levels per pixel`)
 check(
-  'the grain is baked in as well',
-  after > before + 2 && after > onCard * 0.4,
-  `${after} of noise in a flat corner, ${onCard} on the card, ${before} with no grain`
+  'the grain is baked into the file as well',
+  after > before + 2,
+  `${after} of noise in a flat corner, ${before} with no grain`
 )
 
 /* ---------- several at once ---------- */
