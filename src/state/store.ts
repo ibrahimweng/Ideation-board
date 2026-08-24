@@ -3,6 +3,8 @@ import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
 import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
+import { alignTo, distributeAlong, tidyOnto } from './arrange'
+import type { AlignMode, Moves } from './arrange'
 import type { LookFx } from './looks'
 
 /* ---------------------------------------------------------------------------
@@ -399,78 +401,32 @@ export class BoardStore {
       .filter(isThing)
   }
 
-  private place(it: Item, x: number, y: number) {
-    if (it.x === x && it.y === y) return
-    this.items.set(it.id, { ...it, x, y })
-    this.pingItem(it.id)
-  }
-
-  align(ids: string[], mode: 'left' | 'hcentre' | 'right' | 'top' | 'vmiddle' | 'bottom') {
-    const list = this.arrangeable(ids)
-    if (list.length < 2) return
+  /* The three arrangements. The arithmetic is in state/arrange.ts, where it
+   * can be checked without a board in front of it; what is left here is what
+   * only the store can do — decide what is arrangeable, record one undo step,
+   * and tell the cards that moved. */
+  private applyMoves(moves: Moves) {
+    if (!moves.size) return
     this.snapshot()
-    const x0 = Math.min(...list.map((i) => i.x))
-    const x1 = Math.max(...list.map((i) => i.x + i.w))
-    const y0 = Math.min(...list.map((i) => i.y))
-    const y1 = Math.max(...list.map((i) => i.y + i.h))
-    for (const it of list) {
-      let { x, y } = it
-      if (mode === 'left') x = x0
-      else if (mode === 'right') x = x1 - it.w
-      else if (mode === 'hcentre') x = Math.round((x0 + x1 - it.w) / 2)
-      else if (mode === 'top') y = y0
-      else if (mode === 'bottom') y = y1 - it.h
-      else y = Math.round((y0 + y1 - it.h) / 2)
-      this.place(it, x, y)
+    for (const [id, at] of moves) {
+      const cur = this.items.get(id)
+      if (!cur) continue
+      this.items.set(id, { ...cur, x: at.x, y: at.y })
+      this.pingItem(id)
     }
     this.touch()
   }
 
-  /* Even gaps between the boxes, with the outermost two left where they are,
-   * which is what makes it read as spacing rather than moving. */
+  align(ids: string[], mode: AlignMode) {
+    this.applyMoves(alignTo(this.arrangeable(ids), mode))
+  }
+
   distribute(ids: string[], axis: 'x' | 'y') {
-    const list = this.arrangeable(ids)
-    if (list.length < 3) return
-    this.snapshot()
-    const across = axis === 'x'
-    const sorted = [...list].sort((a, b) => (across ? a.x - b.x : a.y - b.y))
-    const first = sorted[0]
-    const last = sorted[sorted.length - 1]
-    const span = across ? last.x + last.w - first.x : last.y + last.h - first.y
-    const used = sorted.reduce((n, i) => n + (across ? i.w : i.h), 0)
-    const gap = (span - used) / (sorted.length - 1)
-    let at = across ? first.x : first.y
-    for (const it of sorted) {
-      const v = Math.round(at)
-      this.place(it, across ? v : it.x, across ? it.y : v)
-      at += (across ? it.w : it.h) + gap
-    }
-    this.touch()
+    this.applyMoves(distributeAlong(this.arrangeable(ids), axis))
   }
 
-  /* Lays the selection out on a grid, in the order it reads now, keeping
-   * roughly the shape it already has: a row stays a row, a block stays a
-   * block. Anchored at the top left of what was there. */
   tidy(ids: string[], gap = 24) {
-    const list = this.arrangeable(ids)
-    if (list.length < 2) return
-    this.snapshot()
-    const x0 = Math.min(...list.map((i) => i.x))
-    const y0 = Math.min(...list.map((i) => i.y))
-    const x1 = Math.max(...list.map((i) => i.x + i.w))
-    const cellW = Math.max(...list.map((i) => i.w))
-    const cellH = Math.max(...list.map((i) => i.h))
-    /* Rows first, then across: cards within about a card's height of each
-     * other are read as being on the same row. */
-    const band = cellH * 0.6
-    const sorted = [...list].sort((a, b) => (Math.abs(a.y - b.y) > band ? a.y - b.y : a.x - b.x))
-    const cols = Math.max(1, Math.min(sorted.length, Math.round((x1 - x0 + gap) / (cellW + gap))))
-    sorted.forEach((it, i) => {
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      this.place(it, Math.round(x0 + col * (cellW + gap)), Math.round(y0 + row * (cellH + gap)))
-    })
-    this.touch()
+    this.applyMoves(tidyOnto(this.arrangeable(ids), gap))
   }
 
   /* Puts one look on every card that can wear it. The framing each card has

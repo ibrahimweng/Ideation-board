@@ -14,23 +14,20 @@ import { exportCards } from './state/exportImage'
 import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
 import { Stats } from './ui/Stats'
-import { KEYS, titleFor } from './ui/shortcuts'
-import { nameFor } from './ui/shortcuts'
-import type { ShortcutName } from './ui/shortcuts'
 import { CommandPalette } from './ui/CommandPalette'
+import { TopBar } from './ui/TopBar'
+import { buildCommands } from './ui/commands'
+import { useShortcuts } from './app/useShortcuts'
+import type { Crumb } from './state/boards'
 import { Present } from './ui/Present'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
-import { paletteOf, swatchItems } from './state/palette'
-import { hasPixels, isSection, isWire } from './state/kinds'
-import type { Command } from './ui/CommandPalette'
-import { setTheme, themeWant } from './ui/theme'
 import {
-  IconBoard, IconCommand, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
-  IconNote, IconSection, IconUndo, IconRedo,
-} from './ui/icons'
-import { SearchBar } from './ui/SearchBar'
-import { TagFilter } from './ui/TagFilter'
+  chooseFolder, copyNow, copySoon, describeMirror, forgetFolder, mirrorState, restoreFolder, subscribeMirror,
+} from './store/mirror'
+import type { MirrorState } from './store/mirror'
+import { paletteOf, swatchItems } from './state/palette'
+import { hasPixels } from './state/kinds'
 
 const BOARD_ID = 'board_local'
 const PATH_KEY = 'ideation.path'
@@ -38,11 +35,6 @@ const PATH_KEY = 'ideation.path'
 /* Where you are in the tree. The last crumb is the board on screen; `card` is
  * the id of the card that opens it, on the board one step up, which is how a
  * rename made from inside a board finds its way back to the card. */
-interface Crumb {
-  id: string
-  name: string
-  card: string | null
-}
 const ROOT: Crumb = { id: BOARD_ID, name: 'Untitled board', card: null }
 
 export default function App() {
@@ -51,6 +43,9 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [palette, setPalette] = useState(false)
   const [presenting, setPresenting] = useState(false)
+  const [mirror, setMirror] = useState<MirrorState>(mirrorState)
+  /* Read out by anything reading the page aloud when the selection moves. */
+  const [spoken, setSpoken] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('Untitled board')
@@ -87,12 +82,23 @@ export default function App() {
       t = window.setTimeout(() => {
         t = null
         void write()
+        /* And, a few seconds after the board is left alone, out to the folder
+           on disk if one has been chosen. */
+        copySoon(store.id)
       }, 700)
     }
     return () => {
       store.onDirty = null
       if (t) clearTimeout(t)
     }
+  }, [])
+
+  /* A folder chosen in an earlier session comes back if the permission is
+     still granted; a browser will not grant it again without a gesture, so it
+     is offered rather than reopened. */
+  useEffect(() => subscribeMirror(setMirror), [])
+  useEffect(() => {
+    void restoreFolder()
   }, [])
 
   /* ---------- boot ---------- */
@@ -345,6 +351,27 @@ export default function App() {
     say(`${made.length} colours from ${from.name || 'the picture'}`)
   }, [say])
 
+  /* Pointing the board at a folder, and pushing a copy out to it. Both have to
+     be reached from a click: a browser opens a folder picker only from one. */
+  const keepInFolder = useCallback(async () => {
+    if (!(await chooseFolder())) {
+      const s = mirrorState()
+      if (s.error) say(s.error, 5000)
+      return
+    }
+    await saveNow.current()
+    const n = await copyNow(store.id)
+    say(n ? `Copied ${n} file${n === 1 ? '' : 's'} to ${mirrorState().folder}` : describeMirror(mirrorState()), 3600)
+  }, [say])
+
+  const copyToFolder = useCallback(async () => {
+    if (!mirrorState().folder) return
+    say('Copying to the folder…', 6000)
+    await saveNow.current()
+    const n = await copyNow(store.id)
+    say(n ? `Copied ${n} file${n === 1 ? '' : 's'} to ${mirrorState().folder}` : describeMirror(mirrorState()), 3600)
+  }, [say])
+
   /* One prompt, reached from the toolbar, from K, and from the command list. */
   const askForLink = useCallback(
     (at?: { x: number; y: number }) => {
@@ -356,137 +383,50 @@ export default function App() {
 
   /* Everything the board can do, as a list. Built here because this is where
      the actions are; the palette only searches it and runs what you pick. */
-  const commands = useMemo<Command[]>(() => {
-    const sel = () => store.getSelection()
-    const some = selection.length > 0
-    const at = () => centreOfView()
-    const cmd = (id: string, name: string, group: string, run: () => void, extra: Partial<Command> = {}): Command => ({
-      id, name, group, run, ...extra,
-    })
-    return [
-      cmd('add.files', 'Add files', 'Add', () => fileRef.current?.click(), { hint: KEYS.addFiles.hint, keywords: 'image photo picture video upload import' }),
-      cmd('add.note', 'Note', 'Add', () => store.add(noteItem(at())), { hint: KEYS.note.hint, keywords: 'text write checklist' }),
-      cmd('add.label', 'Label', 'Add', () => store.add(labelItem(at())), { hint: KEYS.label.hint, keywords: 'title heading caption' }),
-      cmd('add.section', 'Section', 'Add', () => store.add(sectionItem(at())), { hint: KEYS.section.hint, keywords: 'group area frame' }),
-      cmd('add.board', 'Board inside this one', 'Add', () => void addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
-      cmd('add.link', 'Link or video URL', 'Add', () => askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
-
-      cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
-      cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),
-      cmd('edit.all', 'Select everything', 'Edit', () => store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))),
-      cmd('edit.dup', 'Duplicate the selection', 'Edit', () => { const made = store.duplicate(sel()); if (made.length) store.select(made) }, { disabled: !some }),
-      cmd('edit.del', 'Delete the selection', 'Edit', () => store.remove(sel()), { disabled: !some, keywords: 'remove' }),
-
-      cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => !isWire(i)).map((i) => i.id)), { keywords: 'grid align layout sort' }),
-      cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: selection.length < 2 }),
-      cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: selection.length < 2 }),
-      cmd('arrange.spreadx', 'Space the selection out across', 'Arrange', () => store.distribute(sel(), 'x'), { disabled: selection.length < 3 }),
-      cmd('arrange.spready', 'Space the selection out down', 'Arrange', () => store.distribute(sel(), 'y'), { disabled: selection.length < 3 }),
-
-      cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => void exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
-      cmd('out.board', 'Export this board and everything in it', 'Take out', () => void exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
-      cmd('in.board', 'Import a board file', 'Take out', () => importRef.current?.click(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
-
-      cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => void pullColours(sel()), { disabled: !selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
-      cmd('view.present', selection.length > 1 ? `Present the ${selection.length} selected` : 'Present this board', 'View', () => setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
-      cmd('view.effects', panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
-      cmd('view.looks', 'Saved looks', 'View', () => { setPanelOpen(true); setTab('looks') }, { keywords: 'preset grade style' }),
-      cmd('view.search', 'Search this board', 'View', () => document.querySelector<HTMLInputElement>('.search input')?.focus(), { hint: KEYS.search.hint, keywords: 'find filter' }),
-      cmd('view.light', 'Light theme', 'View', () => setTheme('light'), { disabled: themeWant() === 'light', keywords: 'bright day appearance' }),
-      cmd('view.dark', 'Dark theme', 'View', () => setTheme('dark'), { disabled: themeWant() === 'dark', keywords: 'night appearance' }),
-      cmd('view.system', 'Follow the system theme', 'View', () => setTheme('system'), { disabled: themeWant() === 'system', keywords: 'auto appearance' }),
+  const commands = useMemo(
+    () =>
+      buildCommands({
+        selection,
+        panelOpen,
+        mirror,
+        centreOfView,
+        addBoard: (at) => void addBoard(at),
+        askForLink: () => askForLink(),
+        pickFiles: () => fileRef.current?.click(),
+        importBoard: () => importRef.current?.click(),
+        exportBoard: () => void exportBoard(),
+        exportPictures: (ids) => void exportPictures(ids),
+        pullColours: (ids) => void pullColours(ids),
+        keepInFolder: () => void keepInFolder(),
+        copyToFolder: () => void copyToFolder(),
+        forgetFolder: () => void forgetFolder(),
+        setPanelOpen,
+        setTab,
+        setPresenting,
+        focusSearch: () => document.querySelector<HTMLInputElement>('.search input')?.focus(),
+      }),
+    [
+      selection, panelOpen, mirror, centreOfView, addBoard, askForLink,
+      exportBoard, exportPictures, pullColours, keepInFolder, copyToFolder,
     ]
-  }, [selection, panelOpen, centreOfView, addBoard, askForLink, exportBoard, exportPictures, pullColours])
+  )
 
   /* ---------- keyboard ---------- */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement
-      /* The command list opens from anywhere, a half typed note included: it
-         is how you get out of whatever you are in and do something else. */
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === KEYS.commands.key) {
-        e.preventDefault()
-        setPalette((v) => !v)
-        return
-      }
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
-      const cmd = e.metaKey || e.ctrlKey
-
-      if (cmd && e.key.toLowerCase() === 'z') {
-        e.preventDefault()
-        if (e.shiftKey) store.redo()
-        else store.undo()
-        return
-      }
-      if (cmd && e.key.toLowerCase() === 'a') {
-        e.preventDefault()
-        store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))
-        return
-      }
-      if (cmd && e.key.toLowerCase() === 'd') {
-        e.preventDefault()
-        const made = store.duplicate(store.getSelection())
-        if (made.length) store.select(made)
-        return
-      }
-      if (cmd && e.key.toLowerCase() === 's') {
-        /* The browser's own save dialog is not useful here. */
-        e.preventDefault()
-        void exportBoard()
-        return
-      }
-      if (cmd && e.key.toLowerCase() === 'e') {
-        e.preventDefault()
-        void exportPictures(store.getSelection())
-        return
-      }
-      if (cmd && e.key.toLowerCase() === 'o') {
-        e.preventDefault()
-        importRef.current?.click()
-        return
-      }
-
-      /* Single key shortcuts only when no modifier is held, so they cannot
-       * swallow a browser or system combination. */
-      if (!cmd && !e.altKey && !e.shiftKey) {
-        const k = e.key.toLowerCase()
-        const at = centreOfView()
-        if (k === KEYS.note.key) { e.preventDefault(); store.add(noteItem(at)); return }
-        if (k === KEYS.label.key) { e.preventDefault(); store.add(labelItem(at)); return }
-        if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
-        if (k === KEYS.board.key) { e.preventDefault(); void addBoard(at); return }
-        if (k === KEYS.link.key) { e.preventDefault(); askForLink(at); return }
-        if (k === KEYS.addFiles.key) { e.preventDefault(); fileRef.current?.click(); return }
-        if (k === KEYS.effects.key) { e.preventDefault(); setPanelOpen((v) => !v); return }
-        if (k === KEYS.present.key) { e.preventDefault(); setPresenting(true); return }
-      }
-
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault()
-        store.remove(store.getSelection())
-        return
-      }
-      if (e.key === 'Escape') {
-        store.clearSel()
-        setEditing(null)
-        return
-      }
-      /* Nudge with arrows; shift for a bigger step. */
-      if (e.key.startsWith('Arrow')) {
-        const sel = store.getSelection()
-        if (!sel.length) return
-        e.preventDefault()
-        const d = e.shiftKey ? 10 : 1
-        const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0
-        const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0
-        /* A burst of nudges collapses into one undo step. */
-        store.beginGesture(700)
-        store.moveMany(store.dragSet(sel).ids, dx, dy, false)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [centreOfView, exportBoard, addBoard, exportPictures])
+  useShortcuts({
+    centreOfView,
+    addBoard: (at) => void addBoard(at),
+    askForLink,
+    pickFiles: () => fileRef.current?.click(),
+    importBoard: () => importRef.current?.click(),
+    exportBoard: () => void exportBoard(),
+    exportPictures: (ids) => void exportPictures(ids),
+    openItem,
+    togglePanel: () => setPanelOpen((v) => !v),
+    togglePalette: () => setPalette((v) => !v),
+    present: () => setPresenting(true),
+    say: setSpoken,
+    closeEditor: () => setEditing(null),
+  })
 
   /* ---------- paste ---------- */
   useEffect(() => {
@@ -521,10 +461,8 @@ export default function App() {
         pendingAt.current = at
         importRef.current?.click()
       },
-      addLink: (at: { x: number; y: number }) => {
-        const u = window.prompt('Paste a link. A video URL becomes a playable card.')
-        if (u) addUrl(at, u)
-      },
+      addLink: (at: { x: number; y: number }) => askForLink(at),
+      commands: () => setPalette(true),
       pickFiles: (at: { x: number; y: number }) => {
         /* Remembered so the chosen files land where the menu was opened. */
         pendingAt.current = at
@@ -568,112 +506,23 @@ export default function App() {
       {/* The trail is one more thing in a row that is already full, so the
           narrow-width rules that make room for it only apply while it is
           there. */}
-      <header className="topbar" data-nested={path.length > 1 || undefined}>
-        <div className="brand">
-          <span className="dot" />
-          {path.length > 1 && (
-            <nav className="crumbs">
-              {path.length > 3 && (
-                <span className="crumb">
-                  <button onClick={() => void openBoard([path[0]])} title={path[0].name}>
-                    …
-                  </button>
-                  <i>/</i>
-                </span>
-              )}
-              {path.slice(0, -1).slice(-2).map((c) => (
-                <span key={c.id} className="crumb">
-                  <button
-                    title={c.name}
-                    onClick={() => void openBoard(path.slice(0, path.findIndex((p) => p.id === c.id) + 1))}
-                  >
-                    {c.name}
-                  </button>
-                  <i>/</i>
-                </span>
-              ))}
-            </nav>
-          )}
-          <input
-            className="board-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value)
-              store.setName(e.target.value)
-            }}
-            spellCheck={false}
-          />
-        </div>
-
-        <SearchBar />
-        <TagFilter />
-
-        {/* Icons in three groups rather than eleven grey words in a row.
-            The words told you nothing the icon does not — they were all the
-            same size, weight and colour, so nothing in the row stood out and
-            the row itself was as wide as the window would allow. What each one
-            is, and the key that runs it, is on its tooltip and in the command
-            list. Effects keeps its name because it is the only thing here that
-            is a mode rather than an action. */}
-        <div className="tools">
-          <div className="tool-group">
-            <ToolButton name="addFiles" onClick={() => fileRef.current?.click()}>
-              <IconFiles />
-            </ToolButton>
-            <ToolButton name="note" onClick={() => store.add(noteItem(centreOfView()))}>
-              <IconNote />
-            </ToolButton>
-            <ToolButton name="label" onClick={() => store.add(labelItem(centreOfView()))}>
-              <IconLabel />
-            </ToolButton>
-            <ToolButton name="section" onClick={() => store.add(sectionItem(centreOfView()))}>
-              <IconSection />
-            </ToolButton>
-            <ToolButton name="board" onClick={() => void addBoard(centreOfView())}>
-              <IconBoard />
-            </ToolButton>
-            <ToolButton name="link" onClick={() => askForLink()}>
-              <IconLink />
-            </ToolButton>
-          </div>
-
-          <div className="tool-group">
-            <ToolButton name="undo" onClick={() => store.undo()}>
-              <IconUndo />
-            </ToolButton>
-            <ToolButton name="redo" onClick={() => store.redo()}>
-              <IconRedo />
-            </ToolButton>
-          </div>
-
-          {/* First to go when the row runs short: both are also a drop, a menu
-              entry, a shortcut and a line in the command list, while nothing
-              else here has a second way in. */}
-          <div className="tool-group tools-wide">
-            <ToolButton name="import" onClick={() => importRef.current?.click()}>
-              <IconImport />
-            </ToolButton>
-            <ToolButton name="export" onClick={() => void exportBoard()}>
-              <IconExport />
-            </ToolButton>
-          </div>
-
-          <ToolButton name="commands" onClick={() => setPalette(true)}>
-            <IconCommand />
-          </ToolButton>
-
-          <button
-            className="tool-mode"
-            data-on={panelOpen || undefined}
-            onClick={() => setPanelOpen((v) => !v)}
-            title={titleFor('effects')}
-            aria-label="Effects"
-          >
-            <IconEffects />
-            <span>Effects</span>
-          </button>
-        </div>
-      </header>
+      <TopBar
+        path={path}
+        name={name}
+        onName={setName}
+        onOpenBoard={(to) => void openBoard(to)}
+        panelOpen={panelOpen}
+        onPanel={() => setPanelOpen((v) => !v)}
+        onCommands={() => setPalette(true)}
+        onAddFiles={() => fileRef.current?.click()}
+        onNote={() => store.add(noteItem(centreOfView()))}
+        onLabel={() => store.add(labelItem(centreOfView()))}
+        onSection={() => store.add(sectionItem(centreOfView()))}
+        onBoard={() => void addBoard(centreOfView())}
+        onLink={() => askForLink()}
+        onImport={() => importRef.current?.click()}
+        onExport={() => void exportBoard()}
+      />
 
       <main className="main">
         <Board
@@ -713,7 +562,7 @@ export default function App() {
         }}
       />
 
-      <SpaceAlarm onExport={() => void exportBoard()} />
+      <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} />
       {presenting && <Present ids={selection} onClose={() => setPresenting(false)} />}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
@@ -724,22 +573,12 @@ export default function App() {
         </div>
       )}
       <Stats count={selection.length} />
+      {/* Off screen, and the only thing on the page that speaks. A selection
+          moving is invisible to a screen reader otherwise: the cards are divs
+          on a canvas, and nothing about a border changing colour is announced. */}
+      <p className="said" role="status" aria-live="polite">
+        {spoken}
+      </p>
     </div>
-  )
-}
-
-/* A button in the top row: an icon, and the name and key it runs on its
-   tooltip and for anything reading the page aloud. */
-function ToolButton({
-  name, onClick, children,
-}: {
-  name: ShortcutName
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button className="tool" onClick={onClick} title={titleFor(name)} aria-label={nameFor(name)}>
-      {children}
-    </button>
   )
 }

@@ -11,6 +11,10 @@ import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
 import { ContextMenu } from '../ui/ContextMenu'
+import { FirstRun } from '../ui/FirstRun'
+import { justLongPressed, noteLongPress, onLongPress } from './longpress'
+import { noteViewportSize } from '../state/walk'
+import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
 import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
@@ -106,6 +110,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
         paintTransform()
       }
       const { w, h } = sizeRef.current
+      noteViewportSize(w, h)
       const r = visibleRect(v, w, h, 320)
       rectRef.current = r
       const ids: string[] = []
@@ -177,63 +182,16 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
       const engine = getEngine()
 
       /* ---------- fingers ---------- */
-      /* A touch on empty board pans, and two pinch. Marquee selection is a
-       * mouse idea: on a tablet a drag across the board is how you get about,
-       * and there is nothing else to pan with. A press that starts on a card
-       * never reaches here, so dragging a card with one finger still does. */
       if (e.pointerType === 'touch') {
-        const pts = touches.current
-        pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
-        if (pts.size > 1) return
-
-        let anchor = { count: 1, view: startView, mid: { x: sx, y: sy }, gap: 1 }
-        let far = 0
-
-        const read = () => {
-          const list = [...pts.values()]
-          const mid = list.reduce((a, p) => ({ x: a.x + p.x / list.length, y: a.y + p.y / list.length }), { x: 0, y: 0 })
-          const gap =
-            list.length > 1 ? Math.max(1, Math.hypot(list[0].x - list[1].x, list[0].y - list[1].y)) : 1
-          return { list, mid: { x: mid.x - r.left, y: mid.y - r.top }, gap }
-        }
-
-        const move = (ev: PointerEvent) => {
-          if (!pts.has(ev.pointerId)) return
-          pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
-          const now = read()
-          /* Re-anchor whenever a finger arrives or leaves, or the board would
-           * jump by whatever the new arrangement happens to measure. */
-          if (now.list.length !== anchor.count) {
-            anchor = { count: now.list.length, view: { ...store.peekView() }, mid: now.mid, gap: now.gap }
-            return
-          }
-          engine.touch()
-          const dx = now.mid.x - anchor.mid.x
-          const dy = now.mid.y - anchor.mid.y
-          far = Math.max(far, Math.hypot(dx, dy))
-          if (now.list.length > 1) {
-            const zoomed = zoomAt(anchor.view, anchor.mid.x, anchor.mid.y, now.gap / anchor.gap)
-            store.setViewSilent({ x: zoomed.x + dx, y: zoomed.y + dy, z: zoomed.z })
-          } else {
-            store.setViewSilent({ x: anchor.view.x + dx, y: anchor.view.y + dy })
-          }
-          paintTransform()
-        }
-
-        const up = (ev: PointerEvent) => {
-          pts.delete(ev.pointerId)
-          if (pts.size) return
-          window.removeEventListener('pointermove', move)
-          window.removeEventListener('pointerup', up)
-          window.removeEventListener('pointercancel', up)
-          store.commitView()
-          /* A tap on empty board clears the selection, the same as a click. */
-          if (far < 6) store.clearSel()
-        }
-
-        window.addEventListener('pointermove', move)
-        window.addEventListener('pointerup', up)
-        window.addEventListener('pointercancel', up)
+        touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (touches.current.size > 1) return
+        startTouch(e, {
+          points: touches.current,
+          rect: r,
+          startView,
+          paint: paintTransform,
+          openMenu: setMenu,
+        })
         return
       }
 
@@ -298,6 +256,15 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
     e.stopPropagation()
+    /* Held still, a finger means the same as a right button. Cancelled below
+       the moment the press turns into a drag. */
+    const held = onLongPress(e, (px, py) => {
+      noteLongPress()
+      const sel = store.getSelection()
+      const ids = sel.includes(id) ? sel : [id]
+      if (!sel.includes(id)) store.select([id])
+      setMenu({ x: px, y: py, ids })
+    })
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
     if (additive) store.toggle(id)
     else if (!store.isSelected(id)) store.select([id])
@@ -373,6 +340,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
       const dy = (ev.clientY - startY) / z
       if (!moved && Math.hypot(dx, dy) < 2) return
       if (!moved) {
+        held.cancel()
         store.beginGesture()
         /* A card that is moving is a card you are already looking at, so its
            name plate stands down until the drag ends. */
@@ -407,6 +375,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
       }
     }
     const up = () => {
+      held.cancel()
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       delete document.body.dataset.dragging
@@ -419,11 +388,22 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
     window.addEventListener('pointerup', up)
   }, [])
 
+  /* The middle of what is on screen, in board coordinates. */
+  const centre = useCallback(() => {
+    const r = vpRef.current?.getBoundingClientRect()
+    if (!r) return { x: 0, y: 0 }
+    return screenToBoard(store.peekView(), r.width / 2, r.height / 2)
+  }, [])
+
   /* Right clicking a card that is not in the selection selects just it, so
    * the menu always acts on something the pointer is actually over. */
   const onCardContextMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault()
     e.stopPropagation()
+    /* Android fires its own after a long press, at a moment of its choosing.
+       Ours is already open; a second one would close and reopen it under a
+       finger that has moved on. */
+    if (justLongPressed()) return
     const sel = store.getSelection()
     const ids = sel.includes(id) ? sel : [id]
     if (!sel.includes(id)) store.select([id])
@@ -434,6 +414,7 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
    * themselves, so reaching here means nothing was under the pointer. */
   const onSurfaceContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    if (justLongPressed()) return
     const el = vpRef.current
     if (!el) return
     const t = e.target as HTMLElement
@@ -485,6 +466,8 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
   return (
     <div
       className="viewport"
+      role="application"
+      aria-label="Board. Tab moves through the cards, arrows move the selection, Enter opens it."
       ref={vpRef}
       onPointerDown={onSurfacePointerDown}
       onContextMenu={onSurfaceContextMenu}
@@ -533,6 +516,13 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
       </div>
 
       {dragOver && <div className="drop-veil">Drop to add</div>}
+      {!order.length && !dragOver && (
+        <FirstRun
+          onAddFiles={() => canvasActions.pickFiles(centre())}
+          onNote={() => canvasActions.addNote(centre())}
+          onCommands={canvasActions.commands}
+        />
+      )}
       <ZoomBar onZoom={zoomBy} onReset={resetZoom} />
       {menu && (
         <ContextMenu

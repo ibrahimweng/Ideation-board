@@ -33,6 +33,8 @@ export interface CanvasActions {
   addLink: (at: { x: number; y: number }) => void
   pickFiles: (at: { x: number; y: number }) => void
   paste: (at: { x: number; y: number }) => void
+  /* Shown on an empty board, where there is no position to act on yet. */
+  commands: () => void
 }
 
 interface Props {

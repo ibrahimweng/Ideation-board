@@ -46,3 +46,23 @@ export function zoomAt(view: Viewport, sx: number, sy: number, factor: number): 
   const k = z / (view.z || 1)
   return { z, x: sx - (sx - view.x) * k, y: sy - (sy - view.y) * k }
 }
+
+/* The view that brings a card into sight, or the one you already have when it
+ * is in sight already. Used by keyboard navigation, where the next card in
+ * reading order is often off screen and moving to something you cannot see is
+ * the same as moving to nothing. */
+export function revealView(view: Viewport, it: Item, vpW: number, vpH: number, pad = 60): Viewport {
+  const z = view.z || 1
+  const left = it.x * z + view.x
+  const top = it.y * z + view.y
+  const right = left + it.w * z
+  const bottom = top + it.h * z
+  if (left >= pad && top >= pad && right <= vpW - pad && bottom <= vpH - pad) return view
+  /* Centred, rather than nudged to the edge: a card you have just moved to is
+   * the thing you are looking at. */
+  return {
+    z,
+    x: vpW / 2 - (it.x + it.w / 2) * z,
+    y: vpH / 2 - (it.y + it.h / 2) * z,
+  }
+}

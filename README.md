@@ -279,10 +279,32 @@ row stays a row and a block stays a block. Each is one step of undo.
 
 ## Using it with fingers
 
-One finger on empty board pans it, two pinch to zoom, and a finger on a card
-drags the card. A tap on empty board clears the selection. Dragging a card with
-one finger works because a press that starts on a card never becomes a pan.
+One finger pans the board and drags a card. Two pinch to zoom and pan
+together. A tap on empty board clears the selection.
 
+Hold one finger still on a card for half a second and its menu opens, which is
+where export, pull the colours out, copy a look, tag, and send to back all
+live. Hold on empty board and the add menu opens. Without that, half the app
+was unreachable on a tablet: iOS fires no context menu event for a long press
+and Android fires one at a moment of its own choosing, so the press is timed by
+the board itself and behaves the same on both.
+
+## Using it without a mouse
+
+Tab moves through the cards in the order the board reads — across each row,
+then down — and brings whatever it lands on into view. Shift with it goes back.
+Everything the board can do to a card is behind a selection, so before this
+none of it could be reached without a pointer.
+
+- **Tab** / **Shift Tab** — the next card, the previous one
+- **Enter** — open what is selected
+- **Arrows** — move the selection, Shift for a bigger step
+- **Escape** — select nothing
+- **⌘K** — everything else, searchable, with the key for each
+
+The selection is read out as it moves, with its position: "Autumn light.jpg,
+image, 3 of 12". A card is a box on a canvas, and nothing about its border
+changing colour would otherwise be announced.
 ## Connecting cards
 
 Hover a card and four dots appear on its sides. Drag one onto another card and
@@ -371,8 +393,29 @@ the app takes it seriously:
   screen because they were still in memory — and you found out on the next
   reload, when they were gone.
 
-The way out of a full disk is the same as the way onto another machine:
-"Export" writes the board and everything in it to a file.
+### Keeping a copy in a folder
+
+The stronger answer to all of that: point the board at a folder on disk and it
+writes itself there and keeps writing. `⌘K` → "Keep a copy in a folder".
+
+It writes a `board.json` and a `media` folder — the same shape the exported zip
+has, so the folder can be zipped by hand and imported back. Put that folder in
+Dropbox, iCloud, a network drive or a git repository and the work is on more
+than one machine, backed up, and outside the browser that made it. Nothing here
+talks to a server.
+
+It is a copy, not a synchronisation. Nothing is ever read back out of the
+folder, and two browsers pointed at one folder will overwrite each other.
+Conflict resolution is the hard part of syncing and this deliberately does not
+attempt it — saying so is better than pretending otherwise.
+
+Chrome and Edge can do this. Safari and Firefox cannot yet, and say so rather
+than failing quietly. The folder is remembered between sessions; a browser will
+not hand the permission back without a click, so it is offered rather than
+silently reopened.
+
+The other way out of a full disk is the way onto another machine: "Export"
+writes the board and everything in it to a single file.
 
 ## Showing the board
 
@@ -459,6 +502,22 @@ effects on them. The short version is that all the graphics work happens on a
 separate thread, each picture is sent to the graphics card only once, and
 finished frames are handed to the page without being copied.
 
+**Every number in `docs/PERFORMANCE.md` was measured on SwiftShader**, which
+draws with the processor instead of a graphics card, because that is what the
+machine the work was done on had. The shape of the result should hold on real
+hardware and the gap should be wider — the main fault in the old method was
+reading pixels back off the graphics card, which costs almost nothing when the
+"graphics card" is the processor — but that is a reasoned expectation and not a
+measurement, and it should not be repeated as though it were one.
+
+Measure it on your own machine rather than taking the table on trust:
+
+```bash
+npm run dev &
+N=40 SRC=1400 npm run bench                    # cold and warm redraws
+npm run test:load -- http://localhost:5173 60  # whether it stays responsive
+```
+
 `docs/PERFORMANCE.md` explains what was slow before, what changed and what the
 measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 
@@ -523,6 +582,7 @@ npm run test:search -- http://localhost:5173
 npm run test:looks -- http://localhost:5173
 npm run test:palette -- http://localhost:5173
 npm run test:present -- http://localhost:5173
+npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
 npm run test:png -- http://localhost:5173
@@ -540,6 +600,11 @@ npm run bench
 - `test:arrange` drags a card onto a neighbour's edge and checks it is pulled
   exactly onto it with a guide to say so, then lines up, spaces and tidies a
   selection from the menu and checks each is a single step of undo.
+- `test:access` checks the three ways in that were missing: that an empty board
+  says what to do with it, that Tab walks every card once in the board's own
+  order and brings each into view, that Enter opens what is selected and the
+  selection is spoken with its position, and that holding a finger on a card
+  opens its menu while a tap and a drag do not.
 - `test:present` puts a picture with five known colours in it on the board,
   pulls the colours out and checks that the five it finds are the five that
   went in, that none of them is the same colour twice, that the hex is legible
@@ -621,9 +686,10 @@ npm run bench
 | --- | --- |
 | `src/engine` | The effects engine, the worker and the job scheduler |
 | `src/board` | The board surface, the cards and the pan and zoom code |
-| `src/state` | The board contents, undo and redo, the board tree, what each kind of card can do, and reading what is dropped in |
-| `src/store` | Saving to IndexedDB and to a folder on disk, and watching how much room is left |
-| `src/ui` | The effects panel and the small dialogs |
+| `src/state` | The board contents, undo and redo, the board tree, what each kind of card can do, where things go when they are lined up, and reading what is dropped in |
+| `src/store` | Saving to IndexedDB, keeping a copy in a folder on disk, and watching how much room is left |
+| `src/ui` | The top bar, the panels, the command list and the small dialogs |
+| `src/app` | The keyboard, in one place |
 | `test` | Browser suites and the benchmark |
 | `test/unit` | The fast tests, on the arithmetic underneath |
 | `scripts` | The runner that drives every browser suite in one command |

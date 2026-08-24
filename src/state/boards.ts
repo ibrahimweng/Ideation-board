@@ -145,3 +145,14 @@ export async function cloneBoard(id: string, depth = 0): Promise<string> {
   await putBoard({ id: copyId, name: rec.name, items, view: { ...(rec.view || EMPTY_VIEW) }, updated: Date.now() })
   return copyId
 }
+
+/* One step of the trail back out of a nested board. Lives here rather than in
+ * the component that draws it, because the trail is a fact about the board
+ * tree and two things now need to name it. */
+export interface Crumb {
+  id: string
+  name: string
+  /* The board card that was opened to get here, so closing this board can put
+   * the trail back where it came from. Absent on the root. */
+  card?: string | null
+}

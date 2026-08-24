@@ -73,7 +73,19 @@ export interface ExportResult {
   media: number
 }
 
-export async function exportTree(rootId: string): Promise<ExportResult> {
+/* A board and everything under it, gathered once: the listing, and every file
+ * it refers to with the name it should be written under.
+ *
+ * Shared by the two things that take a board out of the browser — the zip, and
+ * the copy kept in a folder on disk — so the two cannot describe the same
+ * board differently, and a folder can be zipped by hand and imported back. */
+export interface Gathered {
+  bundle: Bundle
+  files: { path: string; blob: Blob }[]
+  rootName: string
+}
+
+export async function gather(rootId: string): Promise<Gathered> {
   const boards = await collect(rootId)
 
   /* Media is shared: two cards can use one picture, and a duplicate keeps the
@@ -87,7 +99,7 @@ export async function exportTree(rootId: string): Promise<ExportResult> {
   }
 
   const media: Record<string, string> = {}
-  const files: ZipEntry[] = []
+  const files: { path: string; blob: Blob }[] = []
   for (const key of keys) {
     const blob = await getBlob(key)
     /* A missing blob is not worth failing the whole export over: the card
@@ -95,30 +107,30 @@ export async function exportTree(rootId: string): Promise<ExportResult> {
     if (!blob) continue
     const path = `media/${safeName(key)}${extFor(blob, key)}`
     media[key] = path
-    files.push({ name: path, blob })
+    files.push({ path, blob })
   }
-
-  const bundle: Bundle = {
-    format: FORMAT,
-    version: VERSION,
-    exported: Date.now(),
-    root: rootId,
-    boards,
-    media,
-  }
-
-  files.unshift({
-    name: 'board.json',
-    blob: new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }),
-    deflate: true,
-  })
 
   const root = boards.find((b) => b.id === rootId)
   return {
+    bundle: { format: FORMAT, version: VERSION, exported: Date.now(), root: rootId, boards, media },
+    files,
+    rootName: safeName(root?.name || 'board'),
+  }
+}
+
+export async function exportTree(rootId: string): Promise<ExportResult> {
+  const got = await gather(rootId)
+  const files: ZipEntry[] = got.files.map((f) => ({ name: f.path, blob: f.blob }))
+  files.unshift({
+    name: 'board.json',
+    blob: new Blob([JSON.stringify(got.bundle, null, 2)], { type: 'application/json' }),
+    deflate: true,
+  })
+  return {
     blob: await zip(files),
-    name: `${safeName(root?.name || 'board')}.board.zip`,
-    boards: boards.length,
-    media: files.length - 1,
+    name: `${got.rootName}.board.zip`,
+    boards: got.bundle.boards.length,
+    media: got.files.length,
   }
 }
 

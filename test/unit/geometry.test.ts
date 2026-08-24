@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { coverUv } from '../../src/engine/gl'
 import { exportSize } from '../../src/state/exportImage'
 import { readingOrder, showable } from '../../src/state/order'
+import { alignTo, distributeAlong, tidyOnto } from '../../src/state/arrange'
 import type { Item } from '../../src/state/types'
 import { FX_0 } from '../../src/engine/types'
 
@@ -109,5 +110,101 @@ describe('readingOrder', () => {
   it('does not mind an empty board', () => {
     expect(readingOrder([])).toEqual([])
     expect(readingOrder([item({ kind: 'section' })])).toEqual([])
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * Lining up, spacing out, tidying.
+ *
+ * The arithmetic moved out of the store so it could be checked without a board
+ * in front of it. These are the same questions the browser suite asks by
+ * dragging cards about, asked directly.
+ * ------------------------------------------------------------------------- */
+
+describe('alignTo', () => {
+  const three = [
+    item({ id: 'a', x: 100, y: 0, w: 100, h: 50 }),
+    item({ id: 'b', x: 40, y: 200, w: 300, h: 50 }),
+    item({ id: 'c', x: 300, y: 400, w: 60, h: 90 }),
+  ]
+
+  it('puts every left edge on the leftmost', () => {
+    const m = alignTo(three, 'left')
+    expect([...m.values()].map((p) => p.x)).toEqual([40, 40])
+    expect(m.has('b')).toBe(false)
+  })
+
+  it('puts every right edge on the rightmost, whatever the widths', () => {
+    const m = alignTo(three, 'right')
+    for (const it of three) {
+      const at = m.get(it.id) || it
+      expect(at.x + it.w).toBe(360)
+    }
+  })
+
+  it('lists only what moves', () => {
+    expect(alignTo(three, 'left').has('b')).toBe(false)
+    expect(alignTo([item({ id: 'x' })], 'left').size).toBe(0)
+  })
+
+  it('centres on the middle of what is there, both ways', () => {
+    const m = alignTo(three, 'hcentre')
+    const middles = three.map((it) => (m.get(it.id)?.x ?? it.x) + it.w / 2)
+    expect(new Set(middles).size).toBe(1)
+    const v = alignTo(three, 'vmiddle')
+    const rows = three.map((it) => (v.get(it.id)?.y ?? it.y) + it.h / 2)
+    expect(new Set(rows).size).toBe(1)
+  })
+})
+
+describe('distributeAlong', () => {
+  it('leaves the ends alone and evens out the gaps between', () => {
+    const list = [
+      item({ id: 'a', x: 0, w: 100 }),
+      item({ id: 'b', x: 120, w: 100 }),
+      item({ id: 'c', x: 500, w: 100 }),
+    ]
+    const m = distributeAlong(list, 'x')
+    expect(m.has('a')).toBe(false)
+    expect(m.has('c')).toBe(false)
+    const at = (i: number) => m.get(list[i].id)?.x ?? list[i].x
+    expect(at(1) - (at(0) + 100)).toBeCloseTo(at(2) - (at(1) + 100), 0)
+  })
+
+  it('has nothing to even out with fewer than three', () => {
+    expect(distributeAlong([item({ id: 'a' }), item({ id: 'b', x: 500 })], 'x').size).toBe(0)
+  })
+})
+
+describe('tidyOnto', () => {
+  it('never leaves two of them overlapping', () => {
+    const list = Array.from({ length: 7 }, (_, i) => item({ id: `t${i}`, x: i * 130, y: (i % 3) * 20, w: 100, h: 80 }))
+    const m = tidyOnto(list)
+    const at = list.map((it) => ({ ...it, ...(m.get(it.id) || {}) }))
+    for (let i = 0; i < at.length; i++) {
+      for (let j = i + 1; j < at.length; j++) {
+        const p = at[i]
+        const q = at[j]
+        expect(p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h).toBe(false)
+      }
+    }
+  })
+
+  it('keeps the footprint: a wide spread stays wide, a pile stays a column', () => {
+    const wide = Array.from({ length: 6 }, (_, i) => item({ id: `w${i}`, x: i * 130, w: 100, h: 80 }))
+    const tops = new Set([...tidyOnto(wide).values()].map((p) => p.y))
+    expect(tops.size).toBeLessThan(6)
+
+    const pile = Array.from({ length: 5 }, (_, i) => item({ id: `p${i}`, x: i * 4, y: i * 4, w: 100, h: 80 }))
+    const cols = new Set([...tidyOnto(pile).values()].map((p) => p.x))
+    expect(cols.size).toBe(1)
+  })
+
+  it('anchors at the top left of what was there, so tidying does not also move it', () => {
+    const list = Array.from({ length: 4 }, (_, i) => item({ id: `t${i}`, x: 400 + i * 130, y: 300 + i * 9, w: 100, h: 80 }))
+    const m = tidyOnto(list)
+    const at = list.map((it) => ({ ...it, ...(m.get(it.id) || {}) }))
+    expect(Math.min(...at.map((p) => p.x))).toBe(400)
+    expect(Math.min(...at.map((p) => p.y))).toBe(300)
   })
 })

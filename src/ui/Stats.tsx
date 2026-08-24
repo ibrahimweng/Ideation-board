@@ -3,6 +3,8 @@ import { store } from '../state/store'
 import { getEngine } from '../engine/client'
 import { describeSpace, measure, spaceNow, subscribeSpace, TIGHT as SPACE_TIGHT } from '../store/space'
 import type { Space } from '../store/space'
+import { describeMirror, mirrorState, subscribeMirror } from '../store/mirror'
+import type { MirrorState } from '../store/mirror'
 
 /* ---------------------------------------------------------------------------
  * What the board is holding.
@@ -23,8 +25,10 @@ export function Stats({ count }: { count: number }) {
   const [gpu, setGpu] = useState<{ textures: number; textureBytes: number } | null>(null)
   const [items, setItems] = useState(0)
   const [space, setSpace] = useState<Space>(spaceNow)
+  const [mirror, setMirror] = useState<MirrorState>(mirrorState)
 
   useEffect(() => subscribeSpace(setSpace), [])
+  useEffect(() => subscribeMirror(setMirror), [])
 
   useEffect(() => {
     const engine = getEngine()
@@ -60,6 +64,12 @@ export function Stats({ count }: { count: number }) {
       {cramped && (
         <span className="stats-tight" title={describeSpace(space)}>
           Storage {Math.round(space.ratio * 100)}% full
+        </span>
+      )}
+      {/* Where the work exists outside this browser, and when it last did. */}
+      {mirror.folder && (
+        <span className="stats-folder" data-busy={mirror.busy || undefined} title={describeMirror(mirror)}>
+          {mirror.error ? 'Folder copy failed' : mirror.folder}
         </span>
       )}
       {tight && !cramped && (

@@ -37,7 +37,8 @@
     "test:watch": "vitest",
     "test:browser": "node scripts/browser-tests.mjs",
     "test": "npm run typecheck && npm run test:unit",
-    "test:all": "npm run typecheck && npm run test:unit && npm run build && npm run test:browser"
+    "test:all": "npm run typecheck && npm run test:unit && npm run build && npm run test:browser",
+    "test:access": "node test/access.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
