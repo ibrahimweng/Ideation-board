@@ -73,6 +73,24 @@ pictures, open the saved looks, switch the theme. The letters only have to be
 in order, so "tdy" finds "Tidy up the whole board", and every entry shows the
 shortcut that runs it, so using the list is how you learn to stop using it.
 
+## Screens, not gradients
+
+There is not a gradient anywhere in the interface.
+
+Where a name sits over a photograph, or a bar sits over a board being
+presented, the thing that makes the words legible is a halftone screen: dots
+whose coverage falls off, densest where the words are and gone a few pixels
+above them. A smooth ramp would do the same job and look like every other scrim
+on the web; a screen does it by the method this app is actually about, which is
+coverage rather than opacity. A picture that has not loaded yet is a still
+field of dots rather than a gradient sliding across.
+
+`src/board/screen.ts` builds them. The radii follow from the coverage they
+stand for — area, so the radius goes as its square root, which is what makes a
+halftone read as an even ramp instead of a sudden wall of ink.
+
+The dot grid on the board is the same idea and always was.
+
 ## Light and dark
 
 The button beside the zoom control cycles between following your system,
@@ -691,7 +709,9 @@ own mask on it, and a maskable one for Android.
 
 `og.png` is what appears beside the link wherever it is pasted. It is a real
 screenshot of the app with the name over it, not a logo on a colour: a card
-that is only a logo tells you nothing the URL did not.
+that is only a logo tells you nothing the URL did not. It is made by driving
+the app — dropping the pictures in, putting ASCII on them, pulling the colours
+out of one — so it cannot show a feature that is broken.
 
 Both fail silently in the wild — a missing icon is a blank page glyph and a
 missing card is a link with nothing beside it, and neither appears in any log —

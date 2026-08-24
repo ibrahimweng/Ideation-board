@@ -512,11 +512,16 @@ body[data-dragging] .card-chrome { opacity: 0; }
   border-top: 0;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.2) 58%, rgba(0, 0, 0, 0));
+  /* A halftone screen rather than a smooth ramp: the same job — white words
+     legible over any photograph — done by coverage instead of by opacity,
+     which is the method this whole app is about. */
+  background: var(--screen-up) repeat-x bottom / auto 38px;
 }
 .card:is([data-kind='image'], [data-kind='video'], [data-kind='embed'], [data-kind='board']) .card-name {
-  color: rgba(255, 255, 255, 0.96);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  /* A screen leaves white between its dots, so the letters get an outline of
+     their own rather than relying on the plate being solid. */
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 .card:is([data-kind='image'], [data-kind='video'], [data-kind='embed'], [data-kind='board']) .card-todo {
   color: rgba(255, 255, 255, 0.82);
@@ -528,7 +533,7 @@ body[data-dragging] .card-chrome { opacity: 0; }
   align-items: flex-start;
   padding-bottom: 0; padding-top: 7px;
   border-radius: var(--r-md) var(--r-md) 0 0;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.2) 58%, rgba(0, 0, 0, 0));
+  background: var(--screen-down) repeat-x top / auto 38px;
 }
 
 /* A note's paper is pale whatever the theme is doing, so its plate is too. */
@@ -558,8 +563,10 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .card-frame { position: absolute; inset: 0; }
 
 .media { width: 100%; height: 100%; object-fit: cover; display: block; }
-.placeholder { background: linear-gradient(100deg, var(--well-2) 30%, var(--well) 50%, var(--well-2) 70%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
-@keyframes shimmer { to { background-position: -200% 0; } }
+/* A picture that has not arrived yet. It used to be a gradient sliding across,
+   which is the web's way of saying "loading" and this app's way of saying
+   nothing at all. A still screen says the same thing without the theatre. */
+.placeholder { background: var(--well) var(--screen-flat) repeat; opacity: 0.55; }
 
 /* The noise itself is set inline from src/board/grain.ts, so the card and an
    export of the card lay down the same one. */
@@ -1030,7 +1037,7 @@ body[data-dragging] .card-chrome { opacity: 0; }
   display: flex; align-items: center; gap: var(--s4);
   padding: var(--s4) var(--s5);
   color: rgba(255, 255, 255, 0.72);
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+  background: var(--screen-present) repeat-x bottom / auto 96px;
   transition: opacity 0.4s ease;
 }
 .present[data-idle] .present-bar { opacity: 0; }

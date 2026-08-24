@@ -1,18 +1,38 @@
 /* Builds public/og.png, the picture that appears beside the link.
  *
- *   node brand/og.mjs        (needs brand/board-shot.png)
+ *   node brand/board.mjs http://localhost:4173   (the shot it is built from)
+ *   node brand/og.mjs
+ *
+ * No gradients anywhere in it. Where a card like this would normally put a
+ * soft glow behind the title and a soft fade at the edge, this puts a halftone
+ * screen — coverage rather than opacity — which is the method the app itself
+ * is about and the reason the pictures on the board are screened into ASCII.
  */
 import { chromium } from 'playwright'
 import fs from 'node:fs'
 
-/* The picture that goes beside the link.
- *
- * A card that is only a logo tells you nothing the URL did not. This one shows
- * the app: a board of photographs, one of them screened into halftone, and the
- * colours pulled out of another sitting underneath as swatches. Whoever sees
- * the link in a message can tell what it is without opening it. */
 const shot = fs.readFileSync('brand/board-shot.png').toString('base64')
 const icon = fs.readFileSync('public/favicon.svg', 'utf8')
+
+/* A screen: dots on a square grid whose coverage falls from one edge. Written
+ * out here rather than imported, so this script stands on its own. */
+const screen = ({ w, h, from = 'left', cell = 5, max = 0.5, bias = 1.5, ink = '#ff5a1f' }) => {
+  const dots = []
+  const cols = Math.ceil(w / cell)
+  const rows = Math.ceil(h / cell)
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const t = from === 'left' ? c / cols : from === 'right' ? 1 - c / cols : r / rows
+      const cov = Math.max(0, Math.min(1, (1 - t) ** bias)) * max
+      const rad = cell * 0.7 * Math.sqrt(cov)
+      if (rad < 0.25) continue
+      const x = (c + 0.5) * cell + (r % 2 ? cell / 2 : 0)
+      dots.push(`<circle cx="${x.toFixed(1)}" cy="${((r + 0.5) * cell).toFixed(1)}" r="${rad.toFixed(2)}"/>`)
+    }
+  }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'><g fill='${ink}'>${dots.join('')}</g></svg>`
+  return `url("data:image/svg+xml;utf8,${svg.replace(/#/g, '%23').replace(/"/g, "'")}")`
+}
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH, args: ['--no-sandbox'] })
 const page = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 })
@@ -27,11 +47,12 @@ await page.setContent(`
     font-family: 'Instrument Sans', system-ui, sans-serif;
     background: #0b0b0d;
   }
-  /* A little of the accent bled into the ground, so the card is not a black
-     rectangle in a feed of black rectangles. */
-  .glow {
-    position: absolute; left: -220px; top: -260px; width: 900px; height: 900px;
-    background: radial-gradient(circle, rgba(255,90,31,0.20), rgba(255,90,31,0) 62%);
+  /* A screened bar down the left edge, the way a proof sheet carries one.
+     Not behind the words: a field of dots under text is a field of dots
+     between you and the text. */
+  .screen {
+    position: absolute; left: 0; top: 0; width: 34px; height: 630px;
+    background-image: ${screen({ w: 34, h: 630, from: 'left', cell: 5, max: 0.85, bias: 2.4 })};
   }
   .text {
     position: absolute; left: 68px; top: 0; bottom: 0; width: 500px; z-index: 2;
@@ -40,31 +61,32 @@ await page.setContent(`
   .top { display: flex; align-items: center; gap: 16px; }
   .top svg { width: 56px; height: 56px; }
   h1 { font-size: 52px; font-weight: 600; color: #fff; letter-spacing: -0.022em; line-height: 1; }
-  p { font-size: 24px; line-height: 1.45; color: rgba(255,255,255,0.72); }
+  p { font-size: 24px; line-height: 1.45; color: rgba(255,255,255,0.74); }
   .tags { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 2px; }
   .tags span {
-    font-size: 16px; color: rgba(255,255,255,0.78);
-    border: 1px solid rgba(255,255,255,0.20); border-radius: 999px; padding: 6px 14px;
+    font-size: 16px; color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 6px 14px;
   }
   /* The app itself, bleeding off the right edge so the card reads as a window
      onto something bigger than the card. */
   .panel {
     position: absolute; left: 600px; top: 66px; width: 760px; height: 498px;
     border-radius: 16px; overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.14);
-    box-shadow: 0 40px 90px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 40px 90px rgba(0,0,0,0.75);
     background: #0d0d0f;
   }
   .panel img { width: 1180px; height: auto; display: block; margin: 0 0 0 -18px; }
-  /* Fades into the ground rather than stopping at a hard edge. */
-  .fade {
-    position: absolute; right: 0; top: 0; bottom: 0; width: 120px; z-index: 3;
-    background: linear-gradient(to left, rgba(11,11,13,0.9), rgba(11,11,13,0));
+  /* The edge is screened back into the ground rather than faded into it. */
+  .edge {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 150px; z-index: 3;
+    background-color: transparent;
+    background-image: ${screen({ w: 150, h: 630, from: 'right', cell: 4, max: 1, bias: 1.25, ink: '#0b0b0d' })};
   }
 </style>
-<div class="glow"></div>
+<div class="screen"></div>
 <div class="panel"><img src="data:image/png;base64,${shot}"></div>
-<div class="fade"></div>
+<div class="edge"></div>
 <div class="text">
   <div class="top">${icon}<h1>Ideation Board</h1></div>
   <p>Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine.</p>
