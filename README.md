@@ -1,3 +1,5 @@
+<img src="brand/mark.svg" width="72" alt="">
+
 # Ideation Board
 
 A board where you drop ideas and work on them. You can drop images, video,
@@ -680,6 +682,28 @@ npm run bench
   reports whether the main thread ever blocked.
 - `bench` compares the old drawing method with the new one.
 
+## The icon, and the picture beside the link
+
+`public/` holds the icon at every size something asks for it in — an SVG for
+modern browsers, a `favicon.ico` carrying 16, 32 and 48 for the ones that still
+ask for that file by name, a square full-bleed touch icon because iOS puts its
+own mask on it, and a maskable one for Android.
+
+`og.png` is what appears beside the link wherever it is pasted. It is a real
+screenshot of the app with the name over it, not a logo on a colour: a card
+that is only a logo tells you nothing the URL did not.
+
+Both fail silently in the wild — a missing icon is a blank page glyph and a
+missing card is a link with nothing beside it, and neither appears in any log —
+so `test/unit/brand.test.ts` checks that everything `index.html` and the
+manifest point at is actually there and the right size.
+
+The absolute address the card needs is filled in at build time from the host's
+environment, so it is right on production and right in a preview deploy without
+anyone typing a domain. `SITE_URL=https://your.domain npm run build` pins it.
+
+`brand/` holds the generator and explains the mark.
+
 ## What is in each folder
 
 | Path | What is in it |
@@ -693,3 +717,5 @@ npm run bench
 | `test` | Browser suites and the benchmark |
 | `test/unit` | The fast tests, on the arithmetic underneath |
 | `scripts` | The runner that drives every browser suite in one command |
+| `public` | The icon at every size, the social card, the manifest |
+| `brand` | What generates all of that, and why the mark is what it is |

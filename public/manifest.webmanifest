@@ -1,0 +1,17 @@
+{
+  "name": "Ideation Board",
+  "short_name": "Ideation",
+  "description": "Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0f",
+  "theme_color": "#ff5a1f",
+  "orientation": "any",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

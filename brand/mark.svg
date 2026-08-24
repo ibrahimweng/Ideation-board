@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Ideation Board">
+  <title>Ideation Board</title>
+  <g transform="translate(0.0 0)">
+      <path d="M33.6 13.5 A18.5 18.5 0 1 0 33.6 50.5 Z" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="12.00" r="1.49" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="17.00" r="2.26" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="22.00" r="2.50" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="27.00" r="2.50" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="32.00" r="2.50" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="37.00" r="2.50" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="42.00" r="2.50" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="47.00" r="2.26" fill="#ff5a1f"/>
+      <circle cx="35.85" cy="52.00" r="1.49" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="14.50" r="1.30" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="19.50" r="1.81" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="24.50" r="1.98" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="29.50" r="1.98" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="34.50" r="1.98" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="39.50" r="1.98" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="44.50" r="1.81" fill="#ff5a1f"/>
+      <circle cx="40.85" cy="49.50" r="1.30" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="17.00" r="0.78" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="22.00" r="1.09" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="27.00" r="1.25" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="32.00" r="1.30" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="37.00" r="1.25" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="42.00" r="1.09" fill="#ff5a1f"/>
+      <circle cx="45.85" cy="47.00" r="0.78" fill="#ff5a1f"/>
+    </g>
+</svg>

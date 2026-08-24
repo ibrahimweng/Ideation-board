@@ -3,8 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="description" content="An ideation board: drop images, video, audio, notes and files, then apply GPU effects at speed." />
     <title>Ideation Board</title>
+    <meta
+      name="description"
+      content="Drop pictures on a board and put thirty one GPU effects on them. Nested boards, saved looks, colour palettes pulled out of your photographs, and a present mode. Everything stays on your machine."
+    />
+
+    <!-- The icon, at every size something asks for it in.
+         The SVG is what a modern browser takes, and it is the whole mark at
+         any size; the .ico holds 16, 32 and 48 for the ones that still ask
+         for that file by name; the touch icon is square and full bleed
+         because iOS puts its own mask on it. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- The picture beside the link, for wherever the link is pasted.
+         %SITE_URL% is filled in at build time from the host's own environment,
+         because a preview is fetched by a machine with no page to resolve a
+         relative path against. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ideation Board" />
+    <meta property="og:title" content="Ideation Board" />
+    <meta
+      property="og:description"
+      content="Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine."
+    />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:image" content="%SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta
+      property="og:image:alt"
+      content="A dark board holding three photographs, one of them screened into halftone, with the colours pulled out of another sitting underneath as swatches."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Ideation Board" />
+    <meta
+      name="twitter:description"
+      content="Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine."
+    />
+    <meta name="twitter:image" content="%SITE_URL%/og.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
