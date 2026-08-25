@@ -68,12 +68,7 @@ const pickAt = (index) => page.evaluate((i) => {
   return card ? card.dataset.pick || null : 'missing'
 }, index)
 
-/* Escape first, because clicking a card that is already part of a bigger
- * selection keeps that selection — the board does it that way so a group can
- * be dragged by any card in it. */
 const select = async (index) => {
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(120)
   const at = await pointOn(index)
   await page.mouse.click(at.x, at.y)
   await page.waitForTimeout(250)

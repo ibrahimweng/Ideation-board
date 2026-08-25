@@ -120,7 +120,11 @@ Once something is on the board:
 - Drag a card to move it. It lines itself up with the cards around it and
   draws a guide where it has, or hold Shift to snap to a grid instead.
 - Drag a corner handle to resize it.
-- Drag on empty space to select several cards at once.
+- Drag on empty space to select several cards at once. Shift and a click adds
+  one to the selection or takes it out again, and a click on a card that is
+  already one of several keeps just that one — but only once the button comes
+  back up without having moved, so a group can still be dragged by any card
+  in it.
 - Hover a card and drag one of the four dots on its sides onto another card to
   connect them.
 - Select several and use the right click menu to line them up, space them

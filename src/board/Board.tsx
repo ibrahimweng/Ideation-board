@@ -259,14 +259,19 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
     e.stopPropagation()
     /* Held still, a finger means the same as a right button. Cancelled below
        the moment the press turns into a drag. */
+    let menued = false
     const held = onLongPress(e, (px, py) => {
       noteLongPress()
+      menued = true
       const sel = store.getSelection()
       const ids = sel.includes(id) ? sel : [id]
       if (!sel.includes(id)) store.select([id])
       setMenu({ x: px, y: py, ids })
     })
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
+    /* The left button, or a finger. A right button is on its way to the menu,
+       which acts on the whole selection and must not have it taken away. */
+    const primary = e.button === 0
     if (additive) store.toggle(id)
     else if (!store.isSelected(id)) store.select([id])
     /* Sections sit behind their contents by design, so raising one would put
@@ -384,6 +389,19 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
       drawGuide(guideV.current, null, true)
       drawGuide(guideH.current, null, false)
       if (moved && testable.length) store.reparentByPosition(testable)
+      /* A press that never became a drag, on a card that was already one of
+         several, means that card.
+
+         The selection has to survive the press itself, or a group could only
+         be dragged from whichever card happened to be last clicked. So it
+         survives until the button comes back up without having moved, which
+         is the point at which the press turns out to have been a click — the
+         same bargain every canvas makes. Without it, selecting a dozen cards
+         and then clicking one of them to work on it left all twelve selected,
+         and the next thing you did happened to all twelve. */
+      if (!moved && primary && !additive && !menued && store.getSelection().length > 1 && store.isSelected(id)) {
+        store.select([id])
+      }
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)

@@ -122,6 +122,53 @@ await page.keyboard.press('Control+a')
 await page.waitForTimeout(300)
 const selAll = await page.locator('.card[data-sel]').count()
 ok('select: Cmd+A selects all non-section cards', selAll >= 5, `${selAll} selected`)
+
+/* A click on one of several is a click on that one. The selection survives the
+   press itself, so a group can still be dragged from any card in it, and
+   collapses when the button comes back up without having moved. */
+await firstImg.click({position:{x:60,y:10}})
+await page.waitForTimeout(300)
+ok('select: clicking one of several selects just that one',
+   await page.locator('.card[data-sel]').count() === 1,
+   `${selAll} -> ${await page.locator('.card[data-sel]').count()} selected`)
+
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(300)
+await firstImg.click({position:{x:60,y:10}, modifiers:['Shift']})
+await page.waitForTimeout(300)
+ok('select: but Shift and a click still takes one out of the group',
+   await page.locator('.card[data-sel]').count() === selAll - 1,
+   `${await page.locator('.card[data-sel]').count()} of ${selAll} left`)
+
+/* The half that has to keep working: dragging a group by one of its cards. */
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(300)
+const boxesBefore = await page.evaluate(() =>
+  [...document.querySelectorAll('.card[data-sel]')].map((c) => {
+    const r = c.getBoundingClientRect()
+    return { x: Math.round(r.x), y: Math.round(r.y) }
+  }))
+const groupGrip = await firstImg.boundingBox()
+await page.mouse.move(groupGrip.x + 60, groupGrip.y + 10)
+await page.mouse.down()
+await page.mouse.move(groupGrip.x + 120, groupGrip.y + 50, { steps: 8 })
+await page.mouse.up()
+await page.waitForTimeout(400)
+const boxesAfter = await page.evaluate(() =>
+  [...document.querySelectorAll('.card[data-sel]')].map((c) => {
+    const r = c.getBoundingClientRect()
+    return { x: Math.round(r.x), y: Math.round(r.y) }
+  }))
+ok('drag: a group still moves together when dragged by one of its cards',
+   boxesAfter.length === boxesBefore.length && boxesBefore.length > 1 &&
+   boxesBefore.every((b, i) => Math.abs(boxesAfter[i].x - b.x - 60) < 12 && Math.abs(boxesAfter[i].y - b.y - 40) < 12),
+   `${boxesBefore.length} cards, first moved ${boxesAfter[0].x - boxesBefore[0].x},${boxesAfter[0].y - boxesBefore[0].y}`)
+ok('drag: and the group is still selected afterwards',
+   await page.locator('.card[data-sel]').count() === selAll,
+   `${await page.locator('.card[data-sel]').count()} of ${selAll}`)
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(400)
+
 await page.keyboard.press('Escape')
 await page.waitForTimeout(250)
 ok('select: Escape clears selection', await page.locator('.card[data-sel]').count() === 0)
