@@ -491,7 +491,10 @@ await page.evaluate(() => document.activeElement?.blur?.())
 await page.waitForTimeout(400)
 
 // ---------- 16c. the top bar must stay one row and never spill ----------
-for (const w of [1600, 1440, 1360, 1280, 1024, 900]) {
+/* Down to a phone. The row held eleven buttons and clipped rather than
+   wrapped, so at 390px four of them — undo, redo, the command list and the
+   effects panel — were simply not on screen, and nothing said so. */
+for (const w of [1600, 1440, 1360, 1280, 1024, 900, 768, 430, 390, 360]) {
   await page.setViewportSize({ width: w, height: 900 })
   await page.waitForTimeout(300)
   const bar = await page.evaluate(() => {
@@ -510,13 +513,20 @@ for (const w of [1600, 1440, 1360, 1280, 1024, 900]) {
     return {
       rows: rows.size,
       shown: btns.length,
+      names: btns.map(b => b.getAttribute('aria-label')).filter(Boolean),
       clipped: Math.round(last.right) > window.innerWidth + 1,
+      overflow: Math.round(document.querySelector('.topbar').scrollWidth - document.querySelector('.topbar').clientWidth),
       topbarH: Math.round(document.querySelector('.topbar').getBoundingClientRect().height),
     }
   })
   ok(`layout: top bar is one row at ${w}px`,
-     bar.rows === 1 && !bar.clipped && bar.topbarH === 52,
-     `${bar.shown} buttons, rows ${bar.rows}, clipped ${bar.clipped}, height ${bar.topbarH}`)
+     bar.rows === 1 && !bar.clipped && bar.overflow === 0 && bar.topbarH === 52,
+     `${bar.shown} buttons, rows ${bar.rows}, clipped ${bar.clipped}, overflow ${bar.overflow}, height ${bar.topbarH}`)
+  /* Whatever else stands down, these have no second way in that is one press
+     away, so they have to be in the row at every width. */
+  ok(`layout: undo and the command list are still there at ${w}px`,
+     bar.names.includes('Undo') && bar.names.includes('Commands') && bar.names.includes('Effects'),
+     bar.names.join(', '))
 }
 await page.setViewportSize({ width: 1440, height: 900 })
 await page.waitForTimeout(400)

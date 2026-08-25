@@ -211,12 +211,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
   border: 1px solid transparent; border-radius: var(--r-md);
   min-width: 110px; max-width: 240px; flex: 0 1 200px;
 }
+/* Room for the count, the clear, and the boards below this one. Without it the
+   three of them squeeze the words you typed out of the box that took them. */
+.search[data-deep] { max-width: 360px; flex: 0 1 320px; }
 .search:focus-within { background: var(--surface); border-color: var(--accent); }
 .search[data-active] { background: var(--surface); border-color: var(--line); }
 
 .search-icon { width: 14px; height: 14px; color: var(--muted); flex: none; }
 .search input {
-  flex: 1; min-width: 0;
+  flex: 1 1 60px; min-width: 40px;
   border: none; background: none; outline: none;
   font: 400 var(--t-md)/1.4 var(--sans); color: var(--ink);
 }
@@ -252,6 +255,34 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 
 @media (max-width: 1320px) {
   .search { min-width: 110px; flex: 0 1 150px; margin-left: 12px; }
+}
+
+/* Matches inside the boards on this one. A count you can press rather than a
+   list you have to scroll past, because most searches have none. */
+.search-deep {
+  flex: none; margin-left: 6px; padding: 2px 7px; border-radius: var(--r-sm);
+  font: 500 var(--t-xs)/1.4 var(--sans); color: var(--accent);
+  background: var(--accent-wash); white-space: nowrap;
+}
+.search-deep:hover { background: var(--accent); color: var(--accent-ink); }
+
+.deep-pop {
+  position: fixed; z-index: 60;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--sh-3); padding: 4px;
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(420px, 60vh); overflow-y: auto;
+}
+.deep-pop button {
+  display: flex; align-items: baseline; gap: var(--s2); width: 100%;
+  padding: 6px 8px; border-radius: var(--r-sm); text-align: left;
+  font-size: var(--t-md); color: var(--ink);
+}
+.deep-pop button:hover { background: var(--hover); }
+.deep-what { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deep-pop em {
+  flex: none; font-style: normal; font-size: var(--t-xs); color: var(--muted);
+  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* ---------- tag filter ---------- */
@@ -474,9 +505,21 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   box-shadow: var(--shadow);
   display: flex; flex-direction: column;
   overflow: hidden;
-  will-change: transform;
   contain: layout paint style;
 }
+/* Not `will-change: transform` on every card.
+ *
+ * It was there to make dragging smooth, and it did — by giving every card on
+ * the board its own compositor layer, for the whole time it was on screen,
+ * whether or not anything was moving. A hundred and fifty photographs is a
+ * hundred and fifty layers to composite on every frame of a pan, and panning
+ * measurably slowed as a board grew: twenty frames a second at forty cards,
+ * eleven at a hundred and fifty. Nothing re-renders during a pan — the surface
+ * transform moves the lot as a group — so that cost was pure overhead.
+ *
+ * The hint now goes only to the cards that are actually moving, for as long as
+ * they are moving, which is what the property is for. */
+body[data-dragging] .card[data-sel] { will-change: transform; }
 .card[data-sel] { border-color: var(--sel); box-shadow: 0 0 0 2px var(--accent-line), var(--shadow); }
 
 /* What the card is called, over the bottom of it, and only while you are on
@@ -826,7 +869,9 @@ body[data-dragging] .card-chrome { opacity: 0; }
      underneath. */
   visibility: hidden; opacity: 0;
   transition: opacity 0.12s ease;
-  will-change: transform;
+  /* No layer of its own either, and for the same reason: there is one of
+     these behind every card, hidden until you are on it, and a hidden layer
+     costs as much to composite as a visible one. */
 }
 /* The dot sits just outside the card and its target reaches a few pixels back
    over the border. On the border itself it stole the middle of the title bar,
@@ -1290,3 +1335,65 @@ body[data-dragging] .card-chrome { opacity: 0; }
   .board-name { width: 130px; }
 }
 
+/* ---------------------------------------------------------------------------
+ * A phone.
+ *
+ * The row across the top held eleven buttons and a search box, and on a 390
+ * pixel screen it ran 177 pixels past the right hand edge. Four buttons were
+ * simply not there — undo, redo, the command list and the effects panel — with
+ * nothing on screen to say so, because the bar clips rather than wraps. So
+ * half of the app was missing on a phone and the only thing that noticed was
+ * the person holding it.
+ *
+ * What is left is the four things with no second way in: add files, a note,
+ * undo, and the command list, which is everything else. The six that stand
+ * down are all in the command list, in the menu a held finger opens, and on
+ * the empty board's own buttons.
+ * ------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  .tool[data-narrow] { display: none; }
+  /* The board's name gives up whatever is left rather than pushing the row
+     off the edge, and the mark goes: at this width every pixel is spoken for. */
+  .brand { flex: 1 1 auto; }
+  .brand .dot { display: none; }
+  .board-name { width: auto; min-width: 0; flex: 1 1 auto; font-size: var(--t-md); }
+  /* A magnifier until it is asked for, and the width of the row once it is. */
+  .search { flex: 0 0 34px; min-width: 0; margin-left: var(--s2); padding: 0 6px; }
+  .search input { min-width: 0; }
+  .search kbd { display: none; }
+  .search:focus-within { flex: 1 1 auto; }
+  .search[data-active] { flex: 0 1 120px; }
+  /* Without this the free space goes to the auto margin that pushes the tools
+     right, and the board's name is squeezed to six letters beside it. */
+  .tools { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  /* One control that narrows the board is enough on a screen this size, and
+     the search box is the one that can also find things. */
+  .tagfilter { display: none; }
+  /* The count itself is enough; the word does not fit. */
+  .search-deep { font-size: 10px; padding: 2px 5px; }
+}
+
+/* Fingers are not pointers. Every button in the row was 28 by 26, which is
+   under both of the sizes the platforms ask for — 44 points on iOS, 48 on
+   Android — so on a touch screen they were all too small to hit reliably,
+   at every window size and not only on a phone. */
+@media (pointer: coarse) {
+  .tool { width: 40px; height: 38px; }
+  .tool-group { padding: 3px; gap: 2px; }
+  .tool-mode { height: 42px; padding: 0 var(--s3); }
+  .icon-btn { width: 40px; height: 40px; }
+  .tagfilter { height: 38px; min-width: 44px; justify-content: center; }
+  .search { height: 38px; }
+  .search-clear { width: 26px; height: 26px; }
+  .zoombar button, .zoombar .icon-btn { min-width: 40px; height: 38px; }
+  /* There is no keyboard to press them on. */
+  .first-do em, .search kbd { display: none; }
+}
+
+/* The panel is an overlay at this width, so it must not cover the whole of
+   what it is describing. */
+@media (max-width: 700px) {
+  .panel { width: min(320px, 88vw); }
+}

@@ -186,6 +186,87 @@ await page.keyboard.press('Delete')
 await page.waitForTimeout(400)
 check('a board card can be removed', (await boardCards().count()) === 1)
 
+/* ---------- what is inside the boards you are not looking at ----------
+   A board card holds a whole board and opening one loads only that record,
+   which is what makes nesting free. It also meant the search box could only
+   ever see the board you were standing on: put a note one level down, search
+   for a word in it, and the answer was "none". Nesting is meant to be how you
+   put work away; without this it is how you lose it. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+/* Back to the top, whatever the checks above left open. */
+while ((await crumbs().count()) > 0) {
+  await crumbs().first().click()
+  await page.waitForTimeout(1200)
+}
+const writeNote = async (text) => {
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Note', exact: true }).click()
+  await page.waitForTimeout(400)
+  await page.locator('.card[data-kind="note"]').last().dblclick()
+  await page.waitForTimeout(400)
+  await page.locator('.sheet textarea').fill(text)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.waitForTimeout(500)
+}
+/* Two boards down. */
+await page.keyboard.press('Escape')
+await page.getByRole('button', { name: 'Board', exact: true }).click()
+await page.waitForTimeout(900)
+await boardCards().last().dblclick()
+await page.waitForTimeout(1500)
+await writeNote('halfway down the tree')
+await page.keyboard.press('Escape')
+await page.getByRole('button', { name: 'Board', exact: true }).click()
+await page.waitForTimeout(900)
+await boardCards().last().dblclick()
+await page.waitForTimeout(1500)
+await writeNote('zellige tiles, buried')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+while ((await crumbs().count()) > 0) {
+  await crumbs().first().click()
+  await page.waitForTimeout(1400)
+}
+check('setup: back at the top of the tree', (await crumbs().count()) === 0)
+
+await page.locator('.search input').fill('zellige')
+await page.waitForTimeout(1800)
+check('nothing on this board matches, and it says so',
+  (await page.locator('.search-count').innerText()).toLowerCase().includes('none'),
+  await page.locator('.search-count').innerText())
+check('but the boards below it are searched too',
+  (await page.locator('.search-deep').count()) === 1,
+  (await page.locator('.search-deep').innerText().catch(() => 'no button')))
+
+await page.locator('.search-deep').click()
+await page.waitForTimeout(500)
+const rows = await page.locator('.deep-pop button').allInnerTexts()
+check('the result says what the card says, not what its kind is called',
+  rows.length === 1 && rows[0].includes('zellige tiles'), rows.join(' | ').replace(/\n/g, ' '))
+check('and which board it is in', rows[0].split('\n').length > 1, rows[0].replace(/\n/g, ' — '))
+fs.writeFileSync(path.join(OUT, 'boards-deep.png'), await page.screenshot())
+
+await page.locator('.deep-pop button').first().click()
+await page.waitForTimeout(2600)
+check('picking one opens the board it is in', (await crumbs().count()) === 2,
+  `${await crumbs().count()} steps in the trail`)
+check('and lands on the card it found', (await page.locator('.card[data-sel]').count()) === 1)
+const landed = await page.evaluate(() => document.querySelector('.card[data-sel]')?.textContent || '')
+check('which is the one that matched', landed.includes('zellige'), landed.slice(0, 60))
+/* And it is on screen, not merely selected somewhere off the edge. */
+const inView = await page.evaluate(() => {
+  const c = document.querySelector('.card[data-sel]')
+  if (!c) return false
+  const r = c.getBoundingClientRect()
+  return r.right > 0 && r.bottom > 0 && r.left < window.innerWidth && r.top < window.innerHeight
+})
+check('and the board moved to show it', inView)
+
+await page.locator('.search input').fill('')
+await page.waitForTimeout(500)
+check('clearing the search puts the list away', (await page.locator('.search-deep').count()) === 0)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

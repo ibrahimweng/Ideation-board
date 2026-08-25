@@ -138,6 +138,19 @@ Once something is on the board:
 - Double click a note, a label or a section to edit its text.
 - Double click a picture, a video or a board card to see it big.
 
+## On a phone
+
+The row across the top holds eleven buttons on a laptop and four on a phone:
+add a file, undo, the command list, and the effects panel. The seven that stand
+down are all reachable from the command list, from the menu a held finger opens
+on the board, and from the empty board's own buttons — the row clips rather
+than wraps, so anything that will not fit has to be taken out deliberately
+rather than pushed off the edge where nobody can see it went.
+
+Every button grows when the pointer is a finger rather than a mouse. The row
+was built at 28 by 26 pixels, which is under both of the sizes the platforms
+ask for, and that was true at every window size and not only on a small one.
+
 ## Sections
 
 A section is a labelled area you can group work into. It behaves the way a
@@ -175,6 +188,14 @@ text and the tag to stay lit.
 Press Enter to move the board to the next result and select it, Shift and
 Enter for the previous one, and Escape to clear. Press / or Cmd and F to put
 the cursor in the box.
+
+The search box reaches into the boards nested on this one. A board card holds
+a whole board and opening one loads only that record, which is what makes
+nesting free — and what used to make everything you filed invisible to the
+thing that exists to find it. A count beside the box says how many matches are
+below; pressing it lists them with the board each is in, and picking one opens
+that board and puts the view on the card. Nesting is meant to be how you put
+work away, not how you lose it.
 
 Narrowing a board is only half of it. Cmd or Ctrl with Enter takes the whole
 result set as the selection, and so does clicking the count beside the box.
@@ -620,6 +641,21 @@ reading pixels back off the graphics card, which costs almost nothing when the
 "graphics card" is the processor — but that is a reasoned expectation and not a
 measurement, and it should not be repeated as though it were one.
 
+Panning a large board costs what it costs to draw the pixels, not what it
+costs to keep track of the cards. On SwiftShader, panning 150 photographs runs
+at about 34 frames a second and 40 photographs at about 47; the same 150 with
+an effect on every one of them runs at about 11, because a shaded card is a
+canvas rather than an image and a software rasteriser has no fast path for one.
+On a real graphics card both are texture blits and the gap should close.
+
+Until recently every card also asked for a compositor layer of its own, all the
+time, whether or not anything was moving — three hundred layers on a board of a
+hundred and fifty, reserved against the moment one of them might be dragged.
+The hint now goes only to the cards actually being dragged, for as long as the
+drag lasts. It did not move the frame rate on a software renderer, where fill
+is the whole cost; it gives back a large amount of graphics memory on a machine
+that has any.
+
 Measure it on your own machine rather than taking the table on trust:
 
 ```bash
@@ -767,7 +803,8 @@ npm run bench
   the page twice to check that a saved look outlives the browser session and
   that a deleted one stays deleted.
 - `test:touch` pans with one finger, pinches with two, drags a card with one,
-  and taps to clear the selection.
+  and taps to clear the selection. It also checks that every button
+  in the top row and the zoom bar is big enough to hit with a finger.
 - `test:transfer` builds a board with a picture, an arrow and a board nested
   inside it, exports the lot, wipes the browser and drops the file back on an
   empty board, then checks every piece came back — including the picture, which
@@ -787,7 +824,10 @@ npm run bench
   that a rename reaches the card that opens it, that a reload lands you where
   you were, and that duplicating a board card copies its contents rather than
   pointing at the same board. It also measures the top bar at five widths,
-  since the trail has to share a row that was already full.
+  since the trail has to share a row that was already full. It also puts a note two boards
+  down, comes back to the top, and checks that searching for a word in it finds
+  it, says which board it is in, and that picking the result opens that board
+  and brings the card into view.
 - `test:sections` checks that items join a section when dropped in, move with
   it, leave when dragged out, survive a reload, and that resizing does not
   change membership while deleting removes the contents.

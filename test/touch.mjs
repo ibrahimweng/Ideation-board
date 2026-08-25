@@ -158,6 +158,21 @@ await page.waitForTimeout(400)
 check('a tap on empty board clears the selection', (await page.locator('.card[data-sel]').count()) === 0)
 fs.writeFileSync(path.join(OUT, 'touch.png'), await page.screenshot())
 
+/* ---------- fingers are not pointers ----------
+   Every button in the row was 28 by 26. Apple asks for 44 points and Google
+   for 48; a 26 pixel target is a target you miss, and it was that size at
+   every window size and not only on a phone. */
+const targets = await page.evaluate(() => {
+  const coarse = window.matchMedia('(pointer: coarse)').matches
+  const small = [...document.querySelectorAll('.topbar button, .zoombar button')]
+    .filter((b) => b.getBoundingClientRect().width > 0)
+    .filter((b) => { const r = b.getBoundingClientRect(); return r.width < 36 || r.height < 32 })
+    .map((b) => `${b.getAttribute('aria-label') || b.textContent.trim()} ${Math.round(b.getBoundingClientRect().width)}x${Math.round(b.getBoundingClientRect().height)}`)
+  return { coarse, small }
+})
+check('the browser is being treated as a touch one', targets.coarse, `pointer: coarse = ${targets.coarse}`)
+check('every button in the row is big enough for a finger', targets.small.length === 0, targets.small.join(', '))
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

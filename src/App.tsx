@@ -30,7 +30,7 @@ import { paletteOf, swatchItems } from './state/palette'
 import { urlFromPaste } from './state/dragged'
 import { exportPoster, exportPosterPdf } from './state/poster'
 import { subject } from './state/subject'
-import { fitToBoard, markPick, revealItems } from './state/walk'
+import { fitToBoard, goToItem, markPick, revealItems } from './state/walk'
 import { hasPixels, isGradeable } from './state/kinds'
 
 const BOARD_ID = 'board_local'
@@ -229,6 +229,19 @@ export default function App() {
     setBusy(msg)
     window.setTimeout(() => setBusy(null), ms)
   }, [])
+
+  /* A search found something inside a board you are not on: open that board,
+     then put the view on the card rather than leaving it wherever that board
+     was last left. The board has to finish loading and the card has to have
+     been laid out before the view can be worked out from it, so the move waits
+     a frame. */
+  const goTo = useCallback(async (to: Crumb[], itemId: string) => {
+    await openBoard(to)
+    requestAnimationFrame(() => {
+      if (!goToItem(itemId)) store.select([itemId])
+      say(`Found in ${to[to.length - 1]?.name || 'that board'}`)
+    })
+  }, [openBoard, say])
 
   /* The board you are on and everything nested inside it, with its media, as
    * one file. The pending save is forced out first so what leaves is what is
@@ -584,6 +597,7 @@ export default function App() {
         name={name}
         onName={setName}
         onOpenBoard={(to) => void openBoard(to)}
+        onGoTo={(to, itemId) => void goTo(to, itemId)}
         panelOpen={panelOpen}
         onPanel={() => setPanelOpen((v) => !v)}
         onCommands={() => setPalette(true)}

@@ -110,3 +110,15 @@ export function revealItems(items: Item[]): boolean {
   store.setView(next)
   return true
 }
+
+/* Move the board to one card and select it. The way in for anything that
+ * knows which card it wants — a result found in another board, most of all,
+ * which arrives just after that board has been opened and needs the view to
+ * land on it rather than wherever the board was last left. */
+export function goToItem(id: string): boolean {
+  const it = store.getItem(id)
+  if (!it || !size.w || !size.h) return false
+  store.setView(revealView(store.peekView(), it, size.w, size.h))
+  store.select([id])
+  return true
+}

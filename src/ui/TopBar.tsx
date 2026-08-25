@@ -23,6 +23,9 @@ interface Props {
   name: string
   onName: (v: string) => void
   onOpenBoard: (to: Crumb[]) => void
+  /* Opening a board because a search found something inside it, and landing
+     on the card it found rather than wherever that board was left. */
+  onGoTo: (to: Crumb[], itemId: string) => void
   panelOpen: boolean
   onPanel: () => void
   onCommands: () => void
@@ -37,7 +40,7 @@ interface Props {
 }
 
 export function TopBar({
-  path, name, onName, onOpenBoard, panelOpen, onPanel, onCommands,
+  path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands,
   onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onImport, onExport,
 }: Props) {
   return (
@@ -78,7 +81,7 @@ export function TopBar({
       />
     </div>
 
-    <SearchBar />
+    <SearchBar path={path} onGo={onGoTo} />
     <TagFilter />
 
     {/* Icons in three groups rather than eleven grey words in a row.
@@ -89,23 +92,31 @@ export function TopBar({
         list. Effects keeps its name because it is the only thing here that
         is a mode rather than an action. */}
     <div className="tools">
+      {/* On a phone there is room for four buttons and the row held eleven,
+          so four of these fell off the right hand edge of the window with
+          nothing to say they were there — undo among them. Each one that
+          stands down on a narrow window has at least two other ways in: the
+          command list, the menu you get by holding a finger on the board, and
+          the empty board's own buttons. What is left is adding a file, undo,
+          the command list and the effects panel — and enough of the row for
+          the board to still be able to say what it is called. */}
       <div className="tool-group">
         <ToolButton name="addFiles" onClick={onAddFiles}>
           <IconFiles />
         </ToolButton>
-        <ToolButton name="note" onClick={onNote}>
+        <ToolButton name="note" onClick={onNote} narrow>
           <IconNote />
         </ToolButton>
-        <ToolButton name="label" onClick={onLabel}>
+        <ToolButton name="label" onClick={onLabel} narrow>
           <IconLabel />
         </ToolButton>
-        <ToolButton name="section" onClick={onSection}>
+        <ToolButton name="section" onClick={onSection} narrow>
           <IconSection />
         </ToolButton>
-        <ToolButton name="board" onClick={onBoard}>
+        <ToolButton name="board" onClick={onBoard} narrow>
           <IconBoard />
         </ToolButton>
-        <ToolButton name="link" onClick={onLink}>
+        <ToolButton name="link" onClick={onLink} narrow>
           <IconLink />
         </ToolButton>
       </div>
@@ -114,7 +125,7 @@ export function TopBar({
         <ToolButton name="undo" onClick={() => store.undo()}>
           <IconUndo />
         </ToolButton>
-        <ToolButton name="redo" onClick={() => store.redo()}>
+        <ToolButton name="redo" onClick={() => store.redo()} narrow>
           <IconRedo />
         </ToolButton>
       </div>
@@ -153,14 +164,22 @@ export function TopBar({
 /* A button in the top row: an icon, and the name and key it runs on its
    tooltip and for anything reading the page aloud. */
 function ToolButton({
-  name, onClick, children,
+  name, onClick, narrow, children,
 }: {
   name: ShortcutName
   onClick: () => void
+  /* Stands down when the window is too narrow to hold the whole row. */
+  narrow?: boolean
   children: React.ReactNode
 }) {
   return (
-    <button className="tool" onClick={onClick} title={titleFor(name)} aria-label={nameFor(name)}>
+    <button
+      className="tool"
+      data-narrow={narrow || undefined}
+      onClick={onClick}
+      title={titleFor(name)}
+      aria-label={nameFor(name)}
+    >
       {children}
     </button>
   )
