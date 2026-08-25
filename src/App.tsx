@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import type { PanelTab } from './ui/EffectsPanel'
-import { store, useSelection } from './state/store'
-import { ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
+import { store, useQuery, useSelection, useTagFilter } from './state/store'
+import { dropColumns, ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
 import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
@@ -29,7 +29,8 @@ import type { MirrorState } from './store/mirror'
 import { paletteOf, swatchItems } from './state/palette'
 import { urlFromPaste } from './state/dragged'
 import { exportPoster, exportPosterPdf } from './state/poster'
-import { fitToBoard, markPick } from './state/walk'
+import { subject } from './state/subject'
+import { fitToBoard, markPick, revealItems } from './state/walk'
 import { hasPixels, isGradeable } from './state/kinds'
 
 const BOARD_ID = 'board_local'
@@ -42,6 +43,10 @@ const ROOT: Crumb = { id: BOARD_ID, name: 'Untitled board', card: null }
 
 export default function App() {
   const selection = useSelection()
+  /* The command names say what they are about to act on, and what that is
+     changes with the search box and the tag filter as well as the selection. */
+  const query = useQuery()
+  const tagFilter = useTagFilter()
   const [tab, setTab] = useState<PanelTab>('effect')
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [palette, setPalette] = useState(false)
@@ -280,16 +285,12 @@ export default function App() {
     }
   }, [])
 
-  /* The board itself, flat, in one file that opens anywhere.
-   *
-   * Acts on the selection when there is one and on the whole board when there
-   * is not, which is how Present already behaves: what you have picked out is
-   * what you mean. */
-  const exportSheet = useCallback(async (ids: string[], as: 'png' | 'pdf') => {
-    const chosen = ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)
-    /* A selection of one card is almost certainly not what "the board as a
-     * picture" means, and a single card already has its own export. */
-    const items = chosen.length > 1 ? chosen : store.all()
+  /* The board itself, flat, in one file that opens anywhere. What counts as
+   * "the board" is one question answered in one place — see state/subject.ts —
+   * so this and Present and the command names never disagree about it. */
+  const exportSheet = useCallback(async (as: 'png' | 'pdf') => {
+    const what = subject()
+    const items = what.items
     if (!items.length) {
       setBusy('Nothing on this board yet')
       window.setTimeout(() => setBusy(null), 2200)
@@ -297,14 +298,15 @@ export default function App() {
     }
     setBusy(as === 'pdf' ? 'Laying out the page…' : 'Painting the board…')
     try {
-      const made = as === 'pdf' ? await exportPosterPdf(items, store.name) : await exportPoster(items, store.name)
+      const info = { name: store.name, of: what.why === 'board' ? undefined : what.total }
+      const made = as === 'pdf' ? await exportPosterPdf(items, info) : await exportPoster(items, info)
       if (!made) {
         setBusy('That could not be exported')
         window.setTimeout(() => setBusy(null), 2600)
         return
       }
       download(made.blob, made.name)
-      setBusy(`Exported ${made.name} at ${made.w}×${made.h}`)
+      setBusy(`Exported ${made.name}${made.note ? `, ${made.note}` : ` at ${made.w}×${made.h}`}`)
       window.setTimeout(() => setBusy(null), 2800)
     } catch (err) {
       setBusy(err instanceof Error ? err.message : 'That could not be exported')
@@ -363,14 +365,26 @@ export default function App() {
 
     setBusy(`Adding ${list.length} file${list.length > 1 ? 's' : ''}…`)
     let n = 0
+    const made: Item[] = []
+    const r = document.querySelector('.viewport')?.getBoundingClientRect()
     /* Items appear one at a time as they become ready rather than all at the
      * end, so a large drop feels immediate. */
-    for await (const item of ingest(list, at)) {
+    for await (const item of ingest(list, at, dropColumns(list.length, r?.width, r?.height))) {
       store.add(item)
+      made.push(item)
       n++
       setBusy(n < list.length ? `Adding ${n + 1} of ${list.length}…` : null)
     }
-    setBusy(null)
+    /* And then the view goes to them. A drop of twenty laid eight on screen
+       and twelve below the fold with nothing to say they were there, which is
+       indistinguishable from a drop that half failed — I took it for a bug in
+       my own code before finding they had all arrived. Nothing moves when the
+       drop landed in front of you. */
+    if (made.length > 1 && revealItems(made)) {
+      say(`Added ${made.length} — the board moved to show them`, 2600)
+    } else {
+      setBusy(null)
+    }
   }, [say])
 
 
@@ -453,10 +467,10 @@ export default function App() {
           if (!fitToBoard(onlySelection)) say(onlySelection ? 'Nothing selected to fit' : 'Nothing on this board yet')
         },
         say,
-        exportPoster: (ids, as) => void exportSheet(ids, as),
+        exportPoster: (as) => void exportSheet(as),
       }),
     [
-      selection, panelOpen, mirror, centreOfView, addBoard, askForLink,
+      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
     ]
   )
@@ -624,7 +638,7 @@ export default function App() {
       <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} />
       {presenting && (
         <Present
-          ids={selection}
+          ids={subject().items.map((i) => i.id)}
           startAt={presentAt}
           onClose={() => {
             setPresenting(false)

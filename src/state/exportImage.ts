@@ -29,6 +29,9 @@ export interface ExportedImage {
   name: string
   w: number
   h: number
+  /* Anything else worth saying in the line along the bottom of the window —
+   * which paper a PDF came out on, for instance. */
+  note?: string
 }
 
 /* Past this the file is enormous and the detail is invented. */

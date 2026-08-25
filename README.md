@@ -105,7 +105,10 @@ say which surround you are judging against.
 
 You add things in several ways:
 
-- Drag files from your computer onto the board.
+- Drag files from your computer onto the board. A folder of twenty arrives as
+  a block shaped like your window rather than a column marching off the bottom
+  of it, and the board moves to show you what landed — unless the drop was
+  small enough to land in front of you, in which case nothing moves.
 - Press the picture button in the top bar.
 - Paste an image, a block of text or a link.
 - Paste or drop the address of a video file and it becomes a video card you can
@@ -173,6 +176,15 @@ Press Enter to move the board to the next result and select it, Shift and
 Enter for the previous one, and Escape to clear. Press / or Cmd and F to put
 the cursor in the box.
 
+Narrowing a board is only half of it. Cmd or Ctrl with Enter takes the whole
+result set as the selection, and so does clicking the count beside the box.
+While a search or a tag filter is running, everything that acts on "this
+board" acts on what you can see instead: Select all takes the results, Present
+shows only them, and exporting exports only them — the command list says which
+it is about to do rather than leaving you to find out. Search for `kept` or
+`cut` and the board narrows to one side of a decision, which is what makes
+marking one up worth the trouble.
+
 Each toolbar button shows its shortcut, and hovering one names it in full.
 The single key shortcuts only fire when no modifier is held and no text field
 has focus, so they never get in the way of typing.
@@ -201,6 +213,7 @@ Keyboard shortcuts:
 | I | Mark the selection as kept |
 | O | Mark the selection as cut |
 | / | Search |
+| Cmd or Ctrl and Enter | Select every search result (in the search box) |
 | Cmd or Ctrl and S | Export this board and everything in it |
 | Cmd or Ctrl and O | Import a board file |
 | Cmd or Ctrl and E | Export the selected pictures as PNG |
@@ -536,8 +549,15 @@ asked for at the end of a week of collecting, which is the board itself — flat
 in one file, that opens anywhere and can go in an email.
 
 Pick "Export this board as one picture" from the command list for a PNG, or
-"Export this board as a PDF" for a page. Select more than one card first and it
-exports only those, cropped to what you picked.
+"Export this board as a PDF" for a page. Select more than one card first, or
+narrow the board with the search box, and it exports only those — the command
+says which before you run it.
+
+Two lines at the top say what the sheet is: the board's name, and then how many
+things are on it, how many were kept and cut, and the date. A picture of a
+board with nothing on it to say whose board it is becomes an anonymous file in
+somebody's downloads a week later, and a sheet that is only part of a board
+says "5 of 20" rather than passing itself off as the whole thing.
 
 It is painted rather than photographed. The board is bigger than the window, it
 is spread across a WebGL canvas per card and a hundred DOM nodes, and half of
@@ -550,9 +570,20 @@ picture that is halftoned and cropped and warmed on the board is halftoned and
 cropped and warmed on the sheet. A cut card comes out faded, exactly as far as
 it fades on the board.
 
-The PDF is written by hand: one page, one image on it, and five objects to say
-so. The picture goes in as JPEG because a PDF understands JPEG bytes directly,
-so nothing here has to carry a compressor around.
+The PNG is the sheet at its own size, however large that is: a board four
+screens wide comes out four screens wide, which is what you want on a monitor.
+
+The PDF is that sheet on paper somebody owns. It picks A4 or Letter from your
+locale, turns the page to whichever way round suits the board, and centres the
+board inside a margin. The first version of this wrote a page 1386 points by
+972 — fine to email, impossible to print, and nobody owns that paper.
+
+It is written by hand: one page, one image on it, and five objects to say so.
+The picture goes in as JPEG because a PDF understands JPEG bytes directly, so
+nothing here has to carry a compressor around. The only fiddly part is the
+cross-reference table, which is a list of byte offsets into the file itself,
+each entry exactly twenty bytes long — wrong in a way nothing on screen would
+show, which is why it is unit tested.
 
 ## Taking a board out, and putting one back
 
@@ -663,6 +694,7 @@ npm run test:palette -- http://localhost:5173
 npm run test:present -- http://localhost:5173
 npm run test:decide -- http://localhost:5173
 npm run test:fit -- http://localhost:5173
+npm run test:drop -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -705,12 +737,19 @@ npm run bench
   fitting nothing says so rather than appearing to do nothing, and that double
   clicking a picture opens it big at that picture while a note still opens its
   editor.
+- `test:drop` drops a folder of twenty on the board and checks that all twenty
+  arrive, that they are laid out as a block rather than a column, and that the
+  board moves to show them. Then it checks the other half: a single picture
+  dropped in front of you moves nothing, and a drop made while zoomed in never
+  zooms you in further than you were.
 - `test:poster` exports a board wider than the window as one picture and reads
   the file back: both far-apart photographs are on it and in different places,
   the writing on a note is really painted, a section and a wire are drawn, a
-  cut card comes out faded, and a board exported in the dark theme comes out
-  dark. Then it exports the same board as a PDF and checks it is one page at a
-  size in points with the picture inside it as JPEG.
+  cut card comes out faded, the two lines at the top are there, and a board
+  exported in the dark theme comes out dark. It checks that a narrowed board
+  exports only what it narrowed to. Then it exports the same board as a PDF and
+  checks the page is a paper size somebody owns, turned to suit the board, with
+  the board inside a margin and its own shape kept.
 - `test:urlimage` serves a PNG from a second origin on your machine, once with
   the cross-origin header and once without, and checks that dragging the first
   in makes a picture this board holds and can shade, that pasting the second

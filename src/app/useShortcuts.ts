@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { store } from '../state/store'
 import { noteItem, labelItem, sectionItem } from '../state/ingest'
 import { isSection } from '../state/kinds'
+import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
 import { KEYS } from '../ui/shortcuts'
 
@@ -59,7 +60,12 @@ export function useShortcuts(a: KeyActions) {
     }
     if (cmd && e.key.toLowerCase() === 'a') {
       e.preventDefault()
-      store.select(store.all().filter((i) => !isSection(i)).map((i) => i.id))
+      /* With a search running, everything means everything you can see. */
+      store.select(
+        narrowed()
+          ? matches().filter((i) => !isSection(i)).map((i) => i.id)
+          : store.all().filter((i) => !isSection(i)).map((i) => i.id)
+      )
       return
     }
     if (cmd && e.key.toLowerCase() === 'd') {

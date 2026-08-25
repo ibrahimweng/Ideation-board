@@ -34,8 +34,30 @@ export function kindOf(mime: string, name: string): Kind {
 
 export const newId = () => 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
+/* How wide to lay a drop out.
+ *
+ * Four across, always, meant that dropping a folder of twenty photographs
+ * built a column five rows deep that marched off the bottom of the window.
+ * Eight arrived on screen and twelve did not, with nothing to say they were
+ * there — which looks exactly like a drop that half failed. A block shaped
+ * roughly like the window is one you can take in at a glance once the view
+ * moves to it. */
+export function dropColumns(count: number, vpW = 0, vpH = 0): number {
+  if (count <= 1) return 1
+  const cell = { w: MAX_W + 24, h: MAX_H + 40 }
+  /* The board's own proportions if we know them, otherwise a squarish block. */
+  const aspect = vpW > 0 && vpH > 0 ? vpW / vpH : 1
+  const cols = Math.round(Math.sqrt((count * aspect * cell.h) / cell.w))
+  return Math.max(1, Math.min(count, cols || 1))
+}
+
 /* Yields one item per file, in order, as each becomes ready. */
-export async function* ingest(files: File[], at: { x: number; y: number }): AsyncGenerator<Item> {
+export async function* ingest(
+  files: File[],
+  at: { x: number; y: number },
+  columns = 4
+): AsyncGenerator<Item> {
+  const across = Math.max(1, Math.round(columns))
   let col = 0
   let row = 0
 
@@ -44,7 +66,7 @@ export async function* ingest(files: File[], at: { x: number; y: number }): Asyn
     const x = at.x + col * (MAX_W + 24)
     const y = at.y + row * (MAX_H + 40)
     col++
-    if (col >= 4) {
+    if (col >= across) {
       col = 0
       row++
     }

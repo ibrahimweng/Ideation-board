@@ -137,6 +137,8 @@ const read = (file) => page.evaluate(async (data) => {
   x.drawImage(img, 0, 0)
   const d = x.getImageData(0, 0, c.width, c.height).data
   const seen = { blue: 0, green: 0, dark: 0, wire: 0 }
+  /* The title band: dark pixels above everything the board itself drew. */
+  const head = { ink: 0, top: c.height }
   const box = { blue: null, green: null }
   const grow = (k, px, py) => {
     const b = box[k]
@@ -152,17 +154,27 @@ const read = (file) => page.evaluate(async (data) => {
       const r = d[i], g = d[i + 1], bl = d[i + 2]
       if (bl > 150 && r < 110 && g < 110) { seen.blue++; grow('blue', px, py) }
       else if (g > 150 && r < 110 && bl < 110) { seen.green++; grow('green', px, py) }
-      else if (r < 90 && g < 90 && bl < 90) seen.dark++
+      else if (r < 90 && g < 90 && bl < 90) {
+        seen.dark++
+        if (py < c.height * 0.25 && px < c.width * 0.5) {
+          head.ink++
+          if (py < head.top) head.top = py
+        }
+      }
       /* The wire colour, --wire #a8a8b0, which nothing else on the sheet
        * comes near: the ground is far paler and the cards are white. */
       else if (Math.abs(r - 0xa8) < 26 && Math.abs(g - 0xa8) < 26 && Math.abs(bl - 0xb0) < 26) seen.wire++
     }
   }
-  return { w: c.width, h: c.height, seen, box }
+  return { w: c.width, h: c.height, seen, box, head }
 }, fs.readFileSync(file).toString('base64'))
 
 const sheet = await read(pngFile)
 ok('the sheet is a real picture', sheet.w > 200 && sheet.h > 200, `${sheet.w}x${sheet.h}`)
+/* Two lines at the top saying what this is. Without them the file is an
+   anonymous picture in somebody's downloads a week later. */
+ok('it says what it is at the top', sheet.head.ink > 200 && sheet.head.top < sheet.h * 0.25,
+   `${sheet.head.ink} dark pixels in the top band, highest at y=${sheet.head.top}`)
 ok('both pictures are on it', sheet.seen.blue > 500 && sheet.seen.green > 500,
    `${sheet.seen.blue} blue, ${sheet.seen.green} green`)
 ok('they are in different places, as on the board',
@@ -202,12 +214,32 @@ ok('the command list offers a PDF', pdfLabel.toLowerCase().includes('pdf'), pdfL
 const [pdf] = await Promise.all([page.waitForEvent('download'), pdfEntry.click()])
 const pdfFile = path.join(OUT, `poster-${pdf.suggestedFilename()}`)
 await pdf.saveAs(pdfFile)
-await page.waitForTimeout(600)
+await page.waitForTimeout(400)
+/* Read while it is still up: the line takes itself away after a couple of
+   seconds, and the checks below are not that quick. */
+const pdfSaid = await page.locator('.toast').innerText().catch(() => '')
 const bytes = fs.readFileSync(pdfFile)
 const asText = bytes.toString('latin1')
 ok('it saves a PDF', /\.pdf$/.test(pdf.suggestedFilename()) && asText.startsWith('%PDF-'), pdf.suggestedFilename())
 ok('one page, at a size in points', /\/Count 1/.test(asText) && /\/MediaBox \[0 0 [\d.]+ [\d.]+\]/.test(asText),
    (asText.match(/\/MediaBox \[[^\]]+\]/) || [''])[0])
+/* The first PDF this wrote was 1386 by 972 points: fine to email, impossible
+   to print, and nobody owns that paper. */
+const box = (asText.match(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/) || []).slice(1).map(Number)
+const PAPERS = [[595.28, 841.89], [612, 792]]
+const isPaper = PAPERS.some(([w, h]) =>
+  (Math.abs(box[0] - w) < 1 && Math.abs(box[1] - h) < 1) || (Math.abs(box[0] - h) < 1 && Math.abs(box[1] - w) < 1))
+ok('on paper somebody owns, not a page its own size', isPaper, `${box[0]} x ${box[1]}pt`)
+ok('turned to suit the board, which is wider than it is tall', box[0] > box[1], `${box[0]} x ${box[1]}pt`)
+/* And placed inside a margin rather than bled to the page edge. */
+const place = (asText.match(/([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm/) || []).slice(1).map(Number)
+ok('with the board inside a margin, not bled off the edge',
+   place[2] > 8 && place[3] > 0 && place[0] + place[2] <= box[0] - 8,
+   `${place[0].toFixed(0)}x${place[1].toFixed(0)}pt at ${place[2].toFixed(0)},${place[3].toFixed(0)}`)
+ok('and the board keeps its own shape on the page',
+   Math.abs(place[0] / place[1] - sheet.w / sheet.h) < 0.02,
+   `${(place[0] / place[1]).toFixed(2)} on paper vs ${(sheet.w / sheet.h).toFixed(2)} on screen`)
+ok('the line along the bottom says which paper it came out on', /a4|letter/i.test(pdfSaid), pdfSaid || 'no message')
 ok('with the board on it as a JPEG', asText.includes('/DCTDecode') && bytes.includes(Buffer.from([0xff, 0xd8, 0xff])),
    `${Math.round(bytes.length / 1024)} kB`)
 ok('and it ends the way a PDF ends', asText.trimEnd().endsWith('%%EOF'))
@@ -258,6 +290,27 @@ ok('and the sheet is smaller than the whole board', onlySel.w * onlySel.h < shee
    `${onlySel.w}x${onlySel.h} vs ${sheet.w}x${sheet.h}`)
 ok('with the selected picture on it', onlySel.seen.blue > 500, `${onlySel.seen.blue} blue`)
 ok('and nothing that was not selected', onlySel.seen.green === 0, `${onlySel.seen.green} green`)
+
+/* ---------- a narrowed board exports what it narrowed to ---------- */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(250)
+await page.locator('.search input').fill('green')
+await page.waitForTimeout(600)
+const litForSheet = await page.locator('.card:not([data-dim])').count()
+await page.evaluate(() => document.activeElement.blur())
+const narrowEntry = await palette('one picture')
+const narrowLabel = (await narrowEntry.count()) ? await narrowEntry.innerText() : ''
+ok('with a search running the command says it will export what is shown',
+   /shown/i.test(narrowLabel), narrowLabel.replace('\n', ' — '))
+const [pngN] = await Promise.all([page.waitForEvent('download'), narrowEntry.click()])
+const narrowFile = path.join(OUT, `poster-shown-${pngN.suggestedFilename()}`)
+await pngN.saveAs(narrowFile)
+await page.waitForTimeout(600)
+const shownSheet = await read(narrowFile)
+ok('and it exports only those', litForSheet === 1 && shownSheet.seen.green > 500 && shownSheet.seen.blue === 0,
+   `${litForSheet} lit — ${shownSheet.seen.green} green, ${shownSheet.seen.blue} blue`)
+await page.locator('.search input').fill('')
+await page.waitForTimeout(400)
 
 /* ---------- a section and a wire ---------- */
 await page.keyboard.press('Escape')

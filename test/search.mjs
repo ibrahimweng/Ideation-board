@@ -234,6 +234,56 @@ ok('tag filter: all tags brings every card back',
    (await page.locator('.card[data-dim]').count()) === 0,
    `${await page.locator('.card[data-dim]').count()} still dimmed`)
 
+/* ---------- narrowing is only half of it ---------- */
+/* Until now the search box could show you four cards out of thirty and there
+   was no way to do anything with those four: Select all took thirty, and so
+   did presenting and exporting. */
+await page.locator('.search input').fill('launch')
+await page.waitForTimeout(500)
+const litResults = await lit()
+ok('act on results: the count is something you can press', (await page.locator('button.search-count').count()) === 1)
+
+await page.locator('.search input').press('Control+Enter')
+await page.waitForTimeout(500)
+ok('act on results: Cmd and Enter takes all of them',
+   (await page.locator('.card[data-sel]').count()) === litResults,
+   `${await page.locator('.card[data-sel]').count()} selected, ${litResults} lit`)
+ok('act on results: and nothing that was faded out',
+   (await page.locator('.card[data-dim][data-sel]').count()) === 0)
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(250)
+await page.locator('.search input').fill('launch')
+await page.waitForTimeout(400)
+await page.locator('button.search-count').click()
+await page.waitForTimeout(400)
+ok('act on results: pressing the count does the same',
+   (await page.locator('.card[data-sel]').count()) === litResults,
+   `${await page.locator('.card[data-sel]').count()} selected`)
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(250)
+await page.locator('.search input').fill('launch')
+await page.waitForTimeout(400)
+await page.evaluate(() => document.activeElement.blur())
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(400)
+ok('act on results: with a search running, Select all means what you can see',
+   (await page.locator('.card[data-sel]').count()) === litResults && (await page.locator('.card[data-dim][data-sel]').count()) === 0,
+   `${await page.locator('.card[data-sel]').count()} of ${litResults}`)
+
+await page.keyboard.press('Escape')
+await page.locator('.search input').fill('')
+await page.waitForTimeout(400)
+await page.evaluate(() => document.activeElement.blur())
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(400)
+const everything = await page.locator('.card[data-sel]').count()
+ok('act on results: and with no search running it means everything', everything > litResults,
+   `${everything} with no filter, ${litResults} with one`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(250)
+
 console.log('\npage errors:', errors.length ? errors.slice(0, 5) : 'none')
 const failed = results.filter(r => !r.p)
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`)

@@ -28,6 +28,7 @@ export const KEYS = {
   fitSelection: { key: '2', hint: '2', label: 'Fit the selection on screen', short: 'Fit selection' },
   keep: { key: 'i', hint: 'I', label: 'Mark as kept', short: 'Keep' },
   cut: { key: 'o', hint: 'O', label: 'Mark as cut', short: 'Cut' },
+  selectShown: { key: 'enter', hint: '⌘⏎', label: 'Select the search results', short: 'Select shown' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },

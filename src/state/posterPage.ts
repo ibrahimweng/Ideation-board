@@ -61,7 +61,76 @@ export function posterScale(w: number, h: number, want: number) {
  * comes out the size it looks on screen. */
 export const PT = 72 / 96
 
-export function pdfBytes(jpeg: Uint8Array, iw: number, ih: number, pw: number, ph: number): Blob {
+/* --------------------------------------------------------------------------
+ * Paper.
+ *
+ * The first PDF this wrote was the exact size of the board: a page 1386 points
+ * wide by 972 tall, which is a fine thing to email and an impossible thing to
+ * print. Nobody owns that paper. So the sheet is now fitted onto a real sheet,
+ * turned to whichever way round suits the board, with a margin — and the PNG
+ * is still there for anyone who wants the enormous exact-size version.
+ * ------------------------------------------------------------------------ */
+
+export const PAPER = {
+  a4: { w: 595.28, h: 841.89 },
+  letter: { w: 612, h: 792 },
+} as const
+
+export type PaperName = keyof typeof PAPER
+
+/* Letter where Letter is what comes out of the printer, A4 everywhere else.
+ * The countries are the whole list, not a sample: everybody else uses A4. */
+const LETTER_LOCALES = /^(en-US|en-CA|fr-CA|es-MX|en-PH|es-CL|es-CO|es-CR|es-DO|es-GT|es-NI|es-PA|es-SV|es-VE)$/i
+
+export function paperFor(locale?: string): PaperName {
+  const tag = locale ?? (typeof navigator === 'undefined' ? 'en-GB' : navigator.language || 'en-GB')
+  if (LETTER_LOCALES.test(tag)) return 'letter'
+  /* A bare language with no region: US English is overwhelmingly US paper. */
+  if (/^en-?$/i.test(tag)) return 'letter'
+  return 'a4'
+}
+
+/* The page, and where the picture sits on it.
+ *
+ * The page turns to match the board rather than the board being squeezed onto
+ * a portrait sheet, and the picture keeps its shape inside the margin. A board
+ * far wider than any paper still fits: it comes out small, which is what
+ * "print this on one sheet" honestly means. */
+export function fitToPaper(
+  boardW: number,
+  boardH: number,
+  paper: PaperName = 'a4',
+  margin = 28
+) {
+  const sheet = PAPER[paper]
+  /* Turned to the board's own way round, so a wide board is not printed down
+   * the middle of a portrait page at a third of the size. */
+  const landscape = boardW > boardH
+  const pw = landscape ? sheet.h : sheet.w
+  const ph = landscape ? sheet.w : sheet.h
+  const room = { w: pw - margin * 2, h: ph - margin * 2 }
+  const k = Math.min(room.w / boardW, room.h / boardH)
+  const w = boardW * k
+  const h = boardH * k
+  return {
+    page: { w: pw, h: ph },
+    place: { x: (pw - w) / 2, y: (ph - h) / 2, w, h },
+    paper,
+    landscape,
+  }
+}
+
+export function pdfBytes(
+  jpeg: Uint8Array,
+  iw: number,
+  ih: number,
+  pw: number,
+  ph: number,
+  /* Where on the page the picture goes, in points from the bottom left. The
+   * page is no longer the same shape as the board, so this is no longer the
+   * whole of it. */
+  place: { x: number; y: number; w: number; h: number } = { x: 0, y: 0, w: pw, h: ph }
+): Blob {
   const parts: Uint8Array[] = []
   const enc = new TextEncoder()
   let at = 0
@@ -77,7 +146,7 @@ export function pdfBytes(jpeg: Uint8Array, iw: number, ih: number, pw: number, p
     put(`${n} 0 obj\n${body}\nendobj\n`)
   }
 
-  const content = `q\n${pw.toFixed(2)} 0 0 ${ph.toFixed(2)} 0 0 cm\n/Im0 Do\nQ\n`
+  const content = `q\n${place.w.toFixed(2)} 0 0 ${place.h.toFixed(2)} ${place.x.toFixed(2)} ${place.y.toFixed(2)} cm\n/Im0 Do\nQ\n`
 
   put('%PDF-1.4\n')
   /* A comment of high bytes, which is how a PDF says "treat me as binary". */

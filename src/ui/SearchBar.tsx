@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { store, useQuery, useTagFilter } from '../state/store'
 import { findMatches } from '../state/search'
+import { isSection } from '../state/kinds'
 import { KEYS } from './shortcuts'
 
 /* ---------------------------------------------------------------------------
@@ -62,6 +63,13 @@ export function SearchBar() {
     goTo(next)
   }
 
+  const selectAll = () => {
+    const list = findMatches(store.all(), store.getQuery(), store.getTagFilter()).filter((i) => !isSection(i))
+    if (!list.length) return
+    store.select(list.map((i) => i.id))
+    ref.current?.blur()
+  }
+
   const clear = () => {
     store.setQuery('')
     ref.current?.blur()
@@ -84,7 +92,12 @@ export function SearchBar() {
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            step(e.shiftKey ? -1 : 1)
+            /* Enter walks the results one at a time. Holding the command key
+               takes the lot, which is the step that was missing: narrowing a
+               board to four cards and then having no way to act on those four
+               left the search box a way of looking and never a way of doing. */
+            if (e.metaKey || e.ctrlKey) selectAll()
+            else step(e.shiftKey ? -1 : 1)
           }
           if (e.key === 'Escape') {
             e.preventDefault()
@@ -94,7 +107,17 @@ export function SearchBar() {
       />
       {(q.trim() || tag) && (
         <>
-          <span className="search-count">{total ? `${at + 1}/${total}` : 'none'}</span>
+          {total ? (
+            <button
+              className="search-count"
+              onClick={selectAll}
+              title={`Select all ${total} (${KEYS.selectShown.hint})`}
+            >
+              {at + 1}/{total}
+            </button>
+          ) : (
+            <span className="search-count">none</span>
+          )}
           <button className="search-clear" onClick={clear} title="Clear search (Esc)" aria-label="Clear search">
             ×
           </button>

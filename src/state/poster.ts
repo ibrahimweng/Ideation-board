@@ -1,7 +1,8 @@
 import type { Item } from './types'
 import { TAGS } from './types'
 import { isSection, isWire } from './kinds'
-import { pdfBytes, posterBounds, posterScale, PT } from './posterPage'
+import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
+import type { PaperName } from './posterPage'
 import { parse } from './rich'
 import type { Block, Span } from './rich'
 import { inkOn } from './palette'
@@ -44,6 +45,10 @@ export interface PosterOptions {
   /* Paint the board's own background behind everything, rather than leaving
    * the sheet transparent. */
   background?: boolean
+  /* The two lines at the top that say what the sheet is. On by default: a
+   * picture of a board with nothing to say whose it is becomes an anonymous
+   * file in somebody's downloads a week later. */
+  head?: boolean
 }
 
 /* --------------------------------------------------------------------------
@@ -564,6 +569,57 @@ function drawWire(cx: Ctx, wire: Item, byId: Map<string, Item>, t: Tokens) {
 
 export { posterBounds, posterScale } from './posterPage'
 
+/* --------------------------------------------------------------------------
+ * What the sheet says it is.
+ *
+ * A picture of a board, with nothing on it to say whose board it is or when it
+ * was, is an anonymous image in somebody's downloads folder a week later. Two
+ * lines at the top fix that, and they are the two lines a person would write
+ * by hand: what it is called, and what is on it.
+ *
+ * The counts are there because the sheet is now often a decision rather than a
+ * collection — twelve references, four kept, three cut — and because a sheet
+ * that is only part of a board should say so rather than passing itself off as
+ * the whole thing.
+ * ------------------------------------------------------------------------ */
+
+export interface SheetInfo {
+  /* The board's name, which is the sheet's name. */
+  name: string
+  /* How many things are on the whole board, when this sheet is only some of
+   * them. Left out when the sheet is the board. */
+  of?: number
+  /* Passed in only by the tests, which cannot have a moving date in them. */
+  now?: Date
+}
+
+const HEAD_H = 78
+
+function describe(items: Item[], info: SheetInfo): string {
+  const cards = items.filter((i) => !isWire(i) && !isSection(i))
+  const kept = cards.filter((i) => i.pick === 'in').length
+  const cut = cards.filter((i) => i.pick === 'out').length
+  const bits: string[] = []
+  bits.push(info.of && info.of > cards.length ? `${cards.length} of ${info.of}` : `${cards.length} item${cards.length === 1 ? '' : 's'}`)
+  if (kept) bits.push(`${kept} kept`)
+  if (cut) bits.push(`${cut} cut`)
+  const when = info.now ?? new Date()
+  bits.push(when.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))
+  return bits.join(' · ')
+}
+
+function drawHead(cx: Ctx, info: SheetInfo, items: Item[], t: Tokens, x: number, y: number, w: number) {
+  cx.save()
+  cx.textBaseline = 'alphabetic'
+  cx.fillStyle = t.ink
+  cx.font = `600 26px ${t.sans}`
+  cx.fillText(ellipsis(cx, info.name || 'Untitled board', w), x, y + 26)
+  cx.fillStyle = t.muted
+  cx.font = `13px ${t.sans}`
+  cx.fillText(ellipsis(cx, describe(items, info), w), x, y + 49)
+  cx.restore()
+}
+
 export interface Poster {
   canvas: HTMLCanvasElement
   /* In board pixels, which is what decides the paper size. */
@@ -574,15 +630,19 @@ export interface Poster {
   count: number
 }
 
-export async function renderPoster(items: Item[], opts: PosterOptions = {}): Promise<Poster | null> {
+export async function renderPoster(items: Item[], info: SheetInfo, opts: PosterOptions = {}): Promise<Poster | null> {
   const pad = opts.pad ?? 48
   const box = posterBounds(items, pad)
   if (!box) return null
 
-  const scale = posterScale(box.w, box.h, opts.scale ?? 2)
+  /* Room above the board for the two lines that say what this is. */
+  const head = opts.head === false ? 0 : HEAD_H
+  const sheetW = box.w
+  const sheetH = box.h + head
+  const scale = posterScale(sheetW, sheetH, opts.scale ?? 2)
   const canvas = document.createElement('canvas')
-  canvas.width = Math.max(2, Math.round(box.w * scale))
-  canvas.height = Math.max(2, Math.round(box.h * scale))
+  canvas.width = Math.max(2, Math.round(sheetW * scale))
+  canvas.height = Math.max(2, Math.round(sheetH * scale))
   const cx = canvas.getContext('2d')
   if (!cx) return null
 
@@ -601,7 +661,8 @@ export async function renderPoster(items: Item[], opts: PosterOptions = {}): Pro
   }
 
   cx.scale(scale, scale)
-  cx.translate(-box.x, -box.y)
+  if (head) drawHead(cx, info, items, t, pad, pad * 0.72, box.w - pad * 2)
+  cx.translate(-box.x, -box.y + head)
   cx.textBaseline = 'top'
 
   const byId = new Map(items.map((i) => [i.id, i]))
@@ -617,33 +678,43 @@ export async function renderPoster(items: Item[], opts: PosterOptions = {}): Pro
   for (const w of wires) drawWire(cx, w, byId, t)
   for (const c of cards) await drawCard(cx, c, t, scale)
 
-  return { canvas, w: box.w, h: box.h, scale, count: cards.length + sections.length }
+  return { canvas, w: sheetW, h: sheetH, scale, count: cards.length + sections.length }
 }
 
 const posterName = (name: string, ext: string) => `${safeName(name || 'board') || 'board'}.${ext}`
 
-export async function exportPoster(items: Item[], name: string, opts?: PosterOptions): Promise<ExportedImage | null> {
-  const made = await renderPoster(items, opts)
+/* The sheet at its own size, however large that is: a board four screens wide
+ * comes out four screens wide, which is what you want on a monitor. */
+export async function exportPoster(items: Item[], info: SheetInfo, opts?: PosterOptions): Promise<ExportedImage | null> {
+  const made = await renderPoster(items, info, opts)
   if (!made) return null
   const blob = await new Promise<Blob | null>((r) => made.canvas.toBlob(r, 'image/png'))
   if (!blob) return null
-  return { blob, name: posterName(name, 'png'), w: made.canvas.width, h: made.canvas.height }
+  return { blob, name: posterName(info.name, 'png'), w: made.canvas.width, h: made.canvas.height }
 }
 
-export async function exportPosterPdf(items: Item[], name: string, opts?: PosterOptions): Promise<ExportedImage | null> {
-  const made = await renderPoster(items, opts)
+/* And the same sheet on paper somebody owns. */
+export async function exportPosterPdf(
+  items: Item[],
+  info: SheetInfo,
+  opts?: PosterOptions & { paper?: PaperName }
+): Promise<ExportedImage | null> {
+  const made = await renderPoster(items, info, opts)
   if (!made) return null
   /* Quality high enough that type stays clean; a page of photographs at
    * lossless would be a file nobody can email. */
   const jpeg = await new Promise<Blob | null>((r) => made.canvas.toBlob(r, 'image/jpeg', 0.92))
   if (!jpeg) return null
   const bytes = new Uint8Array(await jpeg.arrayBuffer())
-  const blob = pdfBytes(
-    bytes,
-    made.canvas.width,
-    made.canvas.height,
-    Math.round(made.w * PT * 100) / 100,
-    Math.round(made.h * PT * 100) / 100
-  )
-  return { blob, name: posterName(name, 'pdf'), w: made.canvas.width, h: made.canvas.height }
+  const fit = fitToPaper(made.w, made.h, opts?.paper ?? paperFor())
+  const blob = pdfBytes(bytes, made.canvas.width, made.canvas.height, fit.page.w, fit.page.h, fit.place)
+  return {
+    blob,
+    name: posterName(info.name, 'pdf'),
+    w: made.canvas.width,
+    h: made.canvas.height,
+    /* Said in the line along the bottom, because "which paper, which way
+     * round" is the one thing a person wants confirmed about a PDF. */
+    note: `${fit.paper === 'a4' ? 'A4' : 'Letter'} ${fit.landscape ? 'landscape' : 'portrait'}`,
+  }
 }

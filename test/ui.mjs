@@ -114,6 +114,11 @@ await page.waitForTimeout(400)
 ok('pan: wheel moves the surface', before !== await surfaceT(), `-> ${await surfaceT()}`)
 
 // ---------- 5. selection ----------
+/* Fit first. A drop moves the board to show what landed, and the zoom and pan
+   checks above then move it somewhere else again, so where any given card is
+   by now is not something to assume. */
+await page.keyboard.press('1')
+await page.waitForTimeout(700)
 const firstImg = page.locator('.card[data-kind="image"]').first()
 await firstImg.click({position:{x:60,y:10}})
 await page.waitForTimeout(300)

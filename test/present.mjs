@@ -216,6 +216,35 @@ await page.keyboard.press('Escape')
 await page.waitForTimeout(500)
 
 check('no page errors', errors.length === 0, errors.join(' | '))
+/* ---------- a narrowed board presents what it narrowed to ---------- */
+/* The other half of the search box. Showing all thirty cards after being
+   asked to show four was the reason marking a board up went nowhere. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+const everything = await page.locator('.card').count()
+await page.locator('.search input').fill('note')
+await page.waitForTimeout(600)
+const litHere = await page.locator('.card:not([data-dim])').count()
+await page.evaluate(() => document.activeElement.blur())
+await page.keyboard.press('p')
+await page.waitForTimeout(800)
+const narrowedCount = await page.locator('.present-count').innerText().catch(() => 'not open')
+check('a narrowed board presents only what it narrowed to',
+  narrowedCount === `1 / ${litHere}` && litHere < everything,
+  `${narrowedCount} with ${litHere} of ${everything} lit`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+await page.locator('.search input').fill('')
+await page.waitForTimeout(400)
+await page.evaluate(() => document.activeElement.blur())
+await page.keyboard.press('p')
+await page.waitForTimeout(800)
+check('and clearing the search brings the whole board back',
+  (await page.locator('.present-count').innerText().catch(() => '')) === `1 / ${everything}`,
+  await page.locator('.present-count').innerText().catch(() => 'not open'))
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+
 
 console.log(`\n${pass}/${pass + fail} checks passed`)
 console.log(fail ? 'FAIL' : 'PASS')

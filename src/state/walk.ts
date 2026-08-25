@@ -86,3 +86,27 @@ export function markPick(pick: 'in' | 'out', say: (text: string) => void) {
   const word = now.pick === 'in' ? 'Kept' : now.pick === 'out' ? 'Cut' : 'Unmarked'
   say(now.count > 1 ? `${word} ${now.count} items` : word)
 }
+
+/* Move the view so a set of things is on screen — but only if some of it is
+ * not already.
+ *
+ * For a drop, which is the one moment when things appear somewhere you were
+ * not looking. Nothing moves when the whole drop landed in front of you, so a
+ * person adding one picture to the corner they are working in is left where
+ * they were; the view only travels when it has something to show. It never
+ * zooms in, either: coming back from a drop closer than you were is worse
+ * than not moving. */
+export function revealItems(items: Item[]): boolean {
+  if (!size.w || !size.h || !items.length) return false
+  const view = store.peekView()
+  const onScreen = (i: Item) => {
+    const x = i.x * view.z + view.x
+    const y = i.y * view.z + view.y
+    return x >= 0 && y >= 0 && x + i.w * view.z <= size.w && y + i.h * view.z <= size.h
+  }
+  if (items.every(onScreen)) return false
+  const next = fitView(items, size.w, size.h, 64, view.z)
+  if (!next) return false
+  store.setView(next)
+  return true
+}

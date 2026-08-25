@@ -223,6 +223,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 .search input::placeholder { color: var(--faint); }
 
 .search-count { font: 400 var(--t-xs)/1.4 var(--sans); color: var(--muted); flex: none; white-space: nowrap; }
+/* The count is also the way to take the whole result set, so it looks like
+   something you can press rather than like a label. */
+button.search-count { padding: 2px 5px; border-radius: var(--r-sm); font-variant-numeric: tabular-nums; }
+button.search-count:hover { background: var(--press); color: var(--ink); }
 .search-clear {
   flex: none; width: 17px; height: 17px; border-radius: 50%;
   color: var(--muted); font-size: var(--t-md); line-height: 1;

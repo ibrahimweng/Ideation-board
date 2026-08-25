@@ -34,10 +34,14 @@ import { inkOn } from '../state/palette'
  * ------------------------------------------------------------------------- */
 
 export function Present({ ids, startAt, onClose }: { ids: string[]; startAt?: string; onClose: () => void }) {
-  const items = useMemo(() => {
-    const chosen = ids.length > 1 ? ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i) : store.all()
-    return readingOrder(chosen)
-  }, [ids])
+  /* Handed exactly what to show. Working out whether that is the selection,
+   * what a search has narrowed to, or the whole board is one question with one
+   * answer, and it is answered in state/subject.ts for every action that asks
+   * it rather than three times, differently, here and in two other files. */
+  const items = useMemo(
+    () => readingOrder(ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)),
+    [ids]
+  )
 
   /* Opened on one card — double clicking a picture to see it big — starts
    * there rather than at the beginning, and the arrows still walk the rest of
