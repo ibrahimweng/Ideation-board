@@ -27,7 +27,10 @@ import {
 } from './store/mirror'
 import type { MirrorState } from './store/mirror'
 import { paletteOf, swatchItems } from './state/palette'
-import { hasPixels } from './state/kinds'
+import { urlFromPaste } from './state/dragged'
+import { exportPoster, exportPosterPdf } from './state/poster'
+import { fitToBoard, markPick } from './state/walk'
+import { hasPixels, isGradeable } from './state/kinds'
 
 const BOARD_ID = 'board_local'
 const PATH_KEY = 'ideation.path'
@@ -43,6 +46,7 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [palette, setPalette] = useState(false)
   const [presenting, setPresenting] = useState(false)
+  const [presentAt, setPresentAt] = useState<string | undefined>(undefined)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   /* Read out by anything reading the page aloud when the selection moves. */
   const [spoken, setSpoken] = useState('')
@@ -176,6 +180,15 @@ export default function App() {
         void openBoard([...pathRef.current, { id: it.board, name: it.name || 'Board', card: it.id }])
         return
       }
+      /* Double clicking a picture is the whole world's way of saying "bigger",
+         and on the one card where that matters most it used to do nothing at
+         all: only a note, a label or a section had an editor to open. It shows
+         it full screen instead, with the rest of the board an arrow away. */
+      if (mode === 'open' && it && isGradeable(it)) {
+        setPresentAt(id)
+        setPresenting(true)
+        return
+      }
       setEditing(id)
     },
     [openBoard]
@@ -261,6 +274,38 @@ export default function App() {
       const missed = shootable.length - made.length
       if (missed > 0) setBusy(`Exported ${made.length}, ${missed} could not be read`)
       window.setTimeout(() => setBusy(null), 2600)
+    } catch (err) {
+      setBusy(err instanceof Error ? err.message : 'That could not be exported')
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
+  /* The board itself, flat, in one file that opens anywhere.
+   *
+   * Acts on the selection when there is one and on the whole board when there
+   * is not, which is how Present already behaves: what you have picked out is
+   * what you mean. */
+  const exportSheet = useCallback(async (ids: string[], as: 'png' | 'pdf') => {
+    const chosen = ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)
+    /* A selection of one card is almost certainly not what "the board as a
+     * picture" means, and a single card already has its own export. */
+    const items = chosen.length > 1 ? chosen : store.all()
+    if (!items.length) {
+      setBusy('Nothing on this board yet')
+      window.setTimeout(() => setBusy(null), 2200)
+      return
+    }
+    setBusy(as === 'pdf' ? 'Laying out the page…' : 'Painting the board…')
+    try {
+      const made = as === 'pdf' ? await exportPosterPdf(items, store.name) : await exportPoster(items, store.name)
+      if (!made) {
+        setBusy('That could not be exported')
+        window.setTimeout(() => setBusy(null), 2600)
+        return
+      }
+      download(made.blob, made.name)
+      setBusy(`Exported ${made.name} at ${made.w}×${made.h}`)
+      window.setTimeout(() => setBusy(null), 2800)
     } catch (err) {
       setBusy(err instanceof Error ? err.message : 'That could not be exported')
       window.setTimeout(() => setBusy(null), 3200)
@@ -404,10 +449,15 @@ export default function App() {
         setTab,
         setPresenting,
         focusSearch: () => document.querySelector<HTMLInputElement>('.search input')?.focus(),
+        fit: (onlySelection) => {
+          if (!fitToBoard(onlySelection)) say(onlySelection ? 'Nothing selected to fit' : 'Nothing on this board yet')
+        },
+        say,
+        exportPoster: (ids, as) => void exportSheet(ids, as),
       }),
     [
       selection, panelOpen, mirror, centreOfView, addBoard, askForLink,
-      exportBoard, exportPictures, pullColours, keepInFolder, copyToFolder,
+      exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
     ]
   )
 
@@ -426,6 +476,10 @@ export default function App() {
     present: () => setPresenting(true),
     say: setSpoken,
     closeEditor: () => setEditing(null),
+    fit: (onlySelection) => {
+      if (!fitToBoard(onlySelection)) say(onlySelection ? 'Nothing selected to fit' : 'Nothing on this board yet')
+    },
+    mark: (pick) => markPick(pick, say),
   })
 
   /* ---------- paste ---------- */
@@ -438,11 +492,16 @@ export default function App() {
         void onDropFiles(files, centreOfView())
         return
       }
-      const text = dt.getData('text/plain')?.trim()
-      if (!text) return
       const at = centreOfView()
-      if (/^https?:\/\//i.test(text)) addUrl(at, text)
-      else store.add(noteItem(at, text))
+      /* Copying a picture on a web page puts the <img> on the clipboard as
+       * markup, not as an address, so the markup is read first. */
+      const url = urlFromPaste(dt)
+      if (url) {
+        addUrl(at, url)
+        return
+      }
+      const text = dt.getData('text/plain')?.trim()
+      if (text) store.add(noteItem(at, text))
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
@@ -563,7 +622,16 @@ export default function App() {
       />
 
       <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} />
-      {presenting && <Present ids={selection} onClose={() => setPresenting(false)} />}
+      {presenting && (
+        <Present
+          ids={selection}
+          startAt={presentAt}
+          onClose={() => {
+            setPresenting(false)
+            setPresentAt(undefined)
+          }}
+        />
+      )}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
       {busy && <div className="toast">{busy}</div>}

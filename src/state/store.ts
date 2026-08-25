@@ -429,6 +429,24 @@ export class BoardStore {
     this.applyMoves(tidyOnto(this.arrangeable(ids), gap))
   }
 
+  /* In, out, or undecided. Pressing the same one twice takes the mark off,
+   * because a decision you can only make and never unmake is a trap. */
+  setPick(ids: string[], pick: 'in' | 'out') {
+    const targets = ids.map((id) => this.items.get(id)).filter((i): i is Item => isThing(i))
+    if (!targets.length) return null
+    /* All of them get the same mark, and the mark only comes off when every
+     * one of them already wears it, so a mixed selection resolves one way
+     * rather than each card flipping its own. */
+    const next = targets.every((t) => t.pick === pick) ? null : pick
+    this.snapshot()
+    for (const it of targets) {
+      this.items.set(it.id, { ...it, pick: next })
+      this.pingItem(it.id)
+    }
+    this.touch()
+    return { pick: next, count: targets.length }
+  }
+
   /* Puts one look on every card that can wear it. The framing each card has
    * is left alone: a look is the treatment, not the crop. */
   applyLook(ids: string[], look: LookFx) {

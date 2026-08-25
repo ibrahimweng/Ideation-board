@@ -66,3 +66,28 @@ export function revealView(view: Viewport, it: Item, vpW: number, vpH: number, p
     y: vpH / 2 - (it.y + it.h / 2) * z,
   }
 }
+
+/* The view that puts a set of things on screen at once.
+ *
+ * A board grows past its window within a dozen cards, and until now the only
+ * way to see all of it was to zoom out by guess and pan about hunting. This is
+ * the answer to "show me everything", and to "show me just these".
+ *
+ * Never zooms past life size: a board of four cards should fill the window at
+ * a hundred per cent rather than being blown up to fit it. */
+export function fitView(items: Item[], vpW: number, vpH: number, pad = 64, maxZoom = 1): Viewport | null {
+  const boxes = items.filter((i) => i.w > 0 && i.h > 0)
+  if (!boxes.length || vpW <= 0 || vpH <= 0) return null
+  const x0 = Math.min(...boxes.map((i) => i.x))
+  const y0 = Math.min(...boxes.map((i) => i.y))
+  const x1 = Math.max(...boxes.map((i) => i.x + i.w))
+  const y1 = Math.max(...boxes.map((i) => i.y + i.h))
+  const w = Math.max(1, x1 - x0)
+  const h = Math.max(1, y1 - y0)
+  const z = clampZoom(Math.min(maxZoom, (vpW - pad * 2) / w, (vpH - pad * 2) / h))
+  return {
+    z,
+    x: vpW / 2 - (x0 + w / 2) * z,
+    y: vpH / 2 - (y0 + h / 2) * z,
+  }
+}

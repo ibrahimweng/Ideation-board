@@ -4,7 +4,7 @@ import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped 
 import { putBlob } from '../store/idb'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
-import { classifyUrl, probeVideo, hostOf } from './urls'
+import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
 import { store } from './store'
 
 /* ---------------------------------------------------------------------------
@@ -135,6 +135,18 @@ export function linkItem(at: { x: number; y: number }, url: string): Item {
   }
 }
 
+/* A picture named by its address. It shows immediately from the URL, and the
+ * bytes are fetched behind it so that it becomes a picture this board holds
+ * rather than one it points at. Square until the file says otherwise. */
+export function imageUrlItem(at: { x: number; y: number }, url: string, name: string): Item {
+  return {
+    id: newId(), kind: 'image', x: Math.round(at.x), y: Math.round(at.y), z: 0,
+    w: 320, h: 320, url, name, fx: { ...FX_0 }, tag: null,
+    /* Until the fetch says otherwise, assume its pixels are not ours. */
+    readable: false,
+  }
+}
+
 export function videoUrlItem(at: { x: number; y: number }, url: string, name: string): Item {
   return {
     id: newId(), kind: 'video', x: Math.round(at.x), y: Math.round(at.y), z: 0,
@@ -167,10 +179,47 @@ export function addUrl(at: { x: number; y: number }, raw: string): Item {
     store.add(it)
     return it
   }
+  if (c.kind === 'image') {
+    const it = imageUrlItem(at, c.url, c.name)
+    store.add(it)
+    void refineImage(it, c.url)
+    return it
+  }
   const it = c.kind === 'video' ? videoUrlItem(at, c.url, c.name) : linkItem(at, c.url)
   store.add(it)
   if (/^https?:\/\//i.test(c.url)) void refine(it, c.url)
   return it
+}
+
+/* Fetch the picture behind the address, and become the picture rather than a
+ * pointer at it. A host that refuses the read leaves the card showing from the
+ * URL, which works for looking at and not for shading — the same bargain a
+ * cross-origin video makes. An address that was never a picture goes back to
+ * being a link. */
+async function refineImage(made: Item, url: string) {
+  const got = await fetchImage(url)
+  if (!store.getItem(made.id)) return
+
+  if (!got) {
+    store.update(made.id, { kind: 'link', w: 300, h: 130, name: hostOf(url) }, false)
+    return
+  }
+
+  const cur = store.getItem(made.id)!
+  const patch: Partial<Item> = { nw: got.nw, nh: got.nh }
+  /* Leave the card alone if it has been resized in the meantime. */
+  if (cur.w === made.w && cur.h === made.h) Object.assign(patch, fitBox(got.nw, got.nh))
+
+  if (got.blob) {
+    const key = newKey('img')
+    await putBlob(key, got.blob)
+    if (!store.getItem(made.id)) return
+    void ensureSource(key, got.blob)
+    patch.media = key
+    patch.mime = got.blob.type
+    patch.readable = true
+  }
+  store.update(made.id, patch, false)
 }
 
 async function refine(made: Item, url: string) {

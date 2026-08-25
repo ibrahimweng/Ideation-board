@@ -39,6 +39,13 @@ export interface Item {
   readable?: boolean
   color?: string
   tag?: string | null
+  /* Whether this one is in or out.
+   *
+   * Not a tag. A tag says what something is — a category you sort by — and the
+   * five of them are colours with no meaning attached. This says what you
+   * decided about it, which is the thing a board full of references is for and
+   * the thing it could never record: boards only ever accumulated. */
+  pick?: 'in' | 'out' | null
   /* Id of the section this item sits in, when it is in one. Membership is
    * decided when a drag finishes and then remembered, so an item stays where
    * it was put even if a section is later moved under or away from it. */

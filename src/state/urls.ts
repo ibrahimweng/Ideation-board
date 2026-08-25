@@ -1,11 +1,18 @@
 /* ---------------------------------------------------------------------------
  * Turning a pasted URL into a card.
  *
- * A URL can mean three different things on this board:
+ * A URL can mean four different things on this board:
  *
+ *   a picture             ->  a real image card, effects and all
  *   a direct video file   ->  a real video card, effects and all
  *   a YouTube/Vimeo page  ->  an embedded player
  *   anything else         ->  a link card
+ *
+ * The picture is the one that matters most and was the one missing. Dragging a
+ * photograph out of another browser tab is how anybody actually gathers
+ * references, and the browser hands over an address rather than a file — so
+ * without this the commonest gesture in the product produced a dead link card
+ * and you had to save every picture to disk first.
  *
  * The split matters because of what the GPU is allowed to read. Running a
  * shader over a video means reading its pixels back out of the video element,
@@ -22,8 +29,17 @@
  * ------------------------------------------------------------------------- */
 
 const VIDEO_EXT = /\.(mp4|m4v|webm|ogv|ogg|mov)(?:$|[?#])/i
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(?:$|[?#])/i
+
+/* Hosts that serve pictures from addresses with no extension on them, which is
+ * most of the ones anybody drags from. Guessing by host is crude, but the
+ * alternative — fetching every unknown URL to find out — is slower and noisier
+ * than being wrong about a link card that can be deleted. */
+const IMAGE_HOST =
+  /(^|\.)(images\.unsplash\.com|images\.pexels\.com|i\.imgur\.com|pbs\.twimg\.com|i\.redd\.it|cdn\.dribbble\.com|live\.staticflickr\.com|substackcdn\.com|imagedelivery\.net|githubusercontent\.com)$/i
 
 export type UrlCard =
+  | { kind: 'image'; url: string; name: string }
   | { kind: 'video'; url: string; name: string }
   | { kind: 'embed'; url: string; embed: string; name: string }
   | { kind: 'link'; url: string; name: string }
@@ -93,9 +109,12 @@ export function classifyUrl(raw: string): UrlCard {
   const vi = vimeoEmbed(u)
   if (vi) return { kind: 'embed', url, embed: vi, name: 'Vimeo' }
 
+  const last = decodeURIComponent(u.pathname.split('/').pop() || '')
   if (VIDEO_EXT.test(u.pathname) || VIDEO_EXT.test(url)) {
-    const last = decodeURIComponent(u.pathname.split('/').pop() || '')
     return { kind: 'video', url, name: last || hostOf(url) }
+  }
+  if (IMAGE_EXT.test(u.pathname) || IMAGE_EXT.test(url) || IMAGE_HOST.test(u.hostname)) {
+    return { kind: 'image', url, name: last || hostOf(url) }
   }
   return { kind: 'link', url, name: hostOf(url) }
 }
@@ -145,4 +164,63 @@ export async function probeVideo(url: string, timeout = 9000): Promise<Probe | n
   const plain = await tryLoad(url, false, timeout)
   if (plain) return { ...plain, readable: false }
   return null
+}
+
+/* ---------------------------------------------------------------------------
+ * Fetching a picture.
+ *
+ * Two outcomes worth having, and one worth admitting to.
+ *
+ * The bytes come back  ->  the picture is ours. It is stored like a dropped
+ *                          file, works offline, survives the page it came
+ *                          from being taken down, and can take a shader.
+ * The fetch is refused ->  the host allows no cross-origin read. An <img> can
+ *                          still show it, because showing is not reading, so
+ *                          the card is a picture that cannot be shaded.
+ * Nothing loads at all ->  it was never a picture. Back to a link card.
+ * ------------------------------------------------------------------------- */
+
+export interface Fetched {
+  blob: Blob | null
+  nw: number
+  nh: number
+}
+
+/* Whether a browser can display it, and at what size. Says nothing about
+ * whether the pixels can be read. */
+export function probeImage(url: string, timeout = 9000): Promise<{ nw: number; nh: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    let settled = false
+    const finish = (r: { nw: number; nh: number } | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      img.onload = null
+      img.onerror = null
+      resolve(r)
+    }
+    const timer = setTimeout(() => finish(null), timeout)
+    img.onload = () => finish({ nw: img.naturalWidth || 0, nh: img.naturalHeight || 0 })
+    img.onerror = () => finish(null)
+    img.src = url
+  })
+}
+
+export async function fetchImage(url: string, timeout = 12000): Promise<Fetched | null> {
+  /* The bytes first: a picture we hold is worth more than one we point at. */
+  try {
+    const res = await fetch(url, { mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(timeout) })
+    if (res.ok) {
+      const blob = await res.blob()
+      if (/^image\//.test(blob.type) && blob.size > 0) {
+        const size = await probeImage(URL.createObjectURL(blob), timeout)
+        if (size) return { blob, nw: size.nw, nh: size.nh }
+      }
+    }
+  } catch {
+    /* Refused, or not reachable. An <img> may still manage it. */
+  }
+  const shown = await probeImage(url, timeout)
+  return shown ? { blob: null, nw: shown.nw, nh: shown.nh } : null
 }

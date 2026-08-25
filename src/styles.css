@@ -559,6 +559,22 @@ body[data-dragging] .card-chrome { opacity: 0; }
   box-shadow: 0 0 0 2px var(--surface), var(--sh-1);
 }
 
+/* Kept or cut. Top left, where the tag is not, and never hidden: seeing the
+   shape of the decision across a whole board is the point of making it. */
+.card-pick {
+  position: absolute; left: 7px; top: 7px; z-index: 4;
+  width: 17px; height: 17px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: #fff; box-shadow: var(--sh-1);
+}
+.card-pick[data-pick='in'] { background: #2f8f5b; }
+.card-pick[data-pick='out'] { background: #b4443f; }
+/* A card that has been cut steps back but stays where it is: where something
+   sits on a board is part of how you recognise it, and a decision you cannot
+   see the consequences of is not much of a decision. */
+.card[data-pick='out'] { opacity: 0.4; }
+.card[data-pick='out']:hover, .card[data-pick='out'][data-sel] { opacity: 0.85; }
+
 .card-body { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--well); }
 .card-frame { position: absolute; inset: 0; }
 
@@ -1147,6 +1163,21 @@ body[data-dragging] .card-chrome { opacity: 0; }
 }
 .menu-tags button[data-on] { outline: 2px solid var(--ink); outline-offset: 2px; }
 .menu-tag-none { background: var(--surface); border-color: var(--line) !important; }
+
+/* Keep or cut. Two words rather than two colours, because the decision is
+ * not a category and should not look like one. */
+.menu-picks { display: flex; align-items: center; gap: 4px; padding: 3px 9px 4px; }
+.menu-picks > span { font-size: var(--t-md); color: var(--ink); margin-right: auto; }
+.menu-picks button {
+  height: 22px; padding: 0 9px; border-radius: var(--r-sm); flex: none;
+  font: 500 var(--t-sm)/1.4 var(--sans); color: var(--muted);
+  border: 1px solid var(--line);
+  display: flex; align-items: center; gap: 5px;
+}
+.menu-picks button em { font: 400 var(--t-xs)/1 var(--sans); font-style: normal; color: var(--faint); }
+.menu-picks button:hover { background: var(--press); color: var(--ink); }
+.menu-picks button[data-on] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.menu-picks button[data-on] em { color: var(--surface); opacity: 0.6; }
 
 .menu-arrange { display: flex; align-items: center; gap: 2px; padding: 3px 9px 4px; }
 .menu-arrange > span { font-size: var(--t-md); color: var(--ink); margin-right: auto; }

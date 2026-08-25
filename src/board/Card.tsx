@@ -64,9 +64,11 @@ export const Card = memo(function Card({
 
   if (!it) return null
 
-  /* A video is either a file we hold, which needs an object URL, or a remote
-   * one, which is played straight from its own address. */
-  const url = it.media ? objectUrl : it.kind === 'video' ? it.url || null : null
+  /* Either a file this board holds, which needs an object URL, or a remote one
+   * shown straight from its own address — which is how a picture dragged out
+   * of another tab looks for the moment between arriving and being fetched,
+   * and how it stays if its host refuses the read. */
+  const url = it.media ? objectUrl : it.url || null
   const remote = !it.media && !!it.url
 
   const fx = it.fx
@@ -141,6 +143,7 @@ export const Card = memo(function Card({
       style={shell}
       data-sel={selected || undefined}
       data-dim={dim || undefined}
+      data-pick={it.pick || undefined}
       data-kind={it.kind}
       onPointerDown={(e) => onPointerDown(e, id)}
       onContextMenu={(e) => onContextMenu(e, id)}
@@ -162,6 +165,13 @@ export const Card = memo(function Card({
         )}
       </div>
       {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
+      {/* The decision, which does not hide: the point of marking a board up is
+          being able to see the shape of it at a glance. */}
+      {it.pick && (
+        <i className="card-pick" data-pick={it.pick} title={it.pick === 'in' ? 'Kept' : 'Cut'}>
+          {it.pick === 'in' ? <TickIcon /> : <CrossIcon />}
+        </i>
+      )}
 
       {it.kind === 'video' ? (
         <VideoCard
@@ -211,7 +221,16 @@ export const Card = memo(function Card({
                 className="media"
               />
             ) : url ? (
-              <img className="media" src={url} alt={it.name || ''} draggable={false} />
+              <img
+                className="media"
+                src={url}
+                alt={it.name || ''}
+                draggable={false}
+                /* A remote picture is asked for with cross-origin access so
+                   its pixels can be read if the host allows it. Where it does
+                   not, the browser falls back to showing it uncredited. */
+                crossOrigin={!it.media && it.readable !== false ? 'anonymous' : undefined}
+              />
             ) : (
               <div className="media placeholder" />
             ))}
@@ -451,3 +470,14 @@ function startResize(e: React.PointerEvent, id: string, corner: string) {
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
 }
+
+const TickIcon = () => (
+  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.4 6.3 4.7 8.6 9.6 3.6" />
+  </svg>
+)
+const CrossIcon = () => (
+  <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" aria-hidden="true">
+    <path d="M3.2 3.2 8.8 8.8M8.8 3.2 3.2 8.8" />
+  </svg>
+)

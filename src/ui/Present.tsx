@@ -33,13 +33,19 @@ import { inkOn } from '../state/palette'
  * card.
  * ------------------------------------------------------------------------- */
 
-export function Present({ ids, onClose }: { ids: string[]; onClose: () => void }) {
+export function Present({ ids, startAt, onClose }: { ids: string[]; startAt?: string; onClose: () => void }) {
   const items = useMemo(() => {
     const chosen = ids.length > 1 ? ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i) : store.all()
     return readingOrder(chosen)
   }, [ids])
 
-  const [at, setAt] = useState(0)
+  /* Opened on one card — double clicking a picture to see it big — starts
+   * there rather than at the beginning, and the arrows still walk the rest of
+   * the board from that point. */
+  const [at, setAt] = useState(() => {
+    const found = startAt ? items.findIndex((i) => i.id === startAt) : -1
+    return found < 0 ? 0 : found
+  })
   /* The chrome fades out of the way and comes back on any movement, so the
    * picture is alone for as long as you are only looking at it. */
   const [idle, setIdle] = useState(false)

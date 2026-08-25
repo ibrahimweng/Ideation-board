@@ -160,6 +160,43 @@ async function compose(
   return cv
 }
 
+/* What a card looks like, at whatever size is asked for.
+ *
+ * Split out of exportCard because the poster wants the same picture at the
+ * size the card occupies on the board rather than at the size of the file
+ * behind it: one card as a print is a 4096 pixel job, a hundred cards on one
+ * sheet is a hundred small ones, and both are the same three steps. */
+export async function renderCardPicture(
+  item: Item,
+  w: number,
+  h: number,
+  source?: ImageBitmap | null
+): Promise<HTMLCanvasElement | null> {
+  const src = source !== undefined ? source : await sourceFor(item)
+  if (!src) return null
+
+  let picture: ImageBitmap | HTMLCanvasElement | null = null
+  if (hasEffect(item.fx) && item.readable !== false) {
+    /* renderOnce takes ownership of the source and closes it. */
+    picture = await getEngine().renderOnce(src, {
+      effectId: item.fx.fxid,
+      params: item.fx.ep,
+      seed: seedFor(item.id),
+      width: w,
+      height: h,
+    })
+    if (!picture) return null
+  } else {
+    picture = cropToCard(src, w, h)
+    src.close()
+    if (!picture) return null
+  }
+
+  const cv = await compose(picture, item, w, h)
+  if ('close' in picture) picture.close()
+  return cv
+}
+
 /* One card as a PNG, or null when there is nothing to export: a card with no
  * picture behind it, or a video whose host will not let its pixels be read. */
 export async function exportCard(item: Item): Promise<ExportedImage | null> {
@@ -169,26 +206,7 @@ export async function exportCard(item: Item): Promise<ExportedImage | null> {
 
   /* The card is the picture now: nothing is reserved above it. */
   const size = exportSize(src.width, src.height, item.w, item.h)
-
-  let picture: ImageBitmap | HTMLCanvasElement | null = null
-  if (hasEffect(item.fx) && item.readable !== false) {
-    /* renderOnce takes ownership of the source and closes it. */
-    picture = await getEngine().renderOnce(src, {
-      effectId: item.fx.fxid,
-      params: item.fx.ep,
-      seed: seedFor(item.id),
-      width: size.w,
-      height: size.h,
-    })
-    if (!picture) return null
-  } else {
-    picture = cropToCard(src, size.w, size.h)
-    src.close()
-    if (!picture) return null
-  }
-
-  const cv = await compose(picture, item, size.w, size.h)
-  if ('close' in picture) picture.close()
+  const cv = await renderCardPicture(item, size.w, size.h, src)
   if (!cv) return null
 
   const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, 'image/png'))

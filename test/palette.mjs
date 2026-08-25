@@ -78,10 +78,15 @@ check('and so does pressing outside it', (await page.locator('.cmd').count()) ==
 
 /* ---------- finding, and running ---------- */
 await open()
+const allRows = (await rows()).length
 await page.keyboard.type('note')
 await page.waitForTimeout(350)
 const noteRows = await rows()
-check('typing narrows the list', noteRows.length < 8 && noteRows.length > 0, `${noteRows.length} left`)
+/* Measured against the whole list rather than against a number written down
+ * here: every command added to the app moves that number, and a test that has
+ * to be edited whenever the app grows is a test nobody keeps. */
+check('typing narrows the list', noteRows.length > 0 && noteRows.length < allRows / 2,
+  `${noteRows.length} of ${allRows} left`)
 check('and what you asked for is first', (await chosen()).toLowerCase().includes('note'), await chosen())
 
 const before = await cards()

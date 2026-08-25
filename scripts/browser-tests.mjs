@@ -17,7 +17,8 @@ import path from 'node:path'
  * open internet, so it is kept apart from the rest. */
 const SUITES = [
   'ui', 'menu', 'search', 'sections', 'notes', 'boards', 'wires', 'transfer',
-  'arrange', 'touch', 'access', 'looks', 'palette', 'present', 'png', 'aspect', 'video', 'effects',
+  'arrange', 'touch', 'access', 'looks', 'palette', 'present', 'decide', 'fit',
+  'png', 'poster', 'urlimage', 'aspect', 'video', 'effects',
 ]
 const NETWORK = ['urlvideo']
 

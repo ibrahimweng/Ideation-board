@@ -33,6 +33,8 @@ export interface KeyActions {
   present: () => void
   say: (text: string) => void
   closeEditor: () => void
+  fit: (onlySelection: boolean) => void
+  mark: (pick: 'in' | 'out') => void
 }
 
 export function useShortcuts(a: KeyActions) {
@@ -96,6 +98,13 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.addFiles.key) { e.preventDefault(); a.pickFiles(); return }
       if (k === KEYS.effects.key) { e.preventDefault(); a.togglePanel(); return }
       if (k === KEYS.present.key) { e.preventDefault(); a.present(); return }
+      if (k === KEYS.fitBoard.key) { e.preventDefault(); a.fit(false); return }
+      if (k === KEYS.fitSelection.key) { e.preventDefault(); a.fit(true); return }
+      /* A board only ever grew. These two are how it resolves: the keeper
+         wears a tick, the reject fades back, and either mark comes straight
+         off again by pressing the same key. */
+      if (k === KEYS.keep.key) { e.preventDefault(); a.mark('in'); return }
+      if (k === KEYS.cut.key) { e.preventDefault(); a.mark('out'); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {

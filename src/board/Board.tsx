@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { store, useOrder, useSelection, useQuery, useTagFilter } from '../state/store'
 import { addUrl } from '../state/ingest'
+import { urlFromDrag } from '../state/dragged'
 import { parseQuery, passes, filtering } from '../state/search'
 import type { Item } from '../state/types'
 import { Card } from './Card'
@@ -437,12 +438,12 @@ export function Board({ onDropFiles, onOpenEditor, onExportPictures, onPullColou
         onDropFiles(e.dataTransfer.files, at)
         return
       }
-      /* Dragging a video straight out of another tab: the browser hands over
-       * the address rather than the file. */
-      const url = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '')
-        .split(/[\r\n]+/)
-        .find((l) => /^https?:\/\//i.test(l.trim()))
-      if (url) addUrl(at, url.trim())
+      /* Dragging a picture or a video straight out of another tab: the
+       * browser hands over an address rather than a file, and which of the
+       * three flavours holds it depends on the browser and on what was
+       * dragged. */
+      const url = urlFromDrag(e.dataTransfer)
+      if (url) addUrl(at, url)
     },
     [onDropFiles]
   )

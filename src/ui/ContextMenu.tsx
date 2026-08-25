@@ -120,6 +120,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
   const graded = !!first && targets.includes(first.id) && !isPlain(lookFrom(first.fx))
   const clip = copiedLook()
   const currentTag = first && items.every((i) => i!.tag === first.tag) ? first.tag : null
+  const currentPick = first && items.every((i) => i!.pick === first.pick) ? first.pick : null
 
   const run = (fn: () => void) => () => {
     fn()
@@ -149,6 +150,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
             anySection={anySection}
             anyInSection={anyInSection}
             currentTag={currentTag}
+            currentPick={currentPick}
             movable={movable}
             pictures={pictures}
             targets={targets}
@@ -200,7 +202,7 @@ function CanvasMenu({
 }
 
 function CardMenu({
-  ids, first, many, anySection, anyInSection, currentTag, movable, pictures, targets, graded, clip,
+  ids, first, many, anySection, anyInSection, currentTag, currentPick, movable, pictures, targets, graded, clip,
   run, onOpenEditor, onExportPictures, onPullColours,
 }: {
   ids: string[]
@@ -209,6 +211,7 @@ function CardMenu({
   anySection: boolean
   anyInSection: boolean
   currentTag: string | null | undefined
+  currentPick: 'in' | 'out' | null | undefined
   movable: number
   pictures: string[]
   targets: string[]
@@ -307,6 +310,21 @@ function CardMenu({
         Send to back
       </button>
       {anyInSection && <button onClick={run(() => store.clearParent(ids))}>Remove from section</button>}
+
+      <div className="menu-sep" />
+
+      {/* A tag says what kind of thing it is. This says whether it survived,
+          which is a different question and the one a board has to answer in
+          the end. */}
+      <div className="menu-picks">
+        <span>Decide</span>
+        <button data-on={currentPick === 'in' || undefined} onClick={run(() => store.setPick(ids, 'in'))}>
+          Keep <em>I</em>
+        </button>
+        <button data-on={currentPick === 'out' || undefined} onClick={run(() => store.setPick(ids, 'out'))}>
+          Cut <em>O</em>
+        </button>
+      </div>
 
       <div className="menu-sep" />
 

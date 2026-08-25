@@ -17,6 +17,9 @@ function haystack(it: Item): string {
     it.tag,
     it.kind,
     TYPE_LABEL[it.kind],
+    /* So the marks can be searched for by the words on them: "kept" brings
+     * back the shortlist, "cut" what was thrown out. */
+    it.pick === 'in' ? 'kept keep in' : it.pick === 'out' ? 'cut out' : '',
   ]
     .filter(Boolean)
     .join(' ')

@@ -110,6 +110,8 @@ You add things in several ways:
 - Paste an image, a block of text or a link.
 - Paste or drop the address of a video file and it becomes a video card you can
   play and put effects on. A YouTube or Vimeo link becomes an embedded player.
+- Drag a picture out of another browser tab, or paste its address, and it
+  becomes a picture rather than a link.
 - Press the nested-frame button for a board inside this one, for work that has
   outgrown a corner of the canvas.
 
@@ -125,7 +127,9 @@ Once something is on the board:
   evenly, or tidy them onto a grid.
 - Hold Alt and drag, or drag with the middle mouse button, to pan the board.
 - Hold Ctrl or Cmd and scroll to zoom.
+- Press 1 to fit the whole board on screen and 2 to fit what is selected.
 - Double click a note, a label or a section to edit its text.
+- Double click a picture, a video or a board card to see it big.
 
 ## Sections
 
@@ -170,8 +174,8 @@ The single key shortcuts only fire when no modifier is held and no text field
 has focus, so they never get in the way of typing.
 
 Right click a card for a menu with edit or rename, duplicate, bring to front,
-send to back, remove from section, tagging and delete. Right clicking a card
-that is part of a selection acts on the whole selection.
+send to back, remove from section, keep or cut, tagging and delete. Right
+clicking a card that is part of a selection acts on the whole selection.
 
 Right click bare board for a menu that adds a note, label, section, link or
 files at the point you clicked, and that can paste or select everything.
@@ -187,6 +191,11 @@ Keyboard shortcuts:
 | B | New board |
 | K | New link |
 | E | Show or hide the effects panel |
+| P | Present the board |
+| 1 | Fit the whole board on screen |
+| 2 | Fit the selection on screen |
+| I | Mark the selection as kept |
+| O | Mark the selection as cut |
 | / | Search |
 | Cmd or Ctrl and S | Export this board and everything in it |
 | Cmd or Ctrl and O | Import a board file |
@@ -450,7 +459,9 @@ who arranged twelve photographs into three rows meant those rows, so it reads
 top to bottom in bands and left to right inside each band, the way an eye
 crosses a wall of pictures.
 
-Select more than one thing first and it shows only those.
+Select more than one thing first and it shows only those. Double clicking a
+picture, a video or a board card opens the same view at that card, which is
+the short way to look at one thing properly without meaning to run a slideshow.
 
 The ground is near black whatever theme you are in, which is what a screening
 room and a gallery both arrange for, and what a board cannot be because you
@@ -480,6 +491,24 @@ which is two thirds pale sky does not spend three of its five swatches on the
 sky, and the one red thing in a grey picture still makes the list. No two
 swatches are allowed to be the same colour under two names.
 
+## Deciding
+
+A board only ever grew. Everything that went on it stayed on it, and there was
+nothing to record that three of the thirty were the ones and the rest were not.
+
+Select anything and press I to keep it or O to cut it. A kept card wears a
+green tick in its top left corner and a cut one wears a red cross and steps
+back to a fifth of its weight — it stays exactly where it is, because where
+something sits on a board is part of how you recognise it, and a decision whose
+consequences you cannot see is not much of a decision. Pressing the same key
+again takes the mark off; a decision you can only make and never unmake is a
+trap. The same two are in the right click menu and in the command list.
+
+This is not a tag. A tag says what something is, and the five of them are
+colours with no meaning attached. This says what you decided about it, so the
+two are on separate corners of the card and neither one disturbs the other.
+Searching for "kept" or "cut" narrows the board to one side of the decision.
+
 ## Getting a picture out
 
 Right click a picture or a video and choose "Export as PNG", or press Cmd or
@@ -494,6 +523,32 @@ What comes out is the card, not just the shader. The effect, the tone, the
 framing and the grain are all in the file, in the order the card applies them,
 because an export carrying only the effect would hand back something you were
 never looking at. Exporting a video card exports the frame you are looking at.
+
+## The board as one picture
+
+Everything else here exports a piece of a board: one card as a PNG, the whole
+board as a zip only this app can open. Neither of those is the thing you are
+asked for at the end of a week of collecting, which is the board itself — flat,
+in one file, that opens anywhere and can go in an email.
+
+Pick "Export this board as one picture" from the command list for a PNG, or
+"Export this board as a PDF" for a page. Select more than one card first and it
+exports only those, cropped to what you picked.
+
+It is painted rather than photographed. The board is bigger than the window, it
+is spread across a WebGL canvas per card and a hundred DOM nodes, and half of
+it is scrolled out of sight, so there is nothing to take a picture of. The
+sheet is drawn card by card in the order the board stacks them, using the same
+geometry, the same type and the same colours the stylesheet uses — read out of
+the live custom properties, so a board worked on in the dark theme comes out
+dark. Photographs go through the same path a single-card export takes, so a
+picture that is halftoned and cropped and warmed on the board is halftoned and
+cropped and warmed on the sheet. A cut card comes out faded, exactly as far as
+it fades on the board.
+
+The PDF is written by hand: one page, one image on it, and five objects to say
+so. The picture goes in as JPEG because a PDF understands JPEG bytes directly,
+so nothing here has to carry a compressor around.
 
 ## Taking a board out, and putting one back
 
@@ -602,10 +657,14 @@ npm run test:search -- http://localhost:5173
 npm run test:looks -- http://localhost:5173
 npm run test:palette -- http://localhost:5173
 npm run test:present -- http://localhost:5173
+npm run test:decide -- http://localhost:5173
+npm run test:fit -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
 npm run test:png -- http://localhost:5173
+npm run test:poster -- http://localhost:5173
+npm run test:urlimage -- http://localhost:5173
 npm run test:aspect -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:urlvideo -- http://localhost:5173
@@ -631,6 +690,28 @@ npm run bench
   on every swatch, and that all five are one step of undo. Then it shows the
   board and checks the order is the board's reading order, that the arrows
   move through it, and that a selection of two out of three shows two.
+- `test:decide` marks cards kept and cut from the keyboard, the card menu and
+  the command list, checks that the same key takes a mark off again, that a
+  whole selection is decided together, that a cut card fades but stays put and
+  a marked card gains no tag, that "kept" and "cut" can be searched for, and
+  that a decision survives a reload and can be undone.
+- `test:fit` scrolls a board of four pictures right off the screen, presses 1
+  and checks every card is back on it and that nothing has been blown up past
+  life size, presses 2 on a selection and checks it comes closer, checks that
+  fitting nothing says so rather than appearing to do nothing, and that double
+  clicking a picture opens it big at that picture while a note still opens its
+  editor.
+- `test:poster` exports a board wider than the window as one picture and reads
+  the file back: both far-apart photographs are on it and in different places,
+  the writing on a note is really painted, a section and a wire are drawn, a
+  cut card comes out faded, and a board exported in the dark theme comes out
+  dark. Then it exports the same board as a PDF and checks it is one page at a
+  size in points with the picture inside it as JPEG.
+- `test:urlimage` serves a PNG from a second origin on your machine, once with
+  the cross-origin header and once without, and checks that dragging the first
+  in makes a picture this board holds and can shade, that pasting the second
+  makes a picture shown from its own address, that a page is still a link, and
+  that all three survive a reload.
 - `test:palette` checks that every button in the top bar is an icon that still
   says what it is, that the command list opens, narrows as you type, runs what
   you pick and refuses what has nothing to act on, that a command the toolbar

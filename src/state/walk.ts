@@ -1,6 +1,7 @@
 import { store } from './store'
+import { isWire } from './kinds'
 import { readingOrder } from './order'
-import { revealView } from '../board/viewport'
+import { fitView, revealView } from '../board/viewport'
 import type { Item } from './types'
 
 /* ---------------------------------------------------------------------------
@@ -49,4 +50,39 @@ export function announce(item: Item | null): string {
   const at = list.findIndex((i) => i.id === item.id)
   const what = item.kind === 'note' || item.kind === 'label' ? item.text || item.kind : item.name || item.kind
   return `${what}, ${item.kind}, ${at + 1} of ${list.length}`
+}
+
+/* Everything on the board on screen at once, or just what is selected. Returns
+ * false when there is nothing to fit, so the caller can say so rather than
+ * appearing to do nothing. */
+export function fitToBoard(onlySelection = false): boolean {
+  if (!size.w || !size.h) return false
+  /* Sections count, unlike everywhere else that walks the board: a section is
+   * a box with an extent, and somebody who selected one and asked to fit it
+   * means that area. Wires have no box of their own to fit. */
+  const sel = store.getSelection()
+  const items = onlySelection
+    ? sel.map((id) => store.getItem(id)).filter((i): i is Item => !!i && !isWire(i))
+    : store.all().filter((i) => !isWire(i))
+  const view = fitView(items, size.w, size.h)
+  if (!view) return false
+  store.setView(view)
+  return true
+}
+
+/* Keeping and cutting, said out loud.
+ *
+ * The store does the deciding; this is the sentence that goes with it, shared
+ * by the key and by the command list so a screen reader and the line along the
+ * bottom of the window never disagree about what just happened. */
+export function markPick(pick: 'in' | 'out', say: (text: string) => void) {
+  const sel = store.getSelection()
+  if (!sel.length) {
+    say('Select something to decide about first')
+    return
+  }
+  const now = store.setPick(sel, pick)
+  if (!now) return
+  const word = now.pick === 'in' ? 'Kept' : now.pick === 'out' ? 'Cut' : 'Unmarked'
+  say(now.count > 1 ? `${word} ${now.count} items` : word)
 }

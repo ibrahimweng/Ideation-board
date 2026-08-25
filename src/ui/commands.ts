@@ -2,6 +2,7 @@ import { store } from '../state/store'
 import { noteItem, labelItem, sectionItem } from '../state/ingest'
 import { isSection, isWire, hasPixels } from '../state/kinds'
 import { KEYS } from './shortcuts'
+import { markPick } from '../state/walk'
 import { setTheme, themeWant } from './theme'
 import type { Command } from './CommandPalette'
 import type { MirrorState } from '../store/mirror'
@@ -35,6 +36,9 @@ export interface CommandActions {
   setTab: (t: 'effect' | 'adjust' | 'looks') => void
   setPresenting: (on: boolean) => void
   focusSearch: () => void
+  fit: (onlySelection: boolean) => void
+  say: (text: string) => void
+  exportPoster: (ids: string[], as: 'png' | 'pdf') => void
 }
 
 export function buildCommands(a: CommandActions): Command[] {
@@ -58,6 +62,9 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('edit.dup', 'Duplicate the selection', 'Edit', () => { const made = store.duplicate(sel()); if (made.length) store.select(made) }, { disabled: !some }),
     cmd('edit.del', 'Delete the selection', 'Edit', () => store.remove(sel()), { disabled: !some, keywords: 'remove' }),
 
+    cmd('edit.keep', 'Mark as kept', 'Edit', () => markPick('in', a.say), { hint: KEYS.keep.hint, disabled: !some, keywords: 'pick in yes tick shortlist choose decide' }),
+    cmd('edit.cut', 'Mark as cut', 'Edit', () => markPick('out', a.say), { hint: KEYS.cut.hint, disabled: !some, keywords: 'pick out no reject discard kill decide' }),
+
     cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => !isWire(i)).map((i) => i.id)), { keywords: 'grid align layout sort' }),
     cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: a.selection.length < 2 }),
     cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: a.selection.length < 2 }),
@@ -66,6 +73,22 @@ export function buildCommands(a: CommandActions): Command[] {
 
     cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => a.exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
+    /* The one export that is a deliverable rather than a backup: the board
+       as it looks, flat, in a file anyone can open. */
+    cmd(
+      'out.poster',
+      a.selection.length > 1 ? `Export the ${a.selection.length} selected as one picture` : 'Export this board as one picture',
+      'Take out',
+      () => a.exportPoster(sel(), 'png'),
+      { keywords: 'png poster sheet flatten whole screenshot share send image' }
+    ),
+    cmd(
+      'out.pdf',
+      a.selection.length > 1 ? `Export the ${a.selection.length} selected as a PDF` : 'Export this board as a PDF',
+      'Take out',
+      () => a.exportPoster(sel(), 'pdf'),
+      { keywords: 'pdf print paper page poster share send deck' }
+    ),
     cmd(
       'out.folder',
       a.mirror.folder ? `Stop keeping a copy in ${a.mirror.folder}` : 'Keep a copy in a folder on disk…',
@@ -84,6 +107,10 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('view.effects', a.panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => a.setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
     cmd('view.looks', 'Saved looks', 'View', () => { a.setPanelOpen(() => true); a.setTab('looks') }, { keywords: 'preset grade style' }),
     cmd('view.search', 'Search this board', 'View', () => a.focusSearch(), { hint: KEYS.search.hint, keywords: 'find filter' }),
+    /* A board grows past the window, and until these there was no way back
+       to the whole of it but scrolling until it turned up. */
+    cmd('view.fit', KEYS.fitBoard.label, 'View', () => a.fit(false), { hint: KEYS.fitBoard.hint, keywords: 'zoom fit all everything overview zoom out see' }),
+    cmd('view.fitsel', KEYS.fitSelection.label, 'View', () => a.fit(true), { hint: KEYS.fitSelection.hint, disabled: !some, keywords: 'zoom fit selected closer focus' }),
     cmd('view.light', 'Light theme', 'View', () => setTheme('light'), { disabled: themeWant() === 'light', keywords: 'bright day appearance' }),
     cmd('view.dark', 'Dark theme', 'View', () => setTheme('dark'), { disabled: themeWant() === 'dark', keywords: 'night appearance' }),
     cmd('view.system', 'Follow the system theme', 'View', () => setTheme('system'), { disabled: themeWant() === 'system', keywords: 'auto appearance' }),
