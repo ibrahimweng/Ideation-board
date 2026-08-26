@@ -91,15 +91,35 @@ ok('laid out as a block, not a column', shape.cols > 1 && shape.rows > 1 && shap
    `${shape.cols} across by ${shape.rows} down`)
 fs.writeFileSync(path.join(OUT, 'drop-twenty.png'), await page.screenshot())
 
+/* ---------- one photograph, wider than the window ----------
+   A card is capped at 420 across, which is wider than a phone. So "more than
+   one file" was the wrong question to gate the move on: a single photograph
+   can land half off the edge too, and nothing said it had. */
+await page.setViewportSize({ width: 390, height: 844 })
+await page.waitForTimeout(600)
+await page.keyboard.press('Escape')
+await page.keyboard.press('1')
+await page.waitForTimeout(800)
+const heldBefore = await held()
+await drop(1, { x: 200, y: 500 }, 'lone')
+await page.waitForTimeout(4000)
+ok('one photograph arrives on a narrow screen', (await held()) === heldBefore + 1, `${await held()} items`)
+ok('and the board moves so the whole of it is on screen', (await onScreen('lone')) === 1,
+   `${await onScreen('lone')} of 1 fully visible`)
+fs.writeFileSync(path.join(OUT, 'drop-one-narrow.png'), await page.screenshot())
+await page.setViewportSize({ width: 1280, height: 860 })
+await page.waitForTimeout(600)
+
 /* ---------- a small drop where you are already looking ---------- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
 const stayPut = await view()
+const heldNow = await held()
 await drop(1, { x: 300, y: 300 })
 await page.waitForTimeout(3500)
 ok('one picture dropped in front of you moves nothing', (await view()) === stayPut,
    `${stayPut} -> ${await view()}`)
-ok('and it is there', (await held()) === 21, `${await held()} items`)
+ok('and it is there', (await held()) === heldNow + 1, `${await held()} items, was ${heldNow}`)
 
 /* ---------- and a drop while zoomed in ---------- */
 /* Coming back from a drop closer than you were is worse than not moving, so
@@ -116,12 +136,13 @@ for (let i = 0; i < 6; i++) {
 }
 await page.waitForTimeout(500)
 const zoomedIn = zoomOf(await view())
+const heldThen = await held()
 await drop(6, { x: 200, y: 200 }, 'late')
 await page.waitForTimeout(6000)
 const after = zoomOf(await view())
 ok('a drop never zooms you in further than you were', after <= zoomedIn + 0.001,
    `${zoomedIn.toFixed(2)} -> ${after.toFixed(2)}`)
-ok('and all six of them arrive', (await held()) === 27, `${await held()} items`)
+ok('and all six of them arrive', (await held()) === heldThen + 6, `${await held()} items, was ${heldThen}`)
 /* The drop, not the board: the view goes to what just arrived, and whatever
    else happens to fit around it is a bonus. */
 ok('with the six that just arrived on screen', (await onScreen('late')) === 6, `${await onScreen('late')} of 6`)

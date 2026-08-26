@@ -7,6 +7,7 @@ import { dropColumns, ingest, noteItem, labelItem, sectionItem, boardItem, addUr
 import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
+import { announceSaved, changedElsewhere, markSynced, onBoardSaved } from './store/tabs'
 import type { Board as BoardModel, Item } from './state/types'
 import { download, safeName } from './store/fs'
 import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
@@ -21,6 +22,7 @@ import { useShortcuts } from './app/useShortcuts'
 import type { Crumb } from './state/boards'
 import { Present } from './ui/Present'
 import { SpaceAlarm } from './ui/SpaceAlarm'
+import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
 import {
   chooseFolder, copyNow, copySoon, describeMirror, forgetFolder, mirrorState, restoreFolder, subscribeMirror,
@@ -72,12 +74,34 @@ export default function App() {
    * save that fired afterwards would write the new board's items under the old
    * board's name. */
   const saveNow = useRef<() => Promise<void>>(async () => {})
+  /* Set while there are edits the debounce has not written yet, so a message
+     from another tab knows whether reloading would cost anything. */
+  const unsaved = useRef(false)
+  /* While this stands, nothing is written: another tab has a newer version of
+     this board and overwriting it would be the very thing this is here to
+     prevent. It is the person's decision which one wins. */
+  const [clash, setClash] = useState(false)
+  const clashRef = useRef(false)
+  clashRef.current = clash
+
   useEffect(() => {
     let t: number | null = null
-    const write = () => {
+    const write = async () => {
+      if (clashRef.current) return
       const b: BoardModel = store.toBoard()
+      /* Somebody else wrote this board while we had it open. Writing now would
+         throw their work away, so it does not happen. */
+      const stored = await getBoard(b.id)
+      if (changedElsewhere(b.id, stored?.updated)) {
+        setClash(true)
+        return
+      }
       invalidateSummary(b.id)
-      return putBoard({ id: b.id, name: b.name, updated: b.updated, items: b.items, view: b.view })
+      await putBoard({ id: b.id, name: b.name, updated: b.updated, items: b.items, view: b.view })
+      unsaved.current = false
+      /* And tell the other tabs, so the one that is only looking picks this up
+         rather than sitting on a stale copy it will later write back. */
+      announceSaved(b.id, b.updated)
     }
     saveNow.current = async () => {
       if (t) {
@@ -87,6 +111,7 @@ export default function App() {
       await write()
     }
     store.onDirty = () => {
+      unsaved.current = true
       if (t) clearTimeout(t)
       t = window.setTimeout(() => {
         t = null
@@ -139,6 +164,7 @@ export default function App() {
           view: saved.view || { x: 0, y: 0, z: 1 },
           updated: saved.updated,
         })
+        markSynced(saved.id, saved.updated)
         setName(saved.name)
       }
       setPath(trail)
@@ -163,6 +189,9 @@ export default function App() {
     invalidateSummary(leaving.id)
 
     const rec = await getBoard(target.id)
+    /* The version this tab has now seen of the board it is moving to, so a
+       later write knows whether anyone else has been at it since. */
+    markSynced(target.id, rec?.updated ?? 0)
     store.load(
       rec
         ? { id: rec.id, name: rec.name, items: rec.items as Item[], view: rec.view || { x: 0, y: 0, z: 1 }, updated: rec.updated }
@@ -229,6 +258,78 @@ export default function App() {
     setBusy(msg)
     window.setTimeout(() => setBusy(null), ms)
   }, [])
+
+  /* Another tab wrote the board we are on.
+   *
+   * With nothing of our own waiting to be written, take theirs: it is strictly
+   * newer, and a tab that is only looking should be looking at what is there.
+   * The view is put back afterwards, because being scrolled somewhere else
+   * because a second window saved is not something anybody asked for.
+   *
+   * With edits of our own not yet written, there is no answer that is not
+   * somebody's loss, so nothing is decided here. Saving stops, both versions
+   * still exist — theirs on disk, ours on screen — and the bar below asks. */
+  useEffect(
+    () =>
+      onBoardSaved((n) => {
+        if (n.board !== store.id) return
+        if (unsaved.current) {
+          setClash(true)
+          return
+        }
+        void (async () => {
+          const rec = await getBoard(n.board)
+          if (!rec || rec.id !== store.id) return
+          const view = store.peekView()
+          store.load({
+            id: rec.id,
+            name: rec.name,
+            items: rec.items as Item[],
+            view,
+            updated: rec.updated,
+          })
+          markSynced(rec.id, rec.updated)
+          setName(rec.name)
+          say('Brought in a change from another tab', 2600)
+        })()
+      }),
+    [say]
+  )
+
+  /* Taking one version or the other. Reloading drops what is on screen for
+     what is on disk; keeping drops the other tab's work for ours. Either way
+     the person chose it, which is the whole difference. */
+  const takeTheirs = useCallback(async () => {
+    const rec = await getBoard(store.id)
+    if (rec) {
+      store.load({
+        id: rec.id,
+        name: rec.name,
+        items: rec.items as Item[],
+        view: store.peekView(),
+        updated: rec.updated,
+      })
+      markSynced(rec.id, rec.updated)
+      setName(rec.name)
+    }
+    unsaved.current = false
+    setClash(false)
+    say('This board is now the version from the other tab')
+  }, [say])
+
+  const keepMine = useCallback(async () => {
+    /* Marking it seen is what lets the next write through: it is no longer
+       an accident, it is the answer to the question that was asked. */
+    const rec = await getBoard(store.id)
+    if (rec) markSynced(rec.id, rec.updated)
+    setClash(false)
+    const b: BoardModel = store.toBoard()
+    invalidateSummary(b.id)
+    await putBoard({ id: b.id, name: b.name, updated: b.updated, items: b.items, view: b.view })
+    unsaved.current = false
+    announceSaved(b.id, b.updated)
+    say('Kept this version, and the other tab has it now')
+  }, [say])
 
   /* A search found something inside a board you are not on: open that board,
      then put the view on the card rather than leaving it wherever that board
@@ -393,8 +494,13 @@ export default function App() {
        indistinguishable from a drop that half failed — I took it for a bug in
        my own code before finding they had all arrived. Nothing moves when the
        drop landed in front of you. */
-    if (made.length > 1 && revealItems(made)) {
-      say(`Added ${made.length} — the board moved to show them`, 2600)
+    /* Not "more than one file": a card is capped at 420 across, which is wider
+       than a phone, so a single photograph can land half off the edge too. The
+       question is only ever whether what arrived is on screen, and that is the
+       question revealItems asks — it moves nothing when the drop landed in
+       front of you, whatever its size. */
+    if (revealItems(made)) {
+      say(made.length > 1 ? `Added ${made.length} — the board moved to show them` : 'The board moved to show it', 2400)
     } else {
       setBusy(null)
     }
@@ -650,6 +756,13 @@ export default function App() {
       />
 
       <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} />
+      {clash && (
+        <TabClash
+          onTakeTheirs={() => void takeTheirs()}
+          onKeepMine={() => void keepMine()}
+          onExport={() => void exportBoard()}
+        />
+      )}
       {presenting && (
         <Present
           ids={subject().items.map((i) => i.id)}

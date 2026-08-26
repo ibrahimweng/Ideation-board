@@ -36,6 +36,7 @@
     "test:decide": "node test/decide.mjs",
     "test:fit": "node test/fit.mjs",
     "test:drop": "node test/drop.mjs",
+    "test:tabs": "node test/tabs.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",
     "test:unit": "vitest run",

@@ -107,8 +107,10 @@ You add things in several ways:
 
 - Drag files from your computer onto the board. A folder of twenty arrives as
   a block shaped like your window rather than a column marching off the bottom
-  of it, and the board moves to show you what landed — unless the drop was
-  small enough to land in front of you, in which case nothing moves.
+  of it, and the board moves to show you what landed — unless all of it landed
+  in front of you already, in which case nothing moves. That is the whole
+  question, and it holds for a single photograph too: a card is capped at 420
+  across, which is wider than a phone.
 - Press the picture button in the top bar.
 - Paste an image, a block of text or a link.
 - Paste or drop the address of a video file and it becomes a video card you can
@@ -460,6 +462,30 @@ the app takes it seriously:
   screen because they were still in memory — and you found out on the next
   reload, when they were gone.
 
+### Two tabs on one board
+
+Everything is kept in one browser, and a browser has tabs. Open the app twice
+and both copies used to load the same record and both write it back, neither
+knowing the other was there: whichever saved last won, and whatever the other
+had added in the meantime was gone, with no warning and no undo.
+
+The tabs tell each other when they write. A tab that is only looking picks the
+change up and is no longer holding a stale copy to overwrite with, so the
+ordinary case — you edit in one tab, then the other — keeps everything. And
+every write checks the record it is about to replace, in case that message was
+missed or the browser has no way to send one, so a save that would clobber a
+newer version does not happen.
+
+When both tabs really have been edited before either wrote, there is no answer
+that is not somebody's loss, so the app does not pick one. Saving stops, both
+versions still exist — theirs on disk, yours on screen — and a message that
+does not go away asks which. It also offers the third way out: export this
+version first, and lose neither.
+
+This is one browser on one machine, which is the scope of the problem. Two
+machines on one folder is a different question, and the folder copy above
+already says it does not answer it.
+
 ### Keeping a copy in a folder
 
 The stronger answer to all of that: point the board at a folder on disk and it
@@ -731,6 +757,7 @@ npm run test:present -- http://localhost:5173
 npm run test:decide -- http://localhost:5173
 npm run test:fit -- http://localhost:5173
 npm run test:drop -- http://localhost:5173
+npm run test:tabs -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -773,6 +800,11 @@ npm run bench
   fitting nothing says so rather than appearing to do nothing, and that double
   clicking a picture opens it big at that picture while a note still opens its
   editor.
+- `test:tabs` opens the app twice in one browser, which is what two tabs are,
+  and checks that a tab picks up what the other one wrote without being
+  touched, that a later write keeps both tabs' work, and that a write which
+  would replace a newer record stops and asks instead — with that tab's own
+  work still on screen and the other version still on disk while it does.
 - `test:drop` drops a folder of twenty on the board and checks that all twenty
   arrive, that they are laid out as a block rather than a column, and that the
   board moves to show them. Then it checks the other half: a single picture

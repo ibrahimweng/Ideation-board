@@ -214,9 +214,10 @@ ok('the command list offers a PDF', pdfLabel.toLowerCase().includes('pdf'), pdfL
 const [pdf] = await Promise.all([page.waitForEvent('download'), pdfEntry.click()])
 const pdfFile = path.join(OUT, `poster-${pdf.suggestedFilename()}`)
 await pdf.saveAs(pdfFile)
-await page.waitForTimeout(400)
-/* Read while it is still up: the line takes itself away after a couple of
-   seconds, and the checks below are not that quick. */
+/* Waited for rather than guessed at, and read while it is still up: the line
+   takes itself away after a couple of seconds and the checks below are not
+   that quick. */
+await page.waitForSelector('.toast', { timeout: 8000 }).catch(() => {})
 const pdfSaid = await page.locator('.toast').innerText().catch(() => '')
 const bytes = fs.readFileSync(pdfFile)
 const asText = bytes.toString('latin1')

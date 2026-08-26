@@ -587,6 +587,17 @@ export class BoardStore {
   }
 
   load(board: Board) {
+    /* Everything that was here, so a card still on screen under the same id is
+     * told its contents were replaced.
+     *
+     * Loading used to mean switching boards, where every card unmounts and the
+     * new ones read the store fresh, so telling the old subscribers was work
+     * with nobody to hear it. Then a second tab started sending its changes
+     * over and a board began being loaded while it was still on screen — and a
+     * card whose id had not changed went on showing the item object it read
+     * when it mounted. A note written in the other tab arrived as a blank one,
+     * permanently, because nothing ever told that card to look again. */
+    const touched = new Set([...this.items.keys(), ...board.items.map((i) => i.id)])
     this.id = board.id
     this.name = board.name
     this.items = new Map(board.items.map((i) => [i.id, { ...i, fx: i.fx || { ...FX_0 } }]))
@@ -595,6 +606,10 @@ export class BoardStore {
     this.view = board.view || { x: 0, y: 0, z: 1 }
     this.past.length = 0
     this.future.length = 0
+    /* Selection first: ids from the board that has just been left are not ids
+     * on this one, and a card cannot be told it is still selected. */
+    this.sel.clear()
+    for (const id of touched) this.pingItem(id)
     this.pingOrder()
     this.pingView()
     this.pingSel()

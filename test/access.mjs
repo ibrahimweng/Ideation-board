@@ -162,6 +162,11 @@ if (notes) {
 /* ---------- a finger instead of a right button ---------- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
+/* Fit first. A drop now moves the board to show what landed, and the walk
+   above moves it again, so where any given card is by this point is not
+   something to assume. */
+await page.keyboard.press('1')
+await page.waitForTimeout(800)
 const box = await page.locator('.card[data-kind="image"]').first().boundingBox()
 const at = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
 
@@ -169,6 +174,7 @@ const at = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.hei
 const hold = async (x, y, ms) => {
   await page.evaluate(([px, py]) => {
     const el = document.elementFromPoint(px, py)
+    if (!el) throw new Error(`nothing at ${px},${py} — the card is not on screen`)
     el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: px, clientY: py }))
   }, [x, y])
   await page.waitForTimeout(ms)
