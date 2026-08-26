@@ -92,7 +92,11 @@ const query = () => (relayToken() ? `?token=${encodeURIComponent(relayToken())}`
 export function connect() {
   disconnect(true)
   write(ON_KEY, '1')
-  set('joining')
+  /* Only the first attempt reads as "attaching". Every one after a failure is
+   * still a failure until it opens, and flickering between "Claude lost" and
+   * "Claude…" every eight seconds says less than staying put and being wrong
+   * about nothing. */
+  set(retry === 0 ? 'joining' : 'lost')
   let es: EventSource
   try {
     es = new EventSource(`${relayUrl()}/events${query()}`)
@@ -145,7 +149,7 @@ export function connect() {
      * else is it still trying, which is left alone until the patience above
      * runs out. */
     if (es.readyState === EventSource.CLOSED) giveUp()
-    else if (status !== 'on') set('joining')
+    else if (status !== 'on' && retry === 0) set('joining')
   }
 }
 

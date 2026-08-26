@@ -347,6 +347,13 @@ await new Promise((res) => setTimeout(res, 400))
 const page2 = await browser.newPage({ viewport: { width: 1280, height: 900 } })
 page2.on('pageerror', (e) => errors.push(e.message))
 await page2.goto(BASE, { waitUntil: 'domcontentloaded' })
+/* A fresh page is a fresh browser context, so it remembers nothing. Left as a
+   tab that had been attached would have been. */
+await page2.evaluate((relay) => {
+  localStorage.setItem('ideation.mcp.url', relay)
+  localStorage.setItem('ideation.mcp.on', '1')
+}, RELAY)
+await page2.reload({ waitUntil: 'domcontentloaded' })
 /* It was left attached, so it tries again on load — against nothing. A browser
    answers a refused connection by quietly retrying for ever, so the corner
    would sit on "attaching" looking like it was about to work. */
