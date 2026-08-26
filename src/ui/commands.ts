@@ -25,6 +25,7 @@ export interface CommandActions {
   centreOfView: () => { x: number; y: number }
   addBoard: (at: { x: number; y: number }) => void
   askForLink: () => void
+  draw: () => void
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -66,6 +67,7 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('add.section', 'Section', 'Add', () => store.add(sectionItem(at())), { hint: KEYS.section.hint, keywords: 'group area frame' }),
     cmd('add.board', 'Board inside this one', 'Add', () => a.addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
     cmd('add.link', 'Link or video URL', 'Add', () => a.askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
+    cmd('add.draw', 'Draw a picture from a prompt', 'Add', () => a.draw(), { hint: KEYS.draw.hint, keywords: 'ai generate image imagine gemini imagen prompt make' }),
 
     cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
     cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),

@@ -25,6 +25,7 @@ export interface KeyActions {
   centreOfView: () => { x: number; y: number }
   addBoard: (at: { x: number; y: number }) => void
   askForLink: (at: { x: number; y: number }) => void
+  draw: () => void
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -115,6 +116,7 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
       if (k === KEYS.board.key) { e.preventDefault(); a.addBoard(at); return }
       if (k === KEYS.link.key) { e.preventDefault(); a.askForLink(at); return }
+      if (k === KEYS.draw.key) { e.preventDefault(); a.draw(); return }
       if (k === KEYS.addFiles.key) { e.preventDefault(); a.pickFiles(); return }
       if (k === KEYS.effects.key) { e.preventDefault(); a.togglePanel(); return }
       if (k === KEYS.present.key) { e.preventDefault(); a.present(); return }

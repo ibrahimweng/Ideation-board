@@ -4,7 +4,7 @@ import { TagFilter } from './TagFilter'
 import { nameFor, titleFor } from './shortcuts'
 import type { ShortcutName } from './shortcuts'
 import {
-  IconBoard, IconCommand, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
+  IconBoard, IconCommand, IconDraw, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
   IconNote, IconSection, IconUndo, IconRedo,
 } from './icons'
 import type { Crumb } from '../state/boards'
@@ -35,13 +35,14 @@ interface Props {
   onSection: () => void
   onBoard: () => void
   onLink: () => void
+  onDraw: () => void
   onImport: () => void
   onExport: () => void
 }
 
 export function TopBar({
   path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands,
-  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onImport, onExport,
+  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport,
 }: Props) {
   return (
   <header className="topbar" data-nested={path.length > 1 || undefined}>
@@ -118,6 +119,9 @@ export function TopBar({
         </ToolButton>
         <ToolButton name="link" onClick={onLink} narrow>
           <IconLink />
+        </ToolButton>
+        <ToolButton name="draw" onClick={onDraw} narrow>
+          <IconDraw />
         </ToolButton>
       </div>
 

@@ -22,6 +22,8 @@ import { useShortcuts } from './app/useShortcuts'
 import type { Crumb } from './state/boards'
 import { Present } from './ui/Present'
 import { Compare } from './ui/Compare'
+import { GenerateSheet } from './ui/GenerateSheet'
+import { drawMany } from './state/generate'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -56,6 +58,9 @@ export default function App() {
   const [presenting, setPresenting] = useState(false)
   /* Two, three or four things held up against each other. */
   const [comparing, setComparing] = useState(false)
+  /* Asking for a picture that does not exist yet. */
+  const [drawSheet, setDrawSheet] = useState(false)
+  const [drawBusy, setDrawBusy] = useState(false)
   const [presentAt, setPresentAt] = useState<string | undefined>(undefined)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   /* Read out by anything reading the page aloud when the selection moves. */
@@ -625,6 +630,29 @@ export default function App() {
     [centreOfView]
   )
 
+  /* Ask for a picture, and report what came back.
+   *
+   * The sheet closes first, so that the cards it puts down are visible while
+   * they fill in rather than hidden behind the thing that asked for them. */
+  const onDraw = useCallback(
+    (prompt: string, count: number, aspect: string) => {
+      setDrawSheet(false)
+      setDrawBusy(true)
+      const at = centreOfView()
+      say(count > 1 ? `Drawing ${count}…` : 'Drawing…', 60000)
+      void drawMany(at, prompt, count, { aspect }).then((made) => {
+        setDrawBusy(false)
+        const ok = made.filter((m) => m.ok).length
+        /* Every one of them failed the same way, nearly always: one sentence
+           about the key or the model, not four copies of it. */
+        const bad = made.find((m) => m.error)
+        if (ok) say(ok === made.length ? (ok === 1 ? 'Drew it' : `Drew ${ok}`) : `Drew ${ok} of ${made.length}`)
+        else say(bad?.error || 'Nothing came back', 6000)
+      })
+    },
+    [centreOfView, say]
+  )
+
   /* Everything the board can do, as a list. Built here because this is where
      the actions are; the palette only searches it and runs what you pick. */
   const commands = useMemo(
@@ -636,6 +664,7 @@ export default function App() {
         centreOfView,
         addBoard: (at) => void addBoard(at),
         askForLink: () => askForLink(),
+        draw: () => setDrawSheet(true),
         pickFiles: () => fileRef.current?.click(),
         importBoard: () => importRef.current?.click(),
         exportBoard: () => void exportBoard(),
@@ -671,6 +700,7 @@ export default function App() {
     centreOfView,
     addBoard: (at) => void addBoard(at),
     askForLink,
+    draw: () => setDrawSheet(true),
     pickFiles: () => fileRef.current?.click(),
     importBoard: () => importRef.current?.click(),
     exportBoard: () => void exportBoard(),
@@ -796,6 +826,7 @@ export default function App() {
         onSection={() => store.add(sectionItem(centreOfView()))}
         onBoard={() => void addBoard(centreOfView())}
         onLink={() => askForLink()}
+        onDraw={() => setDrawSheet(true)}
         onImport={() => importRef.current?.click()}
         onExport={() => void exportBoard()}
       />
@@ -847,6 +878,9 @@ export default function App() {
           onKeepMine={() => void keepMine()}
           onExport={() => void exportBoard()}
         />
+      )}
+      {drawSheet && (
+        <GenerateSheet onClose={() => setDrawSheet(false)} onDraw={onDraw} busy={drawBusy} />
       )}
       {comparing && (
         <Compare ids={selection} onClose={() => setComparing(false)} say={say} />

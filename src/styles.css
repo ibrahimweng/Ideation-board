@@ -631,6 +631,26 @@ body[data-dragging] .card-chrome { opacity: 0; }
    nothing at all. A still screen says the same thing without the theatre. */
 .placeholder { background: var(--well) var(--screen-flat) repeat; opacity: 0.55; }
 
+/* A picture that has been asked for and has not arrived.
+ *
+ * The same dot screen as an empty card, breathing, so that a ten second wait
+ * reads as work in progress rather than as a card that failed to load. Built
+ * out of the screen the rest of the board is made of rather than a spinner:
+ * there is one visual language here and a rotating arc is not in it. */
+.placeholder[data-drawing] { position: relative; animation: breathe 1.8s ease-in-out infinite; }
+.placeholder .drawing {
+  position: absolute; inset: 0; margin: auto; width: 34%; height: 2px;
+  background: var(--ink); opacity: 0.5;
+  transform-origin: center;
+  animation: sweep 1.8s ease-in-out infinite;
+}
+@keyframes breathe { 0%, 100% { opacity: 0.42; } 50% { opacity: 0.72; } }
+@keyframes sweep { 0%, 100% { transform: scaleX(0.25); } 50% { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .placeholder[data-drawing], .placeholder .drawing { animation: none; }
+  .placeholder[data-drawing] { opacity: 0.72; }
+}
+
 /* The noise itself is set inline from src/board/grain.ts, so the card and an
    export of the card lay down the same one. */
 .grain { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; }
@@ -1274,6 +1294,63 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .sheet-actions button { padding: 8px 16px; border-radius: var(--r-sm); font-size: var(--t-md); background: var(--ink); color: var(--on-ink); }
 .sheet-actions .ghost { background: var(--surface); color: var(--muted); }
+
+/* ---------- asking for a picture ---------- */
+
+.gen-sheet { width: min(520px, 94vw); }
+.gen-prompt { min-height: 92px; }
+.gen-intro, .gen-note {
+  font-size: var(--t-sm); line-height: 1.6; color: var(--ink-2); margin: 0;
+}
+.gen-note { color: var(--muted); font-size: var(--t-xs); }
+.gen-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gen-row > span { font-size: var(--t-sm); color: var(--muted); margin-right: 4px; }
+.gen-row button {
+  padding: 4px 10px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  font-size: var(--t-sm); color: var(--ink-2); background: var(--surface);
+}
+.gen-row button[data-on] { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }
+.gen-aside { font-size: var(--t-xs); color: var(--faint); font-style: normal; margin-left: 2px; }
+
+/* The settings are one line away rather than behind a window of their own,
+   because the model is the thing that changes most often after the prompt. */
+.gen-more {
+  display: flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-size: var(--t-sm); color: var(--muted); background: none; padding: 2px 0;
+}
+.gen-more:hover { color: var(--ink); }
+.gen-model { font: 400 var(--t-xs)/1 var(--mono); color: var(--faint); }
+
+.gen-settings {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.gen-settings label { display: flex; align-items: center; gap: 8px; }
+.gen-settings label > span { width: 62px; flex: none; font-size: var(--t-sm); color: var(--muted); }
+.gen-settings input {
+  flex: 1; min-width: 0; padding: 7px 9px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font: 400 var(--t-sm)/1.4 var(--mono);
+}
+.gen-settings input:focus { outline: 2px solid var(--accent); }
+.gen-settings label > button {
+  flex: none; padding: 6px 12px; border-radius: var(--r-sm); font-size: var(--t-sm);
+  background: var(--ink); color: var(--on-ink);
+}
+.gen-settings label > button.ghost { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+.gen-settings label > button:disabled { background: var(--disabled); color: var(--on-ink); }
+
+ul.gen-models { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0 0 0 70px; }
+ul.gen-models button {
+  padding: 3px 8px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  font: 400 var(--t-xs)/1.4 var(--mono); color: var(--muted); background: var(--surface);
+}
+ul.gen-models button[data-on] { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }
+
+.gen-warn {
+  margin: 0; font-size: var(--t-sm); line-height: 1.55; color: var(--warn);
+  border-left: 2px solid var(--warn); padding-left: 10px;
+}
 
 /* ---------- chrome ---------- */
 

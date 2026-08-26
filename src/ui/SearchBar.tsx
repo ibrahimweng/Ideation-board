@@ -6,6 +6,7 @@ import { findInTree, labelOf, loadTree, MAX_FOUND } from '../state/deep'
 import type { Found } from '../state/deep'
 import type { Crumb } from '../state/boards'
 import { KEYS } from './shortcuts'
+import { keysHeld } from './modal'
 
 /* ---------------------------------------------------------------------------
  * Search.
@@ -58,6 +59,10 @@ export function SearchBar({ path, onGo }: { path: Crumb[]; onGo: (to: Crumb[], i
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      /* Something is covering the board — the show, comparing, a prompt. The
+         search box is behind it, and pulling the focus into a field nobody can
+         see is worse than the shortcut not working. */
+      if (keysHeld()) return
       const t = e.target as HTMLElement
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       const cmd = e.metaKey || e.ctrlKey

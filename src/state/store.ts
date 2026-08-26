@@ -263,10 +263,16 @@ export class BoardStore {
   }
 
   /* Removing a section removes what is inside it, which is what Figma does.
-   * Undo keeps whole-board snapshots, so one Cmd+Z brings all of it back. */
-  remove(ids: string[]) {
+   * Undo keeps whole-board snapshots, so one Cmd+Z brings all of it back.
+   *
+   * `record` is false when the removal is undoing something the person never
+   * asked for in the first place — a card put down for a picture that then
+   * failed to arrive. Recording that would leave two steps in the history
+   * which cancel each other out, and pressing undo afterwards would bring the
+   * empty card back from the dead. */
+  remove(ids: string[], record = true) {
     if (!ids.length) return
-    this.snapshot()
+    if (record) this.snapshot()
     const all = new Set(ids)
     for (const id of ids) {
       const it = this.items.get(id)

@@ -8,6 +8,7 @@ import { BoardCard } from './BoardCard'
 import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
+import { useDrawing } from '../state/generate'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
@@ -61,6 +62,8 @@ export const Card = memo(function Card({
   const it = useItem(id)
   const objectUrl = useObjectURL(it?.media)
   const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
+  /* Still waiting on a picture that was asked for rather than dropped. */
+  const drawing = useDrawing(id)
 
   if (!it) return null
 
@@ -232,7 +235,12 @@ export const Card = memo(function Card({
                 crossOrigin={!it.media && it.readable !== false ? 'anonymous' : undefined}
               />
             ) : (
-              <div className="media placeholder" />
+              /* An image card with nothing in it yet is either a picture being
+                 drawn or one that failed to arrive. Saying which is the whole
+                 difference between "wait" and "that is broken". */
+              <div className="media placeholder" data-drawing={drawing || undefined}>
+                {drawing && <span className="drawing" aria-label="Drawing" />}
+              </div>
             ))}
 
           {it.kind === 'audio' &&

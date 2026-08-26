@@ -443,6 +443,82 @@ told rather than left guessing:
 
 An address that turns out not to be a video stays an ordinary link card.
 
+## Drawing a picture from a prompt
+
+Press **D**, or the frame button in the top bar, and describe something. A card
+goes down where you are looking, at the shape you asked for, and fills in when
+the picture arrives. After that it is an ordinary picture card: effects run on
+it, it exports with the board, it goes into the poster, it can be compared
+against the others.
+
+Ask for two or four at once and they arrive side by side, all selected, so
+**C** holds them up against each other straight away. That is usually the point
+of asking more than once.
+
+The whole prompt stays on the card, so a board of generated pictures still says
+what each one was asked for six months later, and the search box finds one by a
+word from its prompt.
+
+### Your key, on your machine
+
+This is a static site with no server, so it has no key of its own and no way to
+pay for anything. You bring a [Google AI Studio](https://aistudio.google.com/apikey)
+key, and it is kept in this browser's local storage.
+
+That is a deliberate choice rather than a shortcut. A key held on a server would
+mean one key paying for everybody who finds the address — a free image generator
+for strangers, billed to whoever deployed it — and it would need a server to
+hold it, which this does not have. A key held here can only ever spend your own
+quota.
+
+What follows from that is worth knowing:
+
+- It is per browser. A second machine needs the key entered again.
+- Anything with a debugger open on this page can read it, so use a machine you
+  trust and a key you can revoke.
+- It never touches a board. Not the record in IndexedDB, not the `.board.zip`
+  export, not the folder mirror, not what travels to another tab. The board is
+  data about pictures; the key is a credential, and the two do not mix.
+  `test/draw.mjs` proves it against real storage and a real exported file.
+- The request goes straight from your browser to Google, with the key in the
+  `x-goog-api-key` header rather than in the address, because a URL is the one
+  part of a request that gets written down — in a referrer, in a devtools list,
+  in the text of an error somebody pastes into a chat.
+
+### Which model
+
+No model name is written into this app. Open the key and model line, and the
+list is fetched with your key: whatever your key can see, filtered down to the
+ones that make pictures. Pick one, or type an id the list has not heard of.
+
+Two families live behind the same address and take different requests. Imagen
+answers to `predict`; Gemini answers to `generateContent`. Which one a model is
+is not guessed — the listing says, and the request is built from that.
+
+The reply is read by looking for a picture in it rather than by walking a path.
+Both families bury the bytes at a different depth under a different name, the
+shapes have moved before, and a search that recognises an image by its own first
+bytes cannot be broken by a rename. It is careful about the opposite mistake
+too: several fields in a Gemini reply are base64 and are not pictures — a
+thought signature most of all — so a string has to either sit beside an `image/*`
+mime type or begin with the first bytes of a real image format before it is
+believed.
+
+Some request fields are an error on models that do not support them, and there
+is nothing in the listing that says which. So the adapter asks, and when the
+answer is that the request was malformed it asks again with less: the aspect
+ratio config first, then the combination of response types. A refused key or an
+exhausted quota is not retried — it would say the same thing four times.
+
+When nothing comes back you are told what happened rather than that something
+went wrong. A model that writes rather than draws hands back its own sentence. A
+refused prompt says it was refused and why. A key that is not accepted says so.
+The empty card removes itself either way.
+
+The address is a setting too, so a proxy of your own can stand in for Google's —
+which is also how the browser test runs the whole path against a fake endpoint
+on this machine, with no key and no internet.
+
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
@@ -830,6 +906,7 @@ npm run test:drop -- http://localhost:5173
 npm run test:tabs -- http://localhost:5173
 npm run test:curate -- http://localhost:5173
 npm run test:compare -- http://localhost:5173
+npm run test:draw -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -877,6 +954,18 @@ npm run bench
   O decide from inside without going back to the board, that the arrows and the
   numbers move between them, that four is the most it shows and it says what it
   left out, and that the board underneath is not moved or nudged by any of it.
+- `test:draw` stands up a fake Gemini on its own origin, speaking the shapes
+  Google's discovery document describes, and drives the whole path through a
+  real browser: the sheet with no key, a key that is refused, a key that works
+  and the model list it can see filtered to the ones that draw, a card on the
+  board before the picture arrives and the picture in it afterwards, both
+  families of model, four at once laid out in a row and all four selected, a
+  model that writes rather than draws handing back its own words, a refused
+  prompt, and everything still there after a reload. Then the part that matters
+  most: that the key is in local storage under its own name and nowhere else,
+  in none of the boards this browser holds, and in no part of an exported
+  `.board.zip` — read back out of the file with Python's `zipfile`. No key and
+  no internet are needed to run it.
 - `test:curate` runs the job the whole app is for, end to end: gather twelve
   references, keep five, put those five in a place of their own, move them to a
   board where they belong, and check they arrive with their pictures and their
@@ -1012,6 +1101,7 @@ anyone typing a domain. `SITE_URL=https://your.domain npm run build` pins it.
 | `src/state` | The board contents, undo and redo, the board tree, what each kind of card can do, where things go when they are lined up, and reading what is dropped in |
 | `src/store` | Saving to IndexedDB, keeping a copy in a folder on disk, and watching how much room is left |
 | `src/ui` | The top bar, the panels, the command list and the small dialogs |
+| `src/ai` | Your key, and asking Google for a picture with it |
 | `src/app` | The keyboard, in one place |
 | `test` | Browser suites and the benchmark |
 | `test/unit` | The fast tests, on the arithmetic underneath |

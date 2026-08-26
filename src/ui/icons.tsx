@@ -75,6 +75,16 @@ export const IconLink = (p: P) => (
   </Svg>
 )
 
+/* Drawing something that was not there: a picture frame, and the spark of it
+ * arriving. Four points rather than a star, to stay on the one weight. */
+export const IconDraw = (p: P) => (
+  <Svg {...p}>
+    <path d="M13.4 8.4v3.6a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6V4.2a1.6 1.6 0 0 1 1.6-1.6h3.6" />
+    <path d="M2.8 11.2 5.9 8.4l2.3 2.1 2.2-2 2.2 2" />
+    <path d="M11.8 1.8v3.4M10.1 3.5h3.4" />
+  </Svg>
+)
+
 export const IconUndo = (p: P) => (
   <Svg {...p}>
     <path d="M3 7.6h6.6a3.4 3.4 0 1 1 0 6.8H6.4" />

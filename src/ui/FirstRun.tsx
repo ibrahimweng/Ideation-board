@@ -1,5 +1,5 @@
 import { KEYS } from './shortcuts'
-import { IconCommand, IconFiles, IconNote, IconPresent } from './icons'
+import { IconCommand, IconDraw, IconFiles, IconNote, IconPresent } from './icons'
 
 /* ---------------------------------------------------------------------------
  * The empty board.
@@ -50,6 +50,11 @@ export function FirstRun({ onAddFiles, onNote, onCommands }: {
         <li>
           <IconPresent />
           Thirty one effects, applied on the GPU, on as many pictures as you like at once.
+        </li>
+        <li>
+          <IconDraw />
+          <strong>{KEYS.draw.hint}</strong> draws a picture from a description, with your own key, kept in
+          this browser.
         </li>
         <li>
           <IconCommand />
