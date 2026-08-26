@@ -5,6 +5,7 @@ import { isSection } from '../state/kinds'
 import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
 import { KEYS } from '../ui/shortcuts'
+import { keysHeld } from '../ui/modal'
 
 /* ---------------------------------------------------------------------------
  * The keyboard.
@@ -38,11 +39,14 @@ export interface KeyActions {
   mark: (pick: 'in' | 'out') => void
   takeAway: () => void
   gather: () => void
+  compare: () => void
 }
 
 export function useShortcuts(a: KeyActions) {
   useEffect(() => {
   const onKey = (e: KeyboardEvent) => {
+    /* Something is covering the board and listening for these itself. */
+    if (keysHeld()) return
     const t = e.target as HTMLElement
     /* The command list opens from anywhere, a half typed note included: it
        is how you get out of whatever you are in and do something else. */
@@ -123,6 +127,8 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.cut.key) { e.preventDefault(); a.mark('out'); return }
       /* The last step of curating: what survived, in one place. */
       if (k === KEYS.gather.key) { e.preventDefault(); a.gather(); return }
+      /* And the deciding itself, which is nearly always between two things. */
+      if (k === KEYS.compare.key) { e.preventDefault(); a.compare(); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {

@@ -41,6 +41,7 @@ export interface CommandActions {
   say: (text: string) => void
   exportPoster: (as: 'png' | 'pdf') => void
   gather: () => void
+  compare: () => void
   takeAway: () => void
   putHere: () => void
   clipped: number
@@ -144,6 +145,15 @@ export function buildCommands(a: CommandActions): Command[] {
 
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
+    /* The deciding itself. The show puts one thing on screen at a time, and
+       when you are choosing the question is what the other one looked like. */
+    cmd(
+      'view.compare',
+      a.selection.length > 1 ? `Hold the ${Math.min(4, a.selection.length)} selected up against each other` : 'Hold two things up against each other',
+      'View',
+      () => a.compare(),
+      { hint: KEYS.compare.hint, disabled: a.selection.length < 2, keywords: 'compare side by side against versus choose between judge' }
+    ),
     cmd('view.effects', a.panelOpen ? 'Hide the effects panel' : 'Show the effects panel', 'View', () => a.setPanelOpen((v) => !v), { hint: KEYS.effects.hint }),
     cmd('view.looks', 'Saved looks', 'View', () => { a.setPanelOpen(() => true); a.setTab('looks') }, { keywords: 'preset grade style' }),
     cmd('view.search', 'Search this board', 'View', () => a.focusSearch(), { hint: KEYS.search.hint, keywords: 'find filter' }),

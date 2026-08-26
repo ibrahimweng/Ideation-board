@@ -1335,6 +1335,69 @@ body[data-dragging] .card-chrome { opacity: 0; }
   .board-name { width: 130px; }
 }
 
+/* ---------- two, three or four things against each other ----------
+
+   The same near-black ground the show uses, because it is the same job done to
+   more than one thing at a time: nothing on screen but what is being judged. */
+.compare { cursor: default; align-content: center; }
+
+.compare-grid {
+  display: grid; gap: var(--s5) var(--s4);
+  justify-content: center; align-content: center;
+  padding: var(--s5) var(--s5) 96px;
+}
+
+.compare-cell {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+  border-radius: var(--r-md); padding: var(--s2);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+/* The one the keys act on. A ring rather than a glow: at this size on this
+   ground a glow reads as part of the picture. */
+.compare-cell[data-on] { border-color: rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.05); }
+.compare-cell[data-pick='out'] { opacity: 0.45; }
+.compare-cell[data-pick='out'][data-on] { opacity: 0.9; }
+
+.compare-hold { display: grid; place-items: center; }
+
+.compare-say {
+  display: flex; align-items: center; gap: var(--s2); max-width: 100%;
+  font-size: var(--t-sm); color: rgba(255, 255, 255, 0.62);
+}
+.compare-say b {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 600 var(--t-xs)/1 var(--sans);
+  background: rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.86);
+}
+.compare-cell[data-on] .compare-say { color: #fff; }
+.compare-cell[data-on] .compare-say b { background: #fff; color: #101014; }
+.compare-say span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-say em {
+  flex: none; font-style: normal; font-size: var(--t-xs);
+  padding: 1px 7px; border-radius: 999px; color: #fff;
+}
+.compare-say em[data-pick='in'] { background: #2f8f5b; }
+.compare-say em[data-pick='out'] { background: #b4443f; }
+
+.compare-more { font-style: normal; color: rgba(255, 255, 255, 0.45); }
+
+.compare-do {
+  flex: none; padding: 6px 14px; border-radius: var(--r-md);
+  font: 500 var(--t-md)/1.4 var(--sans); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.compare-do[data-pick='in']:hover { background: #2f8f5b; border-color: #2f8f5b; }
+.compare-do[data-pick='out']:hover { background: #b4443f; border-color: #b4443f; }
+
+@media (max-width: 760px) {
+  /* One column of two on a phone, which is the only honest comparison at that
+     width; the grid arithmetic gets the room and works the rest out. */
+  .compare-grid { padding: var(--s3) var(--s3) 88px; gap: var(--s3); }
+  .compare-do { padding: 6px 10px; }
+}
+
 /* ---------------------------------------------------------------------------
  * A phone.
  *

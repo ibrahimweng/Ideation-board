@@ -34,6 +34,7 @@ export const KEYS = {
   takeAway: { key: 'x', hint: '⌘X', label: 'Take the selection off this board', short: 'Take away' },
   putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
   gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
+  compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },

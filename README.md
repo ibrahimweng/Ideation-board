@@ -236,6 +236,7 @@ Keyboard shortcuts:
 | I | Mark the selection as kept |
 | O | Mark the selection as cut |
 | G | Put the selection together in one place |
+| C | Hold the selection up against each other |
 | / | Search |
 | Cmd or Ctrl and Enter | Select every search result (in the search box) |
 | Cmd or Ctrl and S | Export this board and everything in it |
@@ -593,6 +594,30 @@ behind, because it is not on the board it is going to. Taking away and putting
 down is a move, so it happens once. A board will not be put inside itself, and
 says so rather than making a loop.
 
+## Holding two things up against each other
+
+Deciding is nearly always between two things — this one or that one — and the
+show could not help with it, because it puts one thing on the screen at a time
+and the question when you are choosing is what the other one looked like. On
+the board they are cards among thirty. Neither is a comparison.
+
+Select two, three or four and press C. They go up together on the same near
+black ground the show uses, each as large as the room allows, with nothing else
+on screen. The arrangement is worked out rather than fixed: four wide
+photographs want two rows and four tall ones want four columns, and which is
+which depends on the shape of the window as much as on the pictures.
+
+The decision is made from inside it, because that is the moment you have made
+up your mind. I keeps whichever one the keys are on and O cuts it, the same two
+keys the board uses, and the mark appears on the picture rather than only after
+you have left. The arrows move between them, and so do their numbers, which are
+written on them. Escape leaves, and what you decided is on the board.
+
+Four is the most it will hold up at once, because past that they are too small
+to be honestly compared — at that point what you want is the board. Select more
+and it takes the first four in the board's own reading order and says how many
+it left out.
+
 ## Deciding
 
 A board only ever grew. Everything that went on it stayed on it, and there was
@@ -804,6 +829,7 @@ npm run test:fit -- http://localhost:5173
 npm run test:drop -- http://localhost:5173
 npm run test:tabs -- http://localhost:5173
 npm run test:curate -- http://localhost:5173
+npm run test:compare -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -846,6 +872,11 @@ npm run bench
   fitting nothing says so rather than appearing to do nothing, and that double
   clicking a picture opens it big at that picture while a note still opens its
   editor.
+- `test:compare` holds two wide-and-tall photographs up against each other and
+  checks they are laid out side by side and far larger than a card, that I and
+  O decide from inside without going back to the board, that the arrows and the
+  numbers move between them, that four is the most it shows and it says what it
+  left out, and that the board underneath is not moved or nudged by any of it.
 - `test:curate` runs the job the whole app is for, end to end: gather twelve
   references, keep five, put those five in a place of their own, move them to a
   board where they belong, and check they arrive with their pictures and their

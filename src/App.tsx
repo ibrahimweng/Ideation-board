@@ -21,6 +21,7 @@ import { buildCommands } from './ui/commands'
 import { useShortcuts } from './app/useShortcuts'
 import type { Crumb } from './state/boards'
 import { Present } from './ui/Present'
+import { Compare } from './ui/Compare'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -53,6 +54,8 @@ export default function App() {
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth >= 900)
   const [palette, setPalette] = useState(false)
   const [presenting, setPresenting] = useState(false)
+  /* Two, three or four things held up against each other. */
+  const [comparing, setComparing] = useState(false)
   const [presentAt, setPresentAt] = useState<string | undefined>(undefined)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   /* Read out by anything reading the page aloud when the selection moves. */
@@ -332,6 +335,16 @@ export default function App() {
     unsaved.current = false
     announceSaved(b.id, b.updated)
     say('Kept this version, and the other tab has it now')
+  }, [say])
+
+  /* The deciding itself. Two is the usual number and four is the most that can
+     be looked at honestly at once; past that what you want is the board. */
+  const compare = useCallback(() => {
+    if (store.getSelection().length < 2) {
+      say('Pick out two or more things to hold up against each other')
+      return
+    }
+    setComparing(true)
   }, [say])
 
   /* Curating ends in gathering: what survived, in a place of its own with a
@@ -641,6 +654,7 @@ export default function App() {
         say,
         exportPoster: (as) => void exportSheet(as),
         gather,
+        compare,
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
@@ -648,7 +662,7 @@ export default function App() {
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
-      gather, takeAway, putHere, clippedCount,
+      gather, compare, takeAway, putHere, clippedCount,
     ]
   )
 
@@ -673,6 +687,7 @@ export default function App() {
     mark: (pick) => markPick(pick, say),
     takeAway,
     gather,
+    compare,
   })
 
   /* ---------- paste ---------- */
@@ -832,6 +847,9 @@ export default function App() {
           onKeepMine={() => void keepMine()}
           onExport={() => void exportBoard()}
         />
+      )}
+      {comparing && (
+        <Compare ids={selection} onClose={() => setComparing(false)} say={say} />
       )}
       {presenting && (
         <Present
