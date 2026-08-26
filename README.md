@@ -519,6 +519,82 @@ The address is a setting too, so a proxy of your own can stand in for Google's �
 which is also how the browser test runs the whole path against a fake endpoint
 on this machine, with no key and no internet.
 
+## Letting Claude at the board
+
+The board has no server, so an agent cannot be handed a database to read.
+Everything it knows lives in one browser's IndexedDB. What it can be handed is
+the tab: a small relay runs on your machine, Claude talks to it, and it asks the
+tab — which is the only thing that has ever known what is on your board. That is
+the same shape Figma uses, where the local process is a relay and the
+application is the thing that actually holds the document.
+
+```bash
+claude mcp add ideation -- node /path/to/ideation-board/mcp/server.mjs
+```
+
+Then, in the board: **⌘K → Connect to Claude**. The corner says "Claude" for as
+long as something other than you can move the cards.
+
+Running Claude Code from inside this repo needs none of that — `.mcp.json` is
+already here.
+
+If you are using the deployed site rather than a local one, the relay has to be
+told about it, once:
+
+```bash
+claude mcp add ideation -- node .../mcp/server.mjs --origin https://your.vercel.app
+```
+
+The sheet fills that address in for you.
+
+### What Claude can do
+
+`get_board` first — card ids come from there and from nowhere else. Then
+`list_boards`, `add_card`, `draw_image`, `update_card`, `move_card`,
+`delete_cards`, `connect_cards`, `arrange`, `select_cards`, `fit_view`.
+
+Everything goes through the same store the interface goes through. An arrow
+drawn by Claude and an arrow drawn by hand are the same arrow, one press of undo
+takes either back, and the board is saved by the machinery that was already
+saving it. `select_cards` is worth more than it looks: you are watching the
+board while Claude works, and pointing beats describing.
+
+`draw_image` spends your own key, from your own browser. Nothing about that
+changes because an agent asked.
+
+### Who is allowed to connect
+
+The relay listens on the loopback address, and **every page in your browser can
+reach loopback**. Without a check, any site you happened to be visiting could
+open the stream and read — or rewrite — your board.
+
+The check is the `Origin` header. A browser sets it on every cross-origin
+request and a page cannot forge it, so a list of allowed origins is a real
+boundary rather than a polite one. Loopback origins are allowed by default,
+because that is what you develop against; the address you deployed to has to be
+named with `--origin`. A missing or `null` origin is refused outright — that
+means a sandboxed frame, or something that is not a browser at all.
+
+`--token` adds a shared secret on top. It is off by default and it is not the
+boundary; it is there for a machine where something else untrusted is already
+running.
+
+`test/mcp.mjs` proves this rather than asserting it: it conjures a second origin
+with Chrome's host resolver and, from inside a real browser, tries to open the
+stream and tries to write to it. Both are refused, the relay records who it
+turned away, and the board carries on untouched.
+
+### What it is made of
+
+`mcp/server.mjs` has no dependencies. MCP over stdio is JSON-RPC in
+newline-delimited JSON, and the bridge is an event stream out and a POST back,
+so the whole relay is Node's own `http` and nothing else. A tool for looking at
+pictures should not drag a dependency tree behind it.
+
+It knows the names of the tools and the shape of their arguments, and nothing
+whatever about what a card is. `src/mcp/tools.ts`, in the app, is the half that
+knows — so adding a kind of card means editing one program, not two.
+
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
@@ -907,6 +983,7 @@ npm run test:tabs -- http://localhost:5173
 npm run test:curate -- http://localhost:5173
 npm run test:compare -- http://localhost:5173
 npm run test:draw -- http://localhost:5173
+npm run test:mcp -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -966,6 +1043,13 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:mcp` starts the real relay as a real subprocess and speaks to it the
+  way Claude does — JSON-RPC on its stdin and stdout — while a real browser
+  holds the board at the other end. Nothing stands in for anything: a note put
+  down over the wire is really on the board, its words are on screen, undo takes
+  it back, and `draw_image` produces real pictures. Then the half that matters
+  most: a second origin is conjured with Chrome's host resolver and made to try,
+  from inside a real browser, exactly what a hostile page would.
 - `test:curate` runs the job the whole app is for, end to end: gather twelve
   references, keep five, put those five in a place of their own, move them to a
   board where they belong, and check they arrive with their pictures and their
@@ -1102,9 +1186,11 @@ anyone typing a domain. `SITE_URL=https://your.domain npm run build` pins it.
 | `src/store` | Saving to IndexedDB, keeping a copy in a folder on disk, and watching how much room is left |
 | `src/ui` | The top bar, the panels, the command list and the small dialogs |
 | `src/ai` | Your key, and asking Google for a picture with it |
+| `src/mcp` | The wire to the relay, and what an agent may do to the board |
 | `src/app` | The keyboard, in one place |
 | `test` | Browser suites and the benchmark |
 | `test/unit` | The fast tests, on the arithmetic underneath |
+| `mcp` | The relay Claude talks to. No dependencies |
 | `scripts` | The runner that drives every browser suite in one command |
 | `public` | The icon at every size, the social card, the manifest |
 | `brand` | What generates all of that, and why the mark is what it is |

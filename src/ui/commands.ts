@@ -26,6 +26,7 @@ export interface CommandActions {
   addBoard: (at: { x: number; y: number }) => void
   askForLink: () => void
   draw: () => void
+  connectClaude: () => void
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -123,6 +124,8 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('arrange.spready', 'Space the selection out down', 'Arrange', () => store.distribute(sel(), 'y'), { disabled: a.selection.length < 3 }),
 
     cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => a.exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
+    /* The other way out: not a file, but an agent given the board to work on. */
+    cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
     /* The one export that is a deliverable rather than a backup: the board
        as it looks, flat, in a file anyone can open. */

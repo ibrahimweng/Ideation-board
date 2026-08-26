@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ideation": {
+      "command": "node",
+      "args": ["mcp/server.mjs"]
+    }
+  }
+}

@@ -1352,6 +1352,32 @@ ul.gen-models button[data-on] { border-color: var(--accent); color: var(--ink); 
   border-left: 2px solid var(--warn); padding-left: 10px;
 }
 
+/* Something other than the person at the keyboard can move these cards. */
+.relay-state {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--t-sm); color: var(--muted);
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.relay-state[data-on] { color: var(--ink); border-color: var(--accent-line); background: var(--accent-wash); }
+.relay-state[data-warn] { color: var(--warn); border-color: var(--warn); }
+.relay-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.relay-state[data-on] .relay-dot { background: var(--accent); }
+.relay-state[data-warn] .relay-dot { background: var(--warn); }
+
+.relay-how { display: flex; flex-direction: column; gap: 8px; }
+.relay-how p { margin: 0; font-size: var(--t-sm); line-height: 1.6; color: var(--ink-2); }
+.relay-how code {
+  display: block; padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--sunk); color: var(--ink);
+  font: 400 var(--t-xs)/1.6 var(--mono); overflow-x: auto; white-space: pre; user-select: all;
+}
+
+/* In the corner beside the item count, for as long as it is true. */
+.stats-relay { color: var(--faint); }
+.stats-relay[data-on] { color: var(--accent); font-weight: 500; }
+.stats-relay[data-on]::before { content: '● '; font-size: 8px; vertical-align: 2px; }
+.stats-relay[data-warn] { color: var(--warn); }
+
 /* ---------- chrome ---------- */
 
 /* Not a toast. A toast is for things that have gone right and can be missed;

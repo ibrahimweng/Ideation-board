@@ -23,6 +23,9 @@ import type { Crumb } from './state/boards'
 import { Present } from './ui/Present'
 import { Compare } from './ui/Compare'
 import { GenerateSheet } from './ui/GenerateSheet'
+import { RelaySheet } from './ui/RelaySheet'
+import { resumeRelay } from './mcp/bridge'
+import { notePath } from './mcp/tools'
 import { drawMany } from './state/generate'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
@@ -61,6 +64,8 @@ export default function App() {
   /* Asking for a picture that does not exist yet. */
   const [drawSheet, setDrawSheet] = useState(false)
   const [drawBusy, setDrawBusy] = useState(false)
+  /* Letting Claude at the board. */
+  const [relaySheet, setRelaySheet] = useState(false)
   const [presentAt, setPresentAt] = useState<string | undefined>(undefined)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   /* Read out by anything reading the page aloud when the selection moves. */
@@ -269,6 +274,17 @@ export default function App() {
     setBusy(msg)
     window.setTimeout(() => setBusy(null), ms)
   }, [])
+
+  /* An agent asking what is on this board should be able to say "inside
+     Textures" rather than naming a board id nobody recognises, and the path is
+     kept here. */
+  useEffect(() => {
+    notePath(path.map((c) => ({ id: c.id, name: c.name })))
+  }, [path])
+
+  /* Attached again after a reload, if that is how it was left — so refreshing
+     the page does not silently drop Claude out of a conversation. */
+  useEffect(resumeRelay, [])
 
   /* Another tab wrote the board we are on.
    *
@@ -665,6 +681,7 @@ export default function App() {
         addBoard: (at) => void addBoard(at),
         askForLink: () => askForLink(),
         draw: () => setDrawSheet(true),
+        connectClaude: () => setRelaySheet(true),
         pickFiles: () => fileRef.current?.click(),
         importBoard: () => importRef.current?.click(),
         exportBoard: () => void exportBoard(),
@@ -882,6 +899,7 @@ export default function App() {
       {drawSheet && (
         <GenerateSheet onClose={() => setDrawSheet(false)} onDraw={onDraw} busy={drawBusy} />
       )}
+      {relaySheet && <RelaySheet onClose={() => setRelaySheet(false)} />}
       {comparing && (
         <Compare ids={selection} onClose={() => setComparing(false)} say={say} />
       )}

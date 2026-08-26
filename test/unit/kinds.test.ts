@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS } from '../../src/state/kinds'
+import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS, wordsField } from '../../src/state/kinds'
 import type { Item, Kind } from '../../src/state/types'
 import { FX_0 } from '../../src/engine/types'
 
@@ -75,5 +75,34 @@ describe('the questions', () => {
     expect(endsOf(of('edge', { from: 'a', to: 'b' }))).toEqual(['a', 'b'])
     expect(endsOf(of('edge'))).toBeNull()
     expect(endsOf(of('image', { from: 'a', to: 'b' }))).toBeNull()
+  })
+})
+
+describe('where a kind keeps its words', () => {
+  const of = (kind: Kind): Item => ({
+    id: 'x', kind, x: 0, y: 0, w: 10, h: 10, z: 0, fx: { ...FX_0 }, tag: null,
+  })
+
+  it('puts a note and a label in text', () => {
+    expect(wordsField(of('note'))).toBe('text')
+    expect(wordsField(of('label'))).toBe('text')
+  })
+
+  it('names a section instead', () => {
+    /* The one kind where this differs from hasWords, and the reason the two
+     * questions are asked separately: a section's words are its title, written
+     * across the top of it, and `text` is not what draws that. */
+    expect(hasWords(of('section'))).toBe(true)
+    expect(wordsField(of('section'))).toBe('name')
+  })
+
+  it('names everything that has no words of its own', () => {
+    expect(wordsField(of('image'))).toBe('name')
+    expect(wordsField(of('board'))).toBe('name')
+    expect(wordsField(of('link'))).toBe('name')
+  })
+
+  it('names nothing at all rather than throwing', () => {
+    expect(wordsField(undefined)).toBe('name')
   })
 })

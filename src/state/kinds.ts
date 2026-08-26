@@ -80,6 +80,16 @@ export const holdsMedia = trait('media')
 /* Has text of its own. */
 export const hasWords = trait('words')
 
+/* Which field a kind keeps its typed words in.
+ *
+ * A different question from `hasWords`, which asks whether the search should
+ * read them. A section has words and keeps them in `name`, because its name is
+ * the thing written across the top of it — so the two questions give different
+ * answers for exactly one kind, and confusing them puts a section's title in a
+ * field nothing displays. Asked in one place so that cannot happen twice. */
+export const wordsField = (it: Item | undefined): 'text' | 'name' =>
+  it && hasWords(it) && it.kind !== 'section' ? 'text' : 'name'
+
 /* These two are plain booleans rather than guards on purpose. They are nearly
  * always asked in the negative — "if this is not a section, carry on with it" —
  * and a guard that proves an item is there narrows the other branch to nothing

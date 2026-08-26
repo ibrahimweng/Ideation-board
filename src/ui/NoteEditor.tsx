@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { store, useItem } from '../state/store'
 import { SWATCH, TAGS } from '../state/types'
 import { renameBoard } from '../state/boards'
-import { hasWords } from '../state/kinds'
+import { wordsField } from '../state/kinds'
 
 /* Inline editor for the text-bearing card kinds. Edits are written on close
  * rather than on every keystroke, so typing never touches the board. */
@@ -17,7 +17,6 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
   }, [])
 
   if (!it) return null
-  const isText = hasWords(it)
 
   /* The buttons write the same marks a person would have typed, so what is
    * stored stays a plain string and nothing has to agree with anything. */
@@ -75,9 +74,7 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
     })
 
   const commit = () => {
-    if (it.kind === 'section') store.update(id, { name: text })
-    else if (isText) store.update(id, { text })
-    else store.update(id, { name: text })
+    store.update(id, { [wordsField(it)]: text })
     /* A board is named in two places, on the card and in its own record, and
      * the two have to agree or opening it would show a different name. */
     if (it.kind === 'board' && it.board) void renameBoard(it.board, text)

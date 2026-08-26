@@ -26,6 +26,10 @@ export const noteViewportSize = (w: number, h: number) => {
   size = { w, h }
 }
 
+/* Read by anything that has to put something where the person is looking
+ * without being a React component with a ref to hand. */
+export const viewportSize = () => size
+
 export function step(by: 1 | -1): Item | null {
   const list = readingOrder(store.all())
   if (!list.length) return null

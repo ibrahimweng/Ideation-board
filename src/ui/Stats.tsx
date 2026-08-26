@@ -4,6 +4,7 @@ import { getEngine } from '../engine/client'
 import { describeSpace, measure, spaceNow, subscribeSpace, TIGHT as SPACE_TIGHT } from '../store/space'
 import type { Space } from '../store/space'
 import { describeMirror, mirrorState, subscribeMirror } from '../store/mirror'
+import { useRelay } from '../mcp/bridge'
 import type { MirrorState } from '../store/mirror'
 
 /* ---------------------------------------------------------------------------
@@ -26,6 +27,8 @@ export function Stats({ count }: { count: number }) {
   const [items, setItems] = useState(0)
   const [space, setSpace] = useState<Space>(spaceNow)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
+
+  const relay = useRelay()
 
   useEffect(() => subscribeSpace(setSpace), [])
   useEffect(() => subscribeMirror(setMirror), [])
@@ -57,6 +60,26 @@ export function Stats({ count }: { count: number }) {
 
   return (
     <div className="stats" title={detail}>
+      {/* Something other than the person at the keyboard can move these cards.
+          That is worth a corner of the screen for as long as it is true. */}
+      {relay.status !== 'off' && (
+        <span
+          className="stats-relay"
+          data-on={relay.status === 'on' || undefined}
+          data-warn={relay.status === 'lost' || undefined}
+          title={
+            relay.status === 'on'
+              ? relay.call
+                ? `Claude is attached. Last asked for: ${relay.call}`
+                : 'Claude is attached to this board'
+              : relay.status === 'lost'
+                ? 'The relay stopped answering. Trying again.'
+                : 'Attaching to the relay'
+          }
+        >
+          {relay.status === 'on' ? 'Claude' : relay.status === 'lost' ? 'Claude lost' : 'Claude…'}
+        </span>
+      )}
       <span>
         {items} item{items === 1 ? '' : 's'}
       </span>
