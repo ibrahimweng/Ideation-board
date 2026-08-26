@@ -36,6 +36,8 @@ export interface KeyActions {
   closeEditor: () => void
   fit: (onlySelection: boolean) => void
   mark: (pick: 'in' | 'out') => void
+  takeAway: () => void
+  gather: () => void
 }
 
 export function useShortcuts(a: KeyActions) {
@@ -90,6 +92,14 @@ export function useShortcuts(a: KeyActions) {
       a.importBoard()
       return
     }
+    /* Taking cards off one board to put them on another. Nothing else on the
+       board answers to it, and the browser's own cut has nothing to cut when
+       the focus is the canvas. */
+    if (cmd && e.key.toLowerCase() === KEYS.takeAway.key) {
+      e.preventDefault()
+      a.takeAway()
+      return
+    }
 
     /* Single key shortcuts only when no modifier is held, so they cannot
      * swallow a browser or system combination. */
@@ -111,6 +121,8 @@ export function useShortcuts(a: KeyActions) {
          off again by pressing the same key. */
       if (k === KEYS.keep.key) { e.preventDefault(); a.mark('in'); return }
       if (k === KEYS.cut.key) { e.preventDefault(); a.mark('out'); return }
+      /* The last step of curating: what survived, in one place. */
+      if (k === KEYS.gather.key) { e.preventDefault(); a.gather(); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {

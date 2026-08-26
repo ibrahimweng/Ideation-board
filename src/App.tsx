@@ -80,6 +80,9 @@ export default function App() {
   /* While this stands, nothing is written: another tab has a newer version of
      this board and overwriting it would be the very thing this is here to
      prevent. It is the person's decision which one wins. */
+  /* How many cards are waiting to be put on a board, so the command list can
+     say so rather than offering an empty paste. */
+  const [clippedCount, setClippedCount] = useState(0)
   const [clash, setClash] = useState(false)
   const clashRef = useRef(false)
   clashRef.current = clash
@@ -329,6 +332,56 @@ export default function App() {
     unsaved.current = false
     announceSaved(b.id, b.updated)
     say('Kept this version, and the other tab has it now')
+  }, [say])
+
+  /* Curating ends in gathering: what survived, in a place of its own with a
+     name on it, so it can be looked at, presented and handed over as a set
+     rather than as six cards scattered among thirty-four. */
+  const gather = useCallback(() => {
+    const sel = store.getSelection()
+    if (sel.length < 2) {
+      say('Pick out more than one thing to put together')
+      return
+    }
+    const made = store.gather(sel, 'Shortlist')
+    if (!made) {
+      say('Nothing there can be gathered')
+      return
+    }
+    store.select([made])
+    if (!fitToBoard(true)) say(`Put ${sel.length} together`)
+    else say(`Put ${sel.length} together, below the board`, 2600)
+  }, [say])
+
+  /* Taking cards off this board to put on another. The pictures do not move:
+     a card names a blob in a store every board here shares, so what travels
+     is the record. */
+  const takeAway = useCallback(() => {
+    const n = store.cut(store.getSelection())
+    if (!n) {
+      say('Pick out something to take away first')
+      return
+    }
+    setClippedCount(n)
+    say(n === 1 ? 'Taken off this board — open another and paste it' : `Took ${n} off this board — open another and paste them`, 3200)
+  }, [say])
+
+  const putHere = useCallback((at: { x: number; y: number }) => {
+    const waiting = store.clipped()
+    if (!waiting.length) return false
+    /* A board cannot be put inside itself, and the trail is what says which
+       boards this one is already inside. */
+    const inside = waiting.find((i) => i.kind === 'board' && i.board && pathRef.current.some((c) => c.id === i.board))
+    if (inside) {
+      say(`${inside.name || 'That board'} is one of the boards you are inside — it cannot go in itself`, 4000)
+      return true
+    }
+    const made = store.paste(at)
+    if (!made.length) return false
+    store.select(made)
+    setClippedCount(0)
+    say(made.length === 1 ? 'Put it here' : `Put ${made.length} here`)
+    return true
   }, [say])
 
   /* A search found something inside a board you are not on: open that board,
@@ -587,10 +640,15 @@ export default function App() {
         },
         say,
         exportPoster: (as) => void exportSheet(as),
+        gather,
+        takeAway,
+        putHere: () => void putHere(centreOfView()),
+        clipped: clippedCount,
       }),
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
+      gather, takeAway, putHere, clippedCount,
     ]
   )
 
@@ -613,6 +671,8 @@ export default function App() {
       if (!fitToBoard(onlySelection)) say(onlySelection ? 'Nothing selected to fit' : 'Nothing on this board yet')
     },
     mark: (pick) => markPick(pick, say),
+    takeAway,
+    gather,
   })
 
   /* ---------- paste ---------- */
@@ -626,6 +686,10 @@ export default function App() {
         return
       }
       const at = centreOfView()
+      /* Cards taken off another board come first: they are the only thing on
+       * either clipboard that was put there by this app, so a paste after a
+       * cut can only have meant them. */
+      if (putHere(at)) return
       /* Copying a picture on a web page puts the <img> on the clipboard as
        * markup, not as an address, so the markup is read first. */
       const url = urlFromPaste(dt)
@@ -638,7 +702,7 @@ export default function App() {
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [onDropFiles, centreOfView])
+  }, [onDropFiles, centreOfView, putHere])
 
   /* Actions for the right click menu on empty board. Everything is placed
    * where the pointer was, which is the point of having the menu there. */
@@ -661,6 +725,10 @@ export default function App() {
         fileRef.current?.click()
       },
       paste: async (at: { x: number; y: number }) => {
+        /* Cards taken off another board first, for the same reason the key
+         * does: they are the only thing on either clipboard this app put
+         * there. */
+        if (putHere(at)) return
         /* Reading the clipboard needs permission the browser may refuse, and
          * there may be nothing in it, so this quietly does nothing rather
          * than reporting a failure the person cannot act on. */
@@ -723,6 +791,8 @@ export default function App() {
           onOpenEditor={openItem}
           onExportPictures={exportPictures}
           onPullColours={(ids) => void pullColours(ids)}
+        onGather={gather}
+        onTakeAway={takeAway}
           canvasActions={canvasActions}
         />
         {panelOpen && <EffectsPanel tab={tab} onTab={setTab} say={say} />}

@@ -137,6 +137,8 @@ const read = (file) => page.evaluate(async (data) => {
   x.drawImage(img, 0, 0)
   const d = x.getImageData(0, 0, c.width, c.height).data
   const seen = { blue: 0, green: 0, dark: 0, wire: 0 }
+  /* Near-white pixels sitting on a scrim: the caption over a photograph. */
+  const caption = { ink: 0 }
   /* The title band: dark pixels above everything the board itself drew. */
   const head = { ink: 0, top: c.height }
   const box = { blue: null, green: null }
@@ -164,9 +166,15 @@ const read = (file) => page.evaluate(async (data) => {
       /* The wire colour, --wire #a8a8b0, which nothing else on the sheet
        * comes near: the ground is far paler and the cards are white. */
       else if (Math.abs(r - 0xa8) < 26 && Math.abs(g - 0xa8) < 26 && Math.abs(bl - 0xb0) < 26) seen.wire++
+      if (r > 200 && g > 200 && bl > 200 && py > c.height * 0.3) {
+        /* Only where a card is: the sheet's own ground is pale too, so this
+         * looks for white sitting directly above a dark scrim. */
+        const below = ((Math.min(c.height - 1, py + 14)) * c.width + px) * 4
+        if (d[below] < 120 && d[below + 1] < 120 && d[below + 2] < 120) caption.ink++
+      }
     }
   }
-  return { w: c.width, h: c.height, seen, box, head }
+  return { w: c.width, h: c.height, seen, box, head, caption }
 }, fs.readFileSync(file).toString('base64'))
 
 const sheet = await read(pngFile)
@@ -182,6 +190,12 @@ ok('they are in different places, as on the board',
    (Math.abs(sheet.box.blue.x0 - sheet.box.green.x0) > 40 || Math.abs(sheet.box.blue.y0 - sheet.box.green.y0) > 40),
    JSON.stringify(sheet.box))
 ok('the writing on the note is painted, not left blank', sheet.seen.dark > 60, `${sheet.seen.dark} dark pixels`)
+/* And what each card is called, along the bottom of it. The board shows this
+   only on hover, which is right for a board and wrong for the thing you send
+   somebody: six pictures with nothing written on them are six pictures and not
+   an argument. */
+ok('each card says what it is', sheet.caption.ink > 40,
+   `${sheet.caption.ink} pixels of caption over the pictures`)
 
 /* The sheet is bigger than the window, because the board is. */
 ok('the sheet covers more than one screenful', sheet.w > 1280 || sheet.h > 860, `${sheet.w}x${sheet.h}`)

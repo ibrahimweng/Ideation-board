@@ -3,9 +3,18 @@ import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
 import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
-import { alignTo, distributeAlong, tidyOnto } from './arrange'
+import { alignTo, clearGround, distributeAlong, gatherInto, tidyOnto } from './arrange'
 import type { AlignMode, Moves } from './arrange'
 import type { LookFx } from './looks'
+
+/* Ids are made here and never taken from a caller, so nothing outside can
+ * hand the board two cards with the same one. */
+const freshId = () => 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+
+/* Cards taken off one board and not yet put on another. Module level on
+ * purpose: it has to outlive the store being loaded with a different board,
+ * which is the entire point of cutting one. */
+let clipboard: Item[] = []
 
 /* ---------------------------------------------------------------------------
  * Board store.
@@ -227,7 +236,7 @@ export class BoardStore {
     /* Built here rather than pulled from the item factories: those import the
      * store, and a cycle between the two is not worth five lines. The zeros
      * are honest — a wire is drawn from its ends and has no box of its own. */
-    const id = 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+    const id = freshId()
     this.add({ id, kind: 'edge', x: 0, y: 0, w: 0, h: 0, from, to, fx: { ...FX_0 }, tag: null })
     return id
   }
@@ -300,7 +309,7 @@ export class BoardStore {
     ]
     this.snapshot()
     const remap = new Map<string, string>()
-    for (const id of full) remap.set(id, 'i_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36))
+    for (const id of full) remap.set(id, freshId())
     const made: string[] = []
     for (const id of full) {
       const src = this.items.get(id)
@@ -427,6 +436,121 @@ export class BoardStore {
 
   tidy(ids: string[], gap = 24) {
     this.applyMoves(tidyOnto(this.arrangeable(ids), gap))
+  }
+
+  /* ---------- moving cards between boards ----------
+   *
+   * A board card holds a whole board, and until now nothing could travel
+   * between them. You could nest boards, and search inside them, and never
+   * bring anything up or send anything down: the only way to move a
+   * photograph one level was to find the original file and drop it again.
+   * For an app whose whole subject is gathering the best of something into one
+   * place, that was the missing verb.
+   *
+   * Cut and paste rather than a "move to…" list of boards, because the boards
+   * are a tree and a picker for it is a second way of navigating something you
+   * can already navigate. Cut, walk to where it belongs, paste.
+   *
+   * The pictures themselves need no moving: a card names a blob in a store
+   * shared by every board in this browser, so what travels is the record.
+   * ------------------------------------------------------------------------ */
+
+  /* Takes them off this board and holds them. One step of undo, so a cut with
+   * no paste after it costs nothing. */
+  cut(ids: string[]): number {
+    const list = ids.map((id) => this.items.get(id)).filter((i): i is Item => !!i && !isWire(i))
+    if (!list.length) return 0
+    /* Wires between two cards that are both leaving travel with them; one with
+     * an end staying behind is a line to nowhere and is left to be removed
+     * along with everything else the removal takes. */
+    const going = new Set(list.map((i) => i.id))
+    const wires = this.all().filter((i) => {
+      const ends = endsOf(i)
+      return !!ends && going.has(ends[0]) && going.has(ends[1])
+    })
+    clipboard = [...list, ...wires].map((i) => ({ ...i, src: undefined }))
+    this.remove([...going, ...wires.map((w) => w.id)])
+    return list.length
+  }
+
+  /* Puts what was cut onto this board, around a point, keeping the shape they
+   * were in. New ids every time, so pasting twice makes two sets rather than
+   * two cards claiming to be one. */
+  paste(at: { x: number; y: number }): string[] {
+    if (!clipboard.length) return []
+    const boxes = clipboard.filter((i) => !isWire(i))
+    if (!boxes.length) return []
+    const x0 = Math.min(...boxes.map((i) => i.x))
+    const y0 = Math.min(...boxes.map((i) => i.y))
+    const remap = new Map(clipboard.map((i) => [i.id, freshId()]))
+
+    this.snapshot()
+    const made: string[] = []
+    for (const src of clipboard) {
+      const id = remap.get(src.id)!
+      const copy: Item = {
+        ...src,
+        id,
+        z: ++this.topZ,
+        /* Sections it used to sit in are not on this board. */
+        parent: null,
+        x: Math.round(at.x + (src.x - x0)),
+        y: Math.round(at.y + (src.y - y0)),
+      }
+      if (src.from) copy.from = remap.get(src.from) || src.from
+      if (src.to) copy.to = remap.get(src.to) || src.to
+      this.items.set(id, copy)
+      this.order.push(id)
+      made.push(id)
+    }
+    this.pingOrder()
+    this.touch()
+    /* Taking away and putting down is a move, so it happens once. Pasting a
+     * second time would make copies of cards that now exist somewhere else,
+     * which is not what taking them off a board implied. */
+    clipboard = []
+    return made
+  }
+
+  /* What is waiting to be pasted, so a menu can say so and a board can refuse
+   * to be put inside itself. */
+  clipped = (): Item[] => clipboard
+
+  /* Put a set of things in one place.
+   *
+   * The last step of curating, and the one that had no verb. You can mark six
+   * of forty as kept and then find them exactly where they were: scattered
+   * over four screens, in among the thirty-four you did not keep. This makes
+   * somewhere for them — a section, on clear ground below the board — lays
+   * them out as a block and moves them into it, in one step of undo.
+   *
+   * The name is the whole point of it being a section rather than a heap: what
+   * comes out is a group with a title on it that can be selected, presented,
+   * exported and handed over as one thing. */
+  gather(ids: string[], name = 'Shortlist'): string | null {
+    const list = this.arrangeable(ids).filter((i) => !isSection(i))
+    if (!list.length) return null
+    const at = clearGround(this.all())
+    const plan = gatherInto(list, at)
+    if (!plan) return null
+
+    this.snapshot()
+    const section: Item = {
+      id: freshId(), kind: 'section', z: ++this.topZ, name,
+      x: plan.frame.x, y: plan.frame.y, w: plan.frame.w, h: plan.frame.h,
+      fx: { ...FX_0 }, tag: null,
+    }
+    this.items.set(section.id, section)
+    this.order.push(section.id)
+    for (const [id, at2] of plan.moves) {
+      const cur = this.items.get(id)
+      if (!cur) continue
+      this.items.set(id, { ...cur, x: at2.x, y: at2.y, parent: section.id })
+      this.pingItem(id)
+    }
+    this.pingOrder()
+    this.touch()
+    return section.id
   }
 
   /* In, out, or undecided. Pressing the same one twice takes the mark off,

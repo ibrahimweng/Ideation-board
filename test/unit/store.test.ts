@@ -210,3 +210,160 @@ describe('applyLook', () => {
     expect(byId('b').fx.fxid).toBe('none')
   })
 })
+
+/* ---------------------------------------------------------------------------
+ * Gathering, and moving cards between boards.
+ * ------------------------------------------------------------------------- */
+
+describe('gather', () => {
+  it('makes a section with a name on it', () => {
+    add({ id: 'a', x: 0, y: 0 })
+    add({ id: 'b', x: 900, y: 700 })
+    const made = store.gather(['a', 'b'], 'Shortlist')!
+    expect(made).toBeTruthy()
+    const section = byId(made)
+    expect(section.kind).toBe('section')
+    expect(section.name).toBe('Shortlist')
+  })
+
+  it('puts what was gathered inside it, and says so', () => {
+    add({ id: 'a', x: 0, y: 0 })
+    add({ id: 'b', x: 900, y: 700 })
+    const made = store.gather(['a', 'b'])!
+    const section = byId(made)
+    for (const id of ['a', 'b']) {
+      const it = byId(id)
+      expect(it.parent).toBe(made)
+      expect(it.x).toBeGreaterThanOrEqual(section.x)
+      expect(it.y).toBeGreaterThanOrEqual(section.y)
+      expect(it.x + it.w).toBeLessThanOrEqual(section.x + section.w)
+      expect(it.y + it.h).toBeLessThanOrEqual(section.y + section.h)
+    }
+  })
+
+  /* On ground of its own, so gathering never lands on the board it came from. */
+  it('puts it clear of everything that was already there', () => {
+    const before = [add({ id: 'a', x: 0, y: 0 }), add({ id: 'b', x: 900, y: 700 }), add({ id: 'c', x: 400, y: 300 })]
+    const made = store.gather(['a', 'b'])!
+    const section = byId(made)
+    const stayed = byId('c')
+    expect(section.y).toBeGreaterThan(stayed.y + stayed.h)
+    void before
+  })
+
+  it('is one step of undo', () => {
+    add({ id: 'a', x: 0, y: 0 })
+    add({ id: 'b', x: 900, y: 700 })
+    const n = store.all().length
+    store.gather(['a', 'b'])
+    expect(store.all().length).toBe(n + 1)
+    store.undo()
+    expect(store.all().length).toBe(n)
+    expect(byId('a').parent ?? null).toBe(null)
+  })
+
+  it('gathers nothing when there is nothing to gather', () => {
+    expect(store.gather([])).toBe(null)
+  })
+})
+
+describe('taking cards off one board and putting them on another', () => {
+  it('takes them off', () => {
+    add({ id: 'a' })
+    add({ id: 'b' })
+    add({ id: 'c' })
+    expect(store.cut(['a', 'b'])).toBe(2)
+    expect(store.all().map((i) => i.id)).toEqual(['c'])
+  })
+
+  it('and a cut with nothing after it is one step of undo', () => {
+    add({ id: 'a' })
+    add({ id: 'b' })
+    store.cut(['a', 'b'])
+    store.undo()
+    expect(store.all()).toHaveLength(2)
+  })
+
+  it('puts them on the board that is loaded now', () => {
+    add({ id: 'a', x: 10, y: 20 })
+    add({ id: 'b', x: 110, y: 220 })
+    store.cut(['a', 'b'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    const made = store.paste({ x: 500, y: 500 })
+    expect(made).toHaveLength(2)
+    expect(store.all()).toHaveLength(2)
+  })
+
+  it('keeps the shape they were in', () => {
+    add({ id: 'a', x: 10, y: 20 })
+    add({ id: 'b', x: 110, y: 220 })
+    store.cut(['a', 'b'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 500, y: 500 })
+    const [p, q] = store.all().sort((x, y) => x.x - y.x)
+    expect(q.x - p.x).toBe(100)
+    expect(q.y - p.y).toBe(200)
+  })
+
+  it('keeps the picture, which never moved: a card names a blob every board shares', () => {
+    add({ id: 'a', media: 'img_1', name: 'shot.jpg' })
+    store.cut(['a'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    expect(store.all()[0].media).toBe('img_1')
+    expect(store.all()[0].name).toBe('shot.jpg')
+  })
+
+  it('gives them new ids, so nothing claims to be a card that is elsewhere', () => {
+    add({ id: 'a' })
+    store.cut(['a'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    expect(store.all()[0].id).not.toBe('a')
+  })
+
+  it('leaves behind the section it used to be in, which is not on this board', () => {
+    add({ id: 'a', parent: 'sec_1' })
+    store.cut(['a'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    expect(store.all()[0].parent ?? null).toBe(null)
+  })
+
+  /* A wire joins two cards. Both travelling means it travels; one staying
+   * behind means it was a line to nowhere. */
+  it('carries an arrow whose two ends are both going', () => {
+    add({ id: 'a' })
+    add({ id: 'b' })
+    store.connect('a', 'b')
+    store.cut(['a', 'b'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    const wire = store.all().find((i) => i.kind === 'edge')!
+    expect(wire).toBeTruthy()
+    const ids = store.all().map((i) => i.id)
+    expect(ids).toContain(wire.from)
+    expect(ids).toContain(wire.to)
+  })
+
+  it('leaves behind one that points at something staying put', () => {
+    add({ id: 'a' })
+    add({ id: 'b' })
+    store.connect('a', 'b')
+    store.cut(['a'])
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    expect(store.all().some((i) => i.kind === 'edge')).toBe(false)
+  })
+
+  /* Taking away and putting down is a move, so it happens once. */
+  it('is emptied by putting them down', () => {
+    add({ id: 'a' })
+    store.cut(['a'])
+    expect(store.clipped()).toHaveLength(1)
+    store.load({ id: 'other', name: 'other', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    store.paste({ x: 0, y: 0 })
+    expect(store.clipped()).toHaveLength(0)
+    expect(store.paste({ x: 0, y: 0 })).toEqual([])
+  })
+})

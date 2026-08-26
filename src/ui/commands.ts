@@ -40,6 +40,10 @@ export interface CommandActions {
   fit: (onlySelection: boolean) => void
   say: (text: string) => void
   exportPoster: (as: 'png' | 'pdf') => void
+  gather: () => void
+  takeAway: () => void
+  putHere: () => void
+  clipped: number
 }
 
 export function buildCommands(a: CommandActions): Command[] {
@@ -77,10 +81,39 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('edit.dup', 'Duplicate the selection', 'Edit', () => { const made = store.duplicate(sel()); if (made.length) store.select(made) }, { disabled: !some }),
     cmd('edit.del', 'Delete the selection', 'Edit', () => store.remove(sel()), { disabled: !some, keywords: 'remove' }),
 
+    /* A board card holds a whole board and nothing could travel between them:
+       you could nest boards and never bring anything up or send anything
+       down. Cut here, walk to where it belongs, put it there. */
+    cmd('edit.takeaway', KEYS.takeAway.label, 'Edit', () => a.takeAway(), {
+      hint: KEYS.takeAway.hint,
+      disabled: !some,
+      keywords: 'cut move another board send transfer relocate',
+    }),
+    cmd(
+      'edit.puthere',
+      a.clipped ? `Put the ${a.clipped} you took away on this board` : KEYS.putHere.label,
+      'Edit',
+      () => a.putHere(),
+      { hint: KEYS.putHere.hint, disabled: !a.clipped, keywords: 'paste move another board bring' }
+    ),
+
     cmd('edit.keep', 'Mark as kept', 'Edit', () => markPick('in', a.say), { hint: KEYS.keep.hint, disabled: !some, keywords: 'pick in yes tick shortlist choose decide' }),
     cmd('edit.cut', 'Mark as cut', 'Edit', () => markPick('out', a.say), { hint: KEYS.cut.hint, disabled: !some, keywords: 'pick out no reject discard kill decide' }),
 
+    /* The end of curating, and the one step that had no verb: what survived,
+       in a place of its own with a name on it. */
+    cmd('arrange.gather', a.selection.length > 1 ? `Put the ${a.selection.length} selected together in one place` : 'Put the selection together in one place', 'Arrange', () => a.gather(), {
+      hint: KEYS.gather.hint,
+      disabled: a.selection.length < 2,
+      keywords: 'gather collect shortlist group section together keepers picks best',
+    }),
     cmd('arrange.tidy', 'Tidy up the whole board', 'Arrange', () => store.tidy(store.all().filter((i) => !isWire(i)).map((i) => i.id)), { keywords: 'grid align layout sort' }),
+    /* Tidying a selection was in the right click menu and nowhere else, so
+       having just picked six cards out there was no way to lay them out. */
+    cmd('arrange.tidysel', 'Tidy up the selection', 'Arrange', () => store.tidy(sel()), {
+      disabled: a.selection.length < 2,
+      keywords: 'grid align layout sort selection',
+    }),
     cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: a.selection.length < 2 }),
     cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: a.selection.length < 2 }),
     cmd('arrange.spreadx', 'Space the selection out across', 'Arrange', () => store.distribute(sel(), 'x'), { disabled: a.selection.length < 3 }),

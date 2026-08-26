@@ -29,6 +29,11 @@ export const KEYS = {
   keep: { key: 'i', hint: 'I', label: 'Mark as kept', short: 'Keep' },
   cut: { key: 'o', hint: 'O', label: 'Mark as cut', short: 'Cut' },
   selectShown: { key: 'enter', hint: '⌘⏎', label: 'Select the search results', short: 'Select shown' },
+  /* Not called cut: this board already has a Cut, and it means the opposite of
+     Keep. This one takes cards off a board to put them on another. */
+  takeAway: { key: 'x', hint: '⌘X', label: 'Take the selection off this board', short: 'Take away' },
+  putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
+  gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },

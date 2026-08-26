@@ -49,6 +49,9 @@ export interface PosterOptions {
    * picture of a board with nothing to say whose it is becomes an anonymous
    * file in somebody's downloads a week later. */
   head?: boolean
+  /* What each card is called, along the bottom of it. On by default, for the
+   * same reason: a sheet is the thing you send somebody. */
+  captions?: boolean
 }
 
 /* --------------------------------------------------------------------------
@@ -455,6 +458,56 @@ function drawPick(cx: Ctx, it: Item) {
   cx.restore()
 }
 
+/* What the card is called, along the bottom of it.
+ *
+ * The board shows this only while the pointer is on the card, which is right
+ * for a board — a wall of photographs should look like a wall of photographs
+ * and not like a list of filenames. A sheet is not a board. It is the thing
+ * you send somebody, usually of the few you chose out of the many, and six
+ * pictures with nothing written on them are six pictures and not an argument.
+ *
+ * Drawn the way the card draws it: a plate over a pale body, a dark screen
+ * over a photograph, white letters with an outline of their own because a
+ * screen leaves white between its dots however dense it gets. */
+function drawCaption(cx: Ctx, it: Item, t: Tokens) {
+  const said = (it.name || '').trim()
+  if (!said) return
+  /* A note already has its words on it. */
+  if (it.kind === 'note' || it.kind === 'label') return
+
+  const overPicture = it.kind === 'image' || it.kind === 'video' || it.kind === 'embed' || it.kind === 'board'
+  const h = overPicture ? 34 : 26
+  const y = it.y + it.h - h
+
+  cx.save()
+  rrect(cx, it.x, it.y, it.w, it.h, R_MD)
+  cx.clip()
+
+  if (overPicture) {
+    /* A ramp of ink rather than a bar of it: the picture stays visible under
+     * the words, which is what every player and every gallery does. */
+    const grad = cx.createLinearGradient(0, y, 0, y + h)
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0)')
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.62)')
+    cx.fillStyle = grad
+    cx.fillRect(it.x, y, it.w, h)
+    cx.fillStyle = '#fff'
+    cx.shadowColor = 'rgba(0, 0, 0, 0.85)'
+    cx.shadowBlur = 3
+  } else {
+    cx.fillStyle = t.surface
+    cx.globalAlpha = 0.88
+    cx.fillRect(it.x, y, it.w, h)
+    cx.globalAlpha = 1
+    cx.fillStyle = t.ink
+  }
+
+  cx.font = `500 12px ${t.sans}`
+  cx.textBaseline = 'alphabetic'
+  cx.fillText(ellipsis(cx, said, it.w - 16), it.x + 8, it.y + it.h - (overPicture ? 10 : 8))
+  cx.restore()
+}
+
 function drawTag(cx: Ctx, it: Item, t: Tokens) {
   const tag = it.tag ? TAGS.find((g) => g.id === it.tag) : null
   if (!tag) return
@@ -474,7 +527,7 @@ function drawTag(cx: Ctx, it: Item, t: Tokens) {
 
 /* Sections and wires are drawn before this, in their own passes: they are the
  * ground and the lines across it rather than things stacked by z. */
-async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number) {
+async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: boolean) {
   /* A label is words on the board with no card under them. */
   if (it.kind === 'label') {
     drawLabel(cx, it, t)
@@ -531,6 +584,7 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number) {
   cx.lineWidth = 1
   cx.stroke()
 
+  if (caption) drawCaption(cx, it, t)
   drawTag(cx, it, t)
   drawPick(cx, it)
   cx.restore()
@@ -676,7 +730,7 @@ export async function renderPoster(items: Item[], info: SheetInfo, opts: PosterO
 
   for (const s of sections) drawSection(cx, s, t)
   for (const w of wires) drawWire(cx, w, byId, t)
-  for (const c of cards) await drawCard(cx, c, t, scale)
+  for (const c of cards) await drawCard(cx, c, t, scale, opts.captions !== false)
 
   return { canvas, w: sheetW, h: sheetH, scale, count: cards.length + sections.length }
 }

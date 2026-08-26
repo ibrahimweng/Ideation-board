@@ -43,10 +43,12 @@ interface Props {
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
   onPullColours: (ids: string[]) => void
+  onGather: () => void
+  onTakeAway: () => void
   canvas: CanvasActions
 }
 
-export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onPullColours, canvas }: Props) {
+export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onPullColours, onGather, onTakeAway, canvas }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ x: menu.x, y: menu.y })
   /* Held in a ref so the listeners below can attach once and stay attached.
@@ -158,6 +160,8 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
             clip={clip}
             onExportPictures={onExportPictures}
             onPullColours={onPullColours}
+            onGather={onGather}
+            onTakeAway={onTakeAway}
             run={run}
             onOpenEditor={onOpenEditor}
           />
@@ -203,7 +207,7 @@ function CanvasMenu({
 
 function CardMenu({
   ids, first, many, anySection, anyInSection, currentTag, currentPick, movable, pictures, targets, graded, clip,
-  run, onOpenEditor, onExportPictures, onPullColours,
+  run, onOpenEditor, onExportPictures, onPullColours, onGather, onTakeAway,
 }: {
   ids: string[]
   first: Item
@@ -221,6 +225,8 @@ function CardMenu({
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
   onPullColours: (ids: string[]) => void
+  onGather: () => void
+  onTakeAway: () => void
 }) {
   return (
     <>
@@ -298,6 +304,8 @@ function CardMenu({
             </div>
           )}
           <button onClick={run(() => store.tidy(ids))}>Tidy up</button>
+          {/* The end of curating: what survived, in a place of its own. */}
+          <button onClick={run(() => onGather())}>Put them together in one place</button>
         </>
       )}
 
@@ -346,6 +354,15 @@ function CardMenu({
           />
         ))}
       </div>
+
+      <div className="menu-sep" />
+
+      {/* Nothing could travel between boards until now, so this is where a
+          person will look for it: beside the other things you do to a card,
+          not in a list of boards to pick from. */}
+      <button onClick={run(() => onTakeAway())}>
+        Take {many ? `these ${ids.length}` : 'this'} off the board <em>⌘X</em>
+      </button>
 
       <div className="menu-sep" />
 

@@ -235,10 +235,13 @@ Keyboard shortcuts:
 | 2 | Fit the selection on screen |
 | I | Mark the selection as kept |
 | O | Mark the selection as cut |
+| G | Put the selection together in one place |
 | / | Search |
 | Cmd or Ctrl and Enter | Select every search result (in the search box) |
 | Cmd or Ctrl and S | Export this board and everything in it |
 | Cmd or Ctrl and O | Import a board file |
+| Cmd or Ctrl and X | Take the selection off this board |
+| Cmd or Ctrl and V | Paste — cards taken off another board, or whatever is on the clipboard |
 | Cmd or Ctrl and E | Export the selected pictures as PNG |
 | Cmd or Ctrl and Z | Undo |
 | Shift and Cmd or Ctrl and Z | Redo |
@@ -555,6 +558,41 @@ which is two thirds pale sky does not spend three of its five swatches on the
 sky, and the one red thing in a grey picture still makes the list. No two
 swatches are allowed to be the same colour under two names.
 
+## Putting the best in one place
+
+Deciding is only half of it. Mark six of forty as kept and they are still
+exactly where you dropped them, scattered over four screens among the
+thirty-four you did not keep — and a shortlist that is only a mark on a card is
+not somewhere you can look at, present or hand over.
+
+Select what you picked and press G, or use "Put the selection together in one
+place" from the command list. It makes a section named Shortlist on clear
+ground below the board, lays what you chose out as a block and moves it in, in
+one step of undo. The name is why it is a section and not a heap: what comes
+out is a group you can select, present and export as one thing.
+
+The usual way in is through the search box: type `kept`, press Cmd or Ctrl with
+Enter to take the whole result set, then G.
+
+## Moving cards between boards
+
+A board card holds a whole board, and for a long time nothing could travel
+between them: you could nest boards, and search inside them, and never bring
+anything up or send anything down. The only way to move a photograph one level
+was to find the original file and drop it again.
+
+Cmd or Ctrl with X takes the selection off the board and holds it. Open the
+board where it belongs and paste. There is no list of boards to pick from,
+because the boards are a tree you can already walk — cut here, walk there,
+paste.
+
+The pictures themselves never move. A card names a file in a store every board
+in this browser shares, so what travels is the record. Arrows travel when both
+of the cards they join are travelling; a section the card used to sit in stays
+behind, because it is not on the board it is going to. Taking away and putting
+down is a move, so it happens once. A board will not be put inside itself, and
+says so rather than making a loop.
+
 ## Deciding
 
 A board only ever grew. Everything that went on it stayed on it, and there was
@@ -601,7 +639,14 @@ narrow the board with the search box, and it exports only those — the command
 says which before you run it.
 
 Two lines at the top say what the sheet is: the board's name, and then how many
-things are on it, how many were kept and cut, and the date. A picture of a
+things are on it, how many were kept and cut, and the date. Each card carries
+its own name along the bottom, drawn the way the card draws it when you hover
+one — over a screen on a photograph, on a plate on anything paler. The board
+shows that only on hover, which is right for a board: a wall of photographs
+should look like a wall of photographs and not like a list of filenames. A
+sheet is not a board. It is the thing you send somebody, usually of the few you
+chose out of the many, and six pictures with nothing written on them are six
+pictures and not an argument. A picture of a
 board with nothing on it to say whose board it is becomes an anonymous file in
 somebody's downloads a week later, and a sheet that is only part of a board
 says "5 of 20" rather than passing itself off as the whole thing.
@@ -758,6 +803,7 @@ npm run test:decide -- http://localhost:5173
 npm run test:fit -- http://localhost:5173
 npm run test:drop -- http://localhost:5173
 npm run test:tabs -- http://localhost:5173
+npm run test:curate -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -800,6 +846,12 @@ npm run bench
   fitting nothing says so rather than appearing to do nothing, and that double
   clicking a picture opens it big at that picture while a note still opens its
   editor.
+- `test:curate` runs the job the whole app is for, end to end: gather twelve
+  references, keep five, put those five in a place of their own, move them to a
+  board where they belong, and check they arrive with their pictures and their
+  marks intact. It also checks that gathering is one step of undo, that putting
+  cards down happens once rather than making copies, and that a board refuses
+  to be put inside itself.
 - `test:tabs` opens the app twice in one browser, which is what two tabs are,
   and checks that a tab picks up what the other one wrote without being
   touched, that a later write keeps both tabs' work, and that a write which
