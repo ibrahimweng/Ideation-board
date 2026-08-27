@@ -54,6 +54,11 @@ export interface Item {
   /* Natural pixel size, when known. */
   nw?: number
   nh?: number
+  /* A picture that moves — an animated GIF, WebP or APNG. Worth writing down
+   * rather than working out again, because finding out means decoding the file
+   * and the answer never changes. An effected card reads it to decide whether
+   * to feed the renderer one still or a reel of frames. */
+  anim?: boolean
 }
 
 export interface Board {

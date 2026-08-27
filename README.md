@@ -595,6 +595,39 @@ It knows the names of the tools and the shape of their arguments, and nothing
 whatever about what a card is. `src/mcp/tools.ts`, in the app, is the half that
 knows — so adding a kind of card means editing one program, not two.
 
+## Pictures that move
+
+A GIF plays on the board, and it keeps playing with an effect on it. So does a
+video: the video element still decodes and plays, invisible behind a canvas the
+renderer feeds, and the controls under the picture stand in for the native ones.
+
+The GIF took more doing, and the reason is worth writing down so nobody tries
+the obvious thing again. With an effect on it a card stops being an `<img>` and
+becomes a canvas fed by the renderer, and the renderer had been handed one
+still — so the picture stopped. The obvious fix is to keep the `<img>` around
+and grab its current frame each tick. That does not work: `drawImage` and
+`createImageBitmap` on an animating `<img>` both hand back the **first** frame,
+whether or not the element is in the document and whether or not it is visible.
+The animation lives where a canvas readback cannot reach it. That is measured,
+not assumed, and `test/moving.mjs` asserts it so the finding does not get lost.
+
+So the frames are decoded properly, with WebCodecs `ImageDecoder`: a frame
+count, each frame as something the render pipeline already swallows, and each
+frame's own duration — which matters, because a GIF is free to hold one frame
+for a second and flick through the next four in a tenth of that. Frames are
+decoded as they are asked for rather than all at once, since a long GIF is a
+great deal of memory to hold for a card that may be off screen.
+
+Whether a file moves is worked out once, when it arrives, and written on the
+card. Only the types that can move are asked — a folder of two hundred
+photographs does not open two hundred decoders to be told what the mime type
+already said. A browser with no `ImageDecoder` shows the still it always showed.
+
+The check that keeps all of this honest is the last one in the suite: a picture
+that does not move must still be drawn once and left alone. Feeding every
+effected card a reel of frames would make every photograph on the board cost
+what a video costs, and nothing else would have noticed.
+
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
@@ -984,6 +1017,7 @@ npm run test:curate -- http://localhost:5173
 npm run test:compare -- http://localhost:5173
 npm run test:draw -- http://localhost:5173
 npm run test:mcp -- http://localhost:5173
+npm run test:moving -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1043,6 +1077,12 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:moving` drops a hand-written animated GIF and a recorded video on the
+  board, puts an effect on each, and screenshots the painted card to count how
+  many different pictures it draws. Both must keep moving, the GIF must still
+  move after a reload, and a still picture must still be drawn exactly once.
+  It also records why the easy fix was not available: reading an animating
+  `<img>` back only ever gives the first frame.
 - `test:mcp` starts the real relay as a real subprocess and speaks to it the
   way Claude does — JSON-RPC on its stdin and stdout — while a real browser
   holds the board at the other end. Nothing stands in for anything: a note put

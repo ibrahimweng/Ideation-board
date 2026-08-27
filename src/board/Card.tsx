@@ -1,7 +1,7 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { useItem, store } from '../state/store'
 import { TAGS } from '../state/types'
-import { FxCanvas } from './FxCanvas'
+import { FxAnimCanvas, FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
 import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
@@ -64,6 +64,11 @@ export const Card = memo(function Card({
   const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
+  /* Marked as moving, but this browser could not decode its frames. Set once
+   * and kept, so the card settles on the still instead of trying again on
+   * every render. */
+  const [stillOnly, setStillOnly] = useState(false)
+  const fallBackToStill = useCallback(() => setStillOnly(true), [])
 
   if (!it) return null
 
@@ -211,7 +216,22 @@ export const Card = memo(function Card({
       <div className="card-body" style={{ filter: filter || undefined }}>
         <div className="card-frame" style={{ transform: frame || undefined }}>
           {it.kind === 'image' &&
-            (effected && ready ? (
+            /* A picture that moves keeps moving with an effect on it: its
+               frames are decoded and fed through one at a time, the way a
+               video's are. Everything else is one still, uploaded once. */
+            (effected && it.anim && it.media && !stillOnly ? (
+              <FxAnimCanvas
+                id={id}
+                mediaKey={it.media}
+                effectId={fx.fxid}
+                params={fx.ep}
+                seed={hashSeed(id)}
+                w={it.w}
+                h={it.h}
+                className="media"
+                onCannot={fallBackToStill}
+              />
+            ) : effected && ready ? (
               <FxCanvas
                 id={id}
                 mediaKey={it.media!}

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { getEngine } from '../engine/client'
 import { useSourceReady } from './sources'
+import { getBlob } from '../store/idb'
+import { openReel } from '../store/anim'
+import type { Reel } from '../store/anim'
 import type { Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -269,6 +272,132 @@ export function FxVideoCanvas({ id, video, playing, effectId, params, seed, w, h
       waitingRef.current = 0
     }
   }, [id, video, playing, effectId, params, seed, w, h])
+
+  return <canvas ref={ref} className={className} aria-hidden />
+}
+
+/* ---------------------------------------------------------------------------
+ * A moving picture that is not a video.
+ *
+ * Same bargain as the video canvas — one frame at a time, never more than one
+ * in flight — but the frames come from a decoder rather than from a player,
+ * and each one carries how long it is meant to be held. A GIF is free to sit
+ * on one frame for a second and then flick through four in a tenth of that,
+ * and a fixed interval would flatten both.
+ * ------------------------------------------------------------------------- */
+interface AnimProps {
+  id: string
+  mediaKey: string
+  effectId: string
+  params: Params | null
+  seed: number
+  w: number
+  h: number
+  className?: string
+  /* Marked as moving, but nothing here can decode its frames — an older
+   * browser, or a file that turned out to hold one picture after all. The card
+   * puts the still back rather than leaving an empty canvas. */
+  onCannot?: () => void
+}
+
+export function FxAnimCanvas({ id, mediaKey, effectId, params, seed, w, h, className, onCannot }: AnimProps) {
+  const waitingRef = useRef(0)
+  const settled = useCallback(() => {
+    waitingRef.current = 0
+  }, [])
+  const ref = useFxSink(id, settled)
+
+  const jobRef = useRef({ effectId, params, seed, w, h })
+  jobRef.current = { effectId, params, seed, w, h }
+  const cannotRef = useRef(onCannot)
+  cannotRef.current = onCannot
+
+  useEffect(() => {
+    const engine = getEngine()
+    if (!engine.ok) return
+
+    let cancelled = false
+    let timer = 0
+    let reel: Reel | null = null
+    let frame = 0
+
+    const stop = () => {
+      window.clearTimeout(timer)
+      timer = 0
+    }
+
+    const run = async () => {
+      const blob = await getBlob(mediaKey)
+      if (cancelled || !blob) return
+      reel = await openReel(blob)
+      /* Not animated after all, or nothing here can decode its frames. Hand
+       * the card back to the still path, which knows how to get the source
+       * onto the GPU and ask for one render. */
+      if (cancelled || !reel) {
+        if (!cancelled) cannotRef.current?.()
+        return
+      }
+      void tick()
+    }
+
+    const tick = async () => {
+      if (cancelled || !reel) return
+      const now = performance.now()
+      /* One in flight at a time. A backlog of frames is a backlog of frames
+       * that were already stale when they were drawn. */
+      if (waitingRef.current && now - waitingRef.current < FRAME_TIMEOUT_MS) {
+        timer = window.setTimeout(tick, 16)
+        return
+      }
+      const got = await reel.at(frame)
+      if (cancelled || !got) return
+      const j = jobRef.current
+      const size = engine.liveCaptureSize(j.w, j.h, true)
+      if (!size.w) {
+        got.image.close()
+        timer = window.setTimeout(tick, 100)
+        return
+      }
+      waitingRef.current = now
+      try {
+        const bmp = await createImageBitmap(got.image as unknown as ImageBitmapSource, {
+          resizeWidth: size.w,
+          resizeHeight: size.h,
+          resizeQuality: 'low',
+        })
+        if (cancelled) {
+          bmp.close()
+          waitingRef.current = 0
+          return
+        }
+        const c = jobRef.current
+        engine.renderLive(
+          { id, key: '', effectId: c.effectId, params: c.params, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
+          bmp,
+          true
+        )
+      } catch {
+        waitingRef.current = 0
+      } finally {
+        got.image.close()
+      }
+      frame++
+      /* Held for as long as the file says, less whatever the decode and the
+       * render have already spent. */
+      const spent = performance.now() - now
+      timer = window.setTimeout(tick, Math.max(0, got.ms - spent))
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+      stop()
+      reel?.close()
+      reel = null
+      waitingRef.current = 0
+    }
+  }, [id, mediaKey, effectId, params, seed, w, h])
 
   return <canvas ref={ref} className={className} aria-hidden />
 }

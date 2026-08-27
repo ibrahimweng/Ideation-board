@@ -2,6 +2,7 @@ import type { Item, Kind } from './types'
 import { FX_0 } from '../engine/types'
 import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped } from '../store/media'
 import { putBlob } from '../store/idb'
+import { isAnimated, mightMove } from '../store/anim'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -103,7 +104,11 @@ export async function* ingest(
         markReady(key)
       }
       const box = fitBox(nw, nh)
-      yield { ...base, kind: 'image', media: key, nw, nh, ...box }
+      /* Asked only of the types that can move at all, so a folder of two
+       * hundred photographs does not open two hundred decoders to be told
+       * what the mime type already said. */
+      const anim = mightMove(file.type) ? await isAnimated(file) : false
+      yield { ...base, kind: 'image', media: key, nw, nh, ...box, ...(anim ? { anim } : {}) }
       continue
     }
 
@@ -240,6 +245,10 @@ async function refineImage(made: Item, url: string) {
     patch.media = key
     patch.mime = got.blob.type
     patch.readable = true
+    /* A GIF dragged out of another tab moves exactly as much as one dragged
+     * off the disk. */
+    if (mightMove(got.blob.type) && (await isAnimated(got.blob))) patch.anim = true
+    if (!store.getItem(made.id)) return
   }
   store.update(made.id, patch, false)
 }
