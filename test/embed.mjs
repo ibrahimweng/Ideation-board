@@ -144,6 +144,53 @@ const settled = await box()
 ok('and that drag ends too', settled.x === byBar.x && settled.y === byBar.y,
    `${byBar.x},${byBar.y} -> ${settled.x},${settled.y}`)
 
+/* ---------- and the strip does not swallow a small card ---------- */
+const grip = async () =>
+  page.evaluate(() => {
+    const c = document.querySelector('.card[data-kind="embed"]')
+    const g = c.querySelector('.embed-grip')
+    return { card: Math.round(c.getBoundingClientRect().height), grip: Math.round(g.getBoundingClientRect().height) }
+  })
+const big = await grip()
+ok('the strip is the height of the name plate on a normal card', big.grip === 38, JSON.stringify(big))
+
+/* Dragged down to the smallest a card is allowed to be. The handles live in a
+   layer of their own, beside the card rather than inside it.
+   
+   The effects panel is open by default on a window this wide and covers the
+   right of the board, which is where the card has been dragged to and where
+   its corner handle therefore is. Out of the way first: a bounding box says
+   where a thing is, not whether anything is on top of it. */
+if (await page.locator('.panel').count()) {
+  /* E alone, not Escape first: Escape would clear the selection, and the strip
+     only exists on a selected player. */
+  await page.keyboard.press('e')
+  await page.waitForTimeout(500)
+}
+ok('the player is still selected with the panel out of the way',
+   (await page.locator('.embed-grip').count()) === 1)
+const handle = page.locator('.card-handles [data-resize="se"]')
+await page.waitForTimeout(300)
+const hb = await handle.first().boundingBox()
+ok('the card has a resize handle to take hold of', !!hb)
+const at = { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2 }
+const under = await page.evaluate(
+  ([x, y]) => {
+    const el = document.elementFromPoint(Math.round(x), Math.round(y))
+    return el ? el.className || el.tagName : 'nothing'
+  },
+  [at.x, at.y]
+)
+await page.mouse.move(at.x, at.y)
+await page.mouse.down()
+await page.mouse.move(at.x - 500, at.y - 400, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(500)
+const small = await grip()
+ok('and gives way on a card too short to spare it',
+   small.card < 120 && small.grip < small.card * 0.5,
+   `${small.grip} of ${small.card}; pressed ${Math.round(at.x)},${Math.round(at.y)} which held "${under}"`)
+
 /* ---------- and the players are not left dead afterwards ---------- */
 /* While a press is down the players are untargetable, which is the fix. If
    that outlived the press, a single tap on empty board would leave every

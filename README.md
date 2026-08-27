@@ -466,9 +466,16 @@ So the frame is made untargetable instead, for as long as a press that reached
 the board is still down. Hit testing then walks straight past it. Pressing a
 selected player to play it lands in the frame, is never seen out here, and so
 never sets the flag. The flag is released by a listener on the window rather
-than by each path, because there are four ways out of that handler and a finger
-takes a different one from a mouse — and one path that forgot would leave every
-player on the board dead to the touch until the page was reloaded.
+than by each path, because a path that forgot would leave every player on the
+board dead to the touch until the page was reloaded.
+
+There are five ways to start a drag — moving a card, resizing one, drawing a
+wire, panning, and pulling a marquee — and every one of them needs this. Three
+were written before there were players on the board, and the card's own handler
+returns early for a resize handle, so resizing a player by dragging its corner
+across itself failed in exactly the same way and for exactly the same reason.
+That is why `holdPress` is a file of its own rather than a line in whichever
+handler happened to need it first.
 
 A selected player also keeps a strip along the top to be taken hold of by. The
 name plate was meant to be that, and never could be: it is drawn with pointer
@@ -1116,8 +1123,11 @@ npm run bench
   picture and lets go over the player. It has to stay where it was let go of
   rather than follow the mouse, the board has to take a press again afterwards,
   a selected player has to still be movable by its strip while its picture
-  belongs to the player, and neither a click nor a tap may leave the players
-  unclickable afterwards.
+  belongs to the player, the strip has to give way on a card too short to spare
+  it, and neither a click nor a tap may leave the players unclickable
+  afterwards. Resizing the card by its corner is in there because that path
+  starts a drag without going through the card's own handler, and so had the
+  same bug all of its own.
 - `test:moving` drops a hand-written animated GIF and a recorded video on the
   board, puts an effect on each, and screenshots the painted card to count how
   many different pictures it draws. Both must keep moving, the GIF must still

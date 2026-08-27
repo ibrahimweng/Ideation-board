@@ -10,6 +10,7 @@ import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
+import { holdPress } from './press'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
@@ -364,6 +365,11 @@ function startWire(e: React.PointerEvent, id: string, side: Side) {
 
   const target = e.currentTarget as HTMLElement
   target.setPointerCapture(e.pointerId)
+  /* A wire or a resize that crosses an embedded player would lose its own
+   * pointerup in it, exactly as a card drag would. These two start their drag
+   * without going through the card's own handler — the card returns early for
+   * a resize handle — so each has to say so for itself. */
+  holdPress()
   let over: HTMLElement | null = null
 
   const move = (ev: PointerEvent) => {
@@ -472,6 +478,11 @@ function startResize(e: React.PointerEvent, id: string, corner: string) {
   const s = { x: it.x, y: it.y, w: it.w, h: it.h }
   const target = e.currentTarget as HTMLElement
   target.setPointerCapture(e.pointerId)
+  /* A wire or a resize that crosses an embedded player would lose its own
+   * pointerup in it, exactly as a card drag would. These two start their drag
+   * without going through the card's own handler — the card returns early for
+   * a resize handle — so each has to say so for itself. */
+  holdPress()
   let began = false
 
   const move = (ev: PointerEvent) => {

@@ -11,6 +11,7 @@ import type { Guides } from './snap'
 import { visibleRect, intersects, distanceToCentre, screenToBoard, zoomAt } from './viewport'
 import type { Rect } from './viewport'
 import { getEngine } from '../engine/client'
+import { holdPress } from './press'
 import { ContextMenu } from '../ui/ContextMenu'
 import { FirstRun } from '../ui/FirstRun'
 import { justLongPressed, noteLongPress, onLongPress } from './longpress'
@@ -257,25 +258,6 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     },
     [paintTransform]
   )
-
-/* A press that reached the board, held until it is let go.
- *
- * While it is on, embedded players are untargetable, so nothing that begins
- * out here can have its ending swallowed by one. The release is hung on the
- * window rather than written into each path because there are four of them —
- * pan, marquee, card drag, and a finger, which returns before any of the
- * others — and one that forgot would leave every player on the board dead to
- * the touch until the page was reloaded. */
-function holdPress() {
-  document.body.dataset.pressing = '1'
-  const off = () => {
-    delete document.body.dataset.pressing
-    window.removeEventListener('pointerup', off)
-    window.removeEventListener('pointercancel', off)
-  }
-  window.addEventListener('pointerup', off)
-  window.addEventListener('pointercancel', off)
-}
 
 /* Dragging a card moves the whole selection, and dragging a section takes
    * everything inside it along. Positions are written with recording off, so
