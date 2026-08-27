@@ -1403,6 +1403,21 @@ ul.gen-models button[data-on] { border-color: var(--accent); color: var(--ink); 
    out here, and so never sets the flag. */
 body[data-pressing] .embed-frame { pointer-events: none; }
 
+/* A new version, waiting to be taken. Quiet, because the one on screen works;
+   present, because it does not go away until it is answered. */
+.update-bar {
+  position: fixed; left: 14px; bottom: 14px; z-index: 60;
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 7px 8px 7px 12px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--sh-2);
+  font: 400 var(--t-sm)/1.4 var(--sans); color: var(--ink-2);
+}
+.update-bar button {
+  padding: 5px 12px; border-radius: var(--r-sm); font-size: var(--t-sm);
+  background: var(--ink); color: var(--on-ink);
+}
+
 /* ---------- chrome ---------- */
 
 /* Not a toast. A toast is for things that have gone right and can be missed;

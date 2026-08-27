@@ -24,6 +24,7 @@ import { Present } from './ui/Present'
 import { Compare } from './ui/Compare'
 import { GenerateSheet } from './ui/GenerateSheet'
 import { RelaySheet } from './ui/RelaySheet'
+import { UpdateBar } from './ui/UpdateBar'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany } from './state/generate'
@@ -922,6 +923,7 @@ export default function App() {
         </div>
       )}
       <Stats count={selection.length} />
+      <UpdateBar />
       {/* Off screen, and the only thing on the page that speaks. A selection
           moving is invisible to a screen reader otherwise: the cards are divs
           on a canvas, and nothing about a border changing colour is announced. */}

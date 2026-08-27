@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/build-sw.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:smoke": "node test/smoke.mjs",
@@ -43,6 +43,7 @@
     "test:mcp": "node test/mcp.mjs",
     "test:moving": "node test/moving.mjs",
     "test:embed": "node test/embed.mjs",
+    "test:offline": "node test/offline.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",
     "test:unit": "vitest run",

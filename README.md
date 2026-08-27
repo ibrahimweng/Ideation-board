@@ -668,6 +668,57 @@ that does not move must still be drawn once and left alone. Feeding every
 effected card a reel of frames would make every photograph on the board cost
 what a video costs, and nothing else would have noticed.
 
+## Opening it without a network
+
+The boards were always local. The app was not.
+
+The manifest says `display: standalone`, and there are icons at every size, so
+it installs as an app on a phone or a desktop. People install it. And then it
+opens on a plane to the browser's offline page, over a machine that has every
+board on it — the pictures in IndexedDB, two inches away and unreachable. The
+data was local; the app was a website.
+
+`sw/sw.js` fixes that, and it has no dependencies either. What is cached is the
+shell and only the shell: the document, the built scripts and styles, the worker
+that runs the effects, the icons. Not your pictures — those were never fetched,
+they are already here.
+
+The list is written into the worker at build time by `scripts/build-sw.mjs`, so
+it names exactly what that build produced. The alternative — caching whatever
+happens to be fetched — works right up until the first offline start needs a
+file nobody happened to ask for while online, which for this app is the effects
+worker: nothing fetches it until the first effect is applied. If the script does
+not run there is no `sw.js` at all, and the app behaves exactly as it did
+before, which is the right way for this to fail.
+
+Fonts come from Google and are kept in a cache of their own, so a new build does
+not throw them away and send everyone back for them.
+
+Anything that is not this app is left alone entirely: Google being asked for a
+picture, the relay on the loopback address, a photograph dragged in from another
+site. An event stream that went through a fetch handler would be buffered into
+uselessness, and a picture bought once would be handed back for ever.
+
+### Taking a new version
+
+A service worker that takes over the moment it installs swaps the scripts under
+whoever is using the page, and this is an app people leave open for days with
+unsaved thinking on the screen. So a new version installs, waits, and says so in
+the corner. Nothing changes until Reload is pressed. It is the same bargain the
+app makes everywhere else it could decide something on your behalf and does not.
+
+The document is fetched from the network first and falls back to the cache, so a
+deploy is picked up the moment there is a network to pick it up from. Built
+files carry a hash in the name, so a given address's contents never change and
+the cache can be trusted without asking.
+
+`sw/sw.js` is the one file here that nothing else checks — plain JavaScript,
+outside the TypeScript build and outside the bundle, registered inside a catch.
+A syntax error in it would ship, fail to register, and say nothing at all; the
+app would go on working and simply never be available offline again, which is
+the kind of breakage only ever noticed on a train. `test/unit/offline.test.ts`
+parses it.
+
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
@@ -1059,6 +1110,7 @@ npm run test:draw -- http://localhost:5173
 npm run test:mcp -- http://localhost:5173
 npm run test:moving -- http://localhost:5173
 npm run test:embed -- http://localhost:5173
+npm run test:offline -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1118,6 +1170,12 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:offline` makes a board, cuts the network at the browser, and opens the
+  app again: it has to start, and the work has to be there — in a reloaded tab
+  and in a fresh one, which is what an installed app is. Then the two things
+  that would make that a bad bargain: nothing from outside this app is ever put
+  by, and a second version really is put on the server to check that it says so
+  and changes nothing until it is answered.
 - `test:embed` serves a player from the test itself, so the iframe is a real
   cross-origin document with no internet involved, then drags the card by the
   picture and lets go over the player. It has to stay where it was let go of
@@ -1282,6 +1340,7 @@ anyone typing a domain. `SITE_URL=https://your.domain npm run build` pins it.
 | `test` | Browser suites and the benchmark |
 | `test/unit` | The fast tests, on the arithmetic underneath |
 | `mcp` | The relay Claude talks to. No dependencies |
-| `scripts` | The runner that drives every browser suite in one command |
+| `sw` | The service worker, so the app opens without a network |
+| `scripts` | The browser-suite runner, and what writes the service worker |
 | `public` | The icon at every size, the social card, the manifest |
 | `brand` | What generates all of that, and why the mark is what it is |
