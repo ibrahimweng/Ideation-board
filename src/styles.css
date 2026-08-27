@@ -1307,6 +1307,28 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 /* ---------- asking for a picture ---------- */
 
+/* What the answer is being made from. Shown rather than described: these are
+   pictures, and a row of names would be the one thing on this board that
+   cannot be looked at. */
+.gen-working { display: flex; flex-direction: column; gap: 6px; }
+.gen-working > span { font-size: var(--t-sm); color: var(--muted); }
+.gen-refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gen-ref { position: relative; width: 56px; height: 56px; flex: none; }
+.gen-ref img, .gen-ref-blank {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  border-radius: var(--r-sm); border: 1px solid var(--line);
+}
+.gen-ref-blank { background: var(--well) var(--screen-flat) repeat; opacity: 0.55; }
+.gen-ref button {
+  position: absolute; top: -5px; right: -5px; width: 18px; height: 18px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--ink); color: var(--on-ink);
+  font-size: 12px; line-height: 1; padding: 0;
+  box-shadow: var(--sh-1);
+}
+.gen-ref button:hover { background: var(--warn); }
+
+
 .gen-sheet { width: min(520px, 94vw); }
 .gen-prompt { min-height: 92px; }
 .gen-intro, .gen-note {

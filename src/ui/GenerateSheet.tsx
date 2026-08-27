@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useObjectURL } from '../store/media'
 import { holdKeys } from './modal'
 import {
   DEFAULT_BASE, apiBase, apiKey, forgetApiKey, hasKey, maskKey, modelId, setApiBase, setApiKey, setModelId,
@@ -35,13 +36,34 @@ let lastCount = 1
  * model, which is not within one sitting. */
 let known: AiModel[] | null = null
 
+/* One of the pictures being worked from, and a way to stop working from it. */
+function Ref({ media, name, onDrop }: { media?: string; name: string; onDrop: () => void }) {
+  const url = useObjectURL(media)
+  return (
+    <span className="gen-ref" title={name}>
+      {url ? <img src={url} alt={name} /> : <i className="gen-ref-blank" />}
+      <button aria-label={`Stop working from ${name}`} onClick={onDrop}>×</button>
+    </span>
+  )
+}
+
+export interface Working {
+  id: string
+  media?: string
+  name: string
+}
+
 export interface GenerateSheetProps {
   onClose: () => void
-  onDraw: (prompt: string, count: number, aspect: string) => void
+  onDraw: (prompt: string, count: number, aspect: string, from: string[]) => void
+  /* The pictures picked out on the board when this was opened. Offered rather
+   * than assumed: having something selected is not the same as meaning to
+   * work from it. */
+  working?: Working[]
   busy?: boolean
 }
 
-export function GenerateSheet({ onClose, onDraw, busy }: GenerateSheetProps) {
+export function GenerateSheet({ onClose, onDraw, working = [], busy }: GenerateSheetProps) {
   const [prompt, setPrompt] = useState(lastPrompt)
   const [ratio, setRatio] = useState(lastRatio)
   const [count, setCount] = useState(lastCount)
@@ -53,6 +75,10 @@ export function GenerateSheet({ onClose, onDraw, busy }: GenerateSheetProps) {
   const [models, setModels] = useState<AiModel[] | null>(known)
   const [loading, setLoading] = useState(false)
   const [note, setNote] = useState('')
+  /* Taken as they were when the sheet opened. The board carries on underneath
+     and the selection can change; what is being worked from should not move
+     while a prompt is being typed about it. */
+  const [from, setFrom] = useState<Working[]>(working)
   const ref = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(holdKeys, [])
@@ -132,7 +158,7 @@ export function GenerateSheet({ onClose, onDraw, busy }: GenerateSheetProps) {
     lastPrompt = p
     lastRatio = ratio
     lastCount = count
-    onDraw(p, count, ratio)
+    onDraw(p, count, ratio, from.map((w) => w.id))
   }
 
   return (
@@ -152,12 +178,34 @@ export function GenerateSheet({ onClose, onDraw, busy }: GenerateSheetProps) {
 
         {keyed ? (
           <>
+            {from.length > 0 && (
+              <div className="gen-working">
+                <span>
+                  Working from {from.length === 1 ? 'this' : `these ${from.length}`}
+                </span>
+                <div className="gen-refs">
+                  {from.map((w) => (
+                    <Ref
+                      key={w.id}
+                      media={w.media}
+                      name={w.name}
+                      onDrop={() => setFrom((list) => list.filter((x) => x.id !== w.id))}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <textarea
               ref={ref}
               className="gen-prompt"
               rows={4}
               value={prompt}
-              placeholder="A cracked terracotta pot on a windowsill, hard afternoon light"
+              placeholder={
+                from.length
+                  ? 'The same pot, at night, lit from one side'
+                  : 'A cracked terracotta pot on a windowsill, hard afternoon light'
+              }
               aria-label="What to draw"
               onChange={(e) => setPrompt(e.target.value)}
             />

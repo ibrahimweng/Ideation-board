@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bareId, bodiesFor, explainNoImage, findImage, imageModels, methodFor, sniffMime, type AiModel,
+  bareId, bodiesFor, explainNoImage, findImage, generate, imageModels, methodFor, sniffMime, type AiModel,
 } from '../../src/ai/gemini'
 
 /* Reading a reply from an API whose shapes are not ours to fix.
@@ -192,5 +192,57 @@ describe('the requests to try', () => {
 
   it('does not try the same thing twice with no ratio asked for', () => {
     expect(bodiesFor('generateContent', 'a pot', '')).toHaveLength(2)
+  })
+})
+
+describe('working from a picture that is already there', () => {
+  const ref = { mime: 'image/jpeg', data: 'AAAA' }
+
+  it('sends the picture before the words', () => {
+    /* The documented order, and the sensible one: here is the thing, now here
+     * is what to do with it. */
+    const body = bodiesFor('generateContent', 'the same pot at night', '', [ref]) as any[]
+    const parts = body[0].contents[0].parts
+    expect(parts).toHaveLength(2)
+    expect(parts[0].inlineData).toEqual({ mimeType: 'image/jpeg', data: 'AAAA' })
+    expect(parts[1].text).toBe('the same pot at night')
+  })
+
+  it('sends several in the order they were given', () => {
+    const two = [ref, { mime: 'image/png', data: 'BBBB' }]
+    const body = bodiesFor('generateContent', 'blend these', '', two) as any[]
+    const parts = body[0].contents[0].parts
+    expect(parts.map((p: any) => p.inlineData?.data).filter(Boolean)).toEqual(['AAAA', 'BBBB'])
+  })
+
+  it('still steps down through the ways of asking', () => {
+    /* A reference must not cost the fallbacks: a model that refuses an image
+     * config refuses it with a picture attached too. */
+    const bodies = bodiesFor('generateContent', 'x', '1:1', [ref]) as any[]
+    expect(bodies).toHaveLength(4)
+    expect(bodies.every((b) => b.contents[0].parts[0].inlineData)).toBe(true)
+  })
+
+  it('leaves the words alone when there is nothing to work from', () => {
+    const body = bodiesFor('generateContent', 'a pot', '') as any[]
+    expect(body[0].contents[0].parts).toEqual([{ text: 'a pot' }])
+  })
+
+  it('says plainly that an Imagen model cannot be given one', async () => {
+    /* How Imagen takes a picture to work from is not in the discovery
+     * document — `instances` is typed `any` there — so there is nothing to
+     * build that request from but memory, and a request built from memory
+     * fails in a way nobody can debug. Refused before it is ever sent, which
+     * is why this needs no network to check. */
+    await expect(
+      generate({
+        prompt: 'the same pot at night',
+        key: 'k',
+        base: 'https://example.invalid/v1beta',
+        model: 'imagen-4.0-generate-001',
+        method: 'predict',
+        refs: [{ mime: 'image/jpeg', data: 'AAAA' }],
+      })
+    ).rejects.toThrow(/cannot be given a picture/i)
   })
 })

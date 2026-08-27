@@ -314,6 +314,60 @@ ok('and all four are picked out, so comparing them is one key away',
    `${await page.locator('.card[data-sel="true"]').count()} selected`)
 fs.writeFileSync(path.join(OUT, 'draw-four.png'), await page.screenshot())
 
+/* ---------- working from a picture already on the board ---------- */
+/* The point of it on a moodboard: the reference is already there, and saying
+   "this one, but at night" is a different request from describing that pot
+   from scratch. What has to be true is that the picture really goes with the
+   prompt — a card that looks right while nothing was sent would be the worst
+   possible outcome, because it would look like it worked. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+await page.keyboard.press('1')
+await page.waitForTimeout(600)
+await page.keyboard.press('Tab')
+await page.waitForTimeout(500)
+const picked = await page.evaluate(() => document.querySelectorAll('.card[data-sel="true"]').length)
+ok('a picture on the board can be picked out to work from', picked === 1, `${picked} selected`)
+
+await page.keyboard.press('d')
+await page.waitForSelector('.gen-sheet', { timeout: 4000 })
+await page.waitForTimeout(400)
+ok('and the sheet offers it, shown rather than named',
+   (await page.locator('.gen-ref').count()) === 1 && (await page.locator('.gen-ref img').count()) === 1)
+ok('and says so in words too', /working from this/i.test(await page.locator('.gen-working').innerText()))
+
+await page.locator('.gen-prompt').fill('the same pot, at night')
+await page.locator('.sheet-actions button', { hasText: 'Draw' }).click()
+await page.waitForTimeout(4000)
+
+const withRef = seen.filter((s) => s.path.endsWith('fake-image-2.0-generate:generateContent')).slice(-2)
+const sentParts = withRef[0]?.body?.contents?.[0]?.parts || []
+ok('the picture really is sent, not just shown in the sheet',
+   sentParts.some((p) => p.inlineData?.data?.length > 100),
+   JSON.stringify(sentParts.map((p) => (p.inlineData ? `inlineData ${p.inlineData.mimeType} ${p.inlineData.data.length}b` : p.text))))
+ok('and it comes before the words, which is the order it is read in',
+   !!sentParts[0]?.inlineData && sentParts[sentParts.length - 1]?.text === 'the same pot, at night')
+fs.writeFileSync(path.join(OUT, 'draw-from.png'), await page.screenshot())
+
+/* Dropping one is how you say "actually, from nothing". */
+await page.keyboard.press('d')
+await page.waitForSelector('.gen-sheet', { timeout: 4000 })
+await page.waitForTimeout(400)
+/* However many were offered — the four just drawn are still picked out, which
+   is exactly the state somebody would be in. */
+for (let guard = 0; guard < 8 && (await page.locator('.gen-ref button').count()); guard++) {
+  await page.locator('.gen-ref button').first().click()
+  await page.waitForTimeout(200)
+}
+ok('a picture can be taken back off before asking', (await page.locator('.gen-ref').count()) === 0)
+await page.locator('.gen-prompt').fill('nothing to do with that pot')
+await page.locator('.sheet-actions button', { hasText: 'Draw' }).click()
+await page.waitForTimeout(4000)
+const last = seen.filter((s) => s.path.endsWith('fake-image-2.0-generate:generateContent')).slice(-1)[0]
+ok('and then nothing is sent but the words',
+   (last?.body?.contents?.[0]?.parts || []).every((p) => !p.inlineData),
+   JSON.stringify((last?.body?.contents?.[0]?.parts || []).map((p) => (p.inlineData ? 'a picture' : p.text))))
+
 /* ---------- a model that writes rather than draws ---------- */
 const before = (await cards()).length
 await openSheet()
@@ -359,11 +413,13 @@ ok('a refused prompt says it was refused, and why',
 
 /* ---------- it survives a reload, so the picture is really held here ------- */
 await page.waitForTimeout(1400)
+const beforeReload = (await cards()).length
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(2600)
 list = await cards()
 ok('every generated picture is still there after a reload',
-   list.length === 6 && list.every((c) => c.picture), JSON.stringify(list.map((c) => c.picture)))
+   list.length === beforeReload && list.every((c) => c.picture),
+   `${list.length} of ${beforeReload}, all with pictures: ${list.every((c) => c.picture)}`)
 
 /* ---------- a model whose name does not say how to ask it ---------- */
 await openSheet()
@@ -386,7 +442,8 @@ ok('a model that answers to predict but is not named for it is still asked corre
    seen.some((s) => s.path.endsWith('fake-drawing-3.0-generate:predict')) &&
    !seen.some((s) => s.path.endsWith('fake-drawing-3.0-generate:generateContent')),
    JSON.stringify(seen.filter((s) => s.path.includes('fake-drawing')).map((s) => s.path)))
-ok('and its picture is on the board like any other', (await cards()).length === 7, `${(await cards()).length} cards`)
+ok('and its picture is on the board like any other', (await cards()).length === beforeReload + 1,
+   `${(await cards()).length}, was ${beforeReload}`)
 
 /* ---------- and the key is in none of it ---------- */
 const stored = await page.evaluate(() => {

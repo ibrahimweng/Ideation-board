@@ -32,6 +32,10 @@ export interface FoundImage {
   data: string
 }
 
+/* A picture handed to the model to work from, rather than one it made. Same
+ * shape either way, which is the whole convenience of it. */
+export type Ref = FoundImage
+
 export class AiError extends Error {
   status: number
   constructor(message: string, status = 0) {
@@ -289,6 +293,10 @@ export interface GenOpts {
   prompt: string
   model?: string
   aspect?: string
+  /* Pictures to work from. "This one, but at night" is a different request
+   * from "a pot at night", and on a board full of references the first is
+   * nearly always the one you mean. */
+  refs?: Ref[]
   key?: string
   base?: string
   method?: 'predict' | 'generateContent'
@@ -303,7 +311,12 @@ export interface GenOpts {
  * model offers exactly — neither of which can be known from the listing. So
  * rather than pick one and be wrong for half the models, ask, and step down
  * when the answer is that the request was malformed. */
-export function bodiesFor(method: 'predict' | 'generateContent', prompt: string, aspect: string): unknown[] {
+export function bodiesFor(
+  method: 'predict' | 'generateContent',
+  prompt: string,
+  aspect: string,
+  refs: Ref[] = []
+): unknown[] {
   if (method === 'predict') {
     const params: Record<string, unknown> = { sampleCount: 1 }
     if (aspect) params.aspectRatio = aspect
@@ -311,7 +324,14 @@ export function bodiesFor(method: 'predict' | 'generateContent', prompt: string,
     if (!aspect) return [full]
     return [full, { instances: [{ prompt }], parameters: { sampleCount: 1 } }]
   }
-  const contents = [{ role: 'user', parts: [{ text: prompt }] }]
+  /* The pictures first and the words after, which is the order the model is
+   * documented to read them in: here is the thing, now here is what to do
+   * with it. */
+  const parts = [
+    ...refs.map((r) => ({ inlineData: { mimeType: r.mime, data: r.data } })),
+    { text: prompt },
+  ]
+  const contents = [{ role: 'user', parts }]
   const out: unknown[] = []
   for (const modalities of [['TEXT', 'IMAGE'], ['IMAGE']]) {
     if (aspect) out.push({ contents, generationConfig: { responseModalities: modalities, imageConfig: { aspectRatio: aspect } } })
@@ -332,8 +352,20 @@ export async function generate(o: GenOpts): Promise<FoundImage> {
   /* What the listing said when this model was picked, if it was picked from
    * the list; otherwise the name is all there is to go on. */
   const method = o.method || modelMethod() || methodFor(undefined, model)
+  const refs = o.refs || []
+  /* Imagen answers to `predict`, and how it takes a picture to work from is
+   * not in the discovery document — `instances` is typed as `any` there, so
+   * there is nothing to build a request from but memory, and a request built
+   * from memory is a request that fails in a way nobody can debug. Said
+   * plainly instead. */
+  if (refs.length && method === 'predict') {
+    throw new AiError(
+      'That model cannot be given a picture to work from. Pick a Gemini image model in settings, or take the pictures off.',
+      0
+    )
+  }
   const url = endpoint(base, model, method)
-  const bodies = bodiesFor(method, prompt, o.aspect || '')
+  const bodies = bodiesFor(method, prompt, o.aspect || '', refs)
   const wait = withTimeout(o.signal)
 
   let last: AiError | null = null

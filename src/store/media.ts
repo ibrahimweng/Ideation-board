@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { putBlob, getBlob } from './idb'
 
 /* ---------------------------------------------------------------------------
@@ -123,4 +124,27 @@ export async function saveMedia(key: string, blob: Blob) {
 
 export function newKey(prefix = 'm') {
   return prefix + '_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+}
+
+/* The address of one stored picture, for as long as a component wants it.
+ *
+ * Lived in Card.tsx until the generate sheet needed to show the pictures it is
+ * about to work from, which is the same question asked by something that is
+ * not a card. */
+export function useObjectURL(key: string | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    if (!key) {
+      setUrl(null)
+      return
+    }
+    void urlForKey(key).then((u) => {
+      if (live) setUrl(u)
+    })
+    return () => {
+      live = false
+    }
+  }, [key])
+  return url
 }

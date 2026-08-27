@@ -27,7 +27,7 @@ import { RelaySheet } from './ui/RelaySheet'
 import { UpdateBar } from './ui/UpdateBar'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
-import { drawMany } from './state/generate'
+import { drawMany, picturesFrom } from './state/generate'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -652,12 +652,18 @@ export default function App() {
    * The sheet closes first, so that the cards it puts down are visible while
    * they fill in rather than hidden behind the thing that asked for them. */
   const onDraw = useCallback(
-    (prompt: string, count: number, aspect: string) => {
+    (prompt: string, count: number, aspect: string, from: string[] = []) => {
       setDrawSheet(false)
       setDrawBusy(true)
       const at = centreOfView()
-      say(count > 1 ? `Drawing ${count}…` : 'Drawing…', 60000)
-      void drawMany(at, prompt, count, { aspect }).then((made) => {
+      const n = from.length
+      say(n ? `Working from ${n === 1 ? 'that picture' : `${n} pictures`}…` : count > 1 ? `Drawing ${count}…` : 'Drawing…', 120000)
+      /* Read once, not once per picture asked for: four variations of one
+         reference should send that reference four times, not encode it four
+         times. */
+      void picturesFrom(from)
+        .then((refs) => drawMany(at, prompt, count, { aspect, refs }))
+        .then((made) => {
         setDrawBusy(false)
         const ok = made.filter((m) => m.ok).length
         /* Every one of them failed the same way, nearly always: one sentence
@@ -668,6 +674,18 @@ export default function App() {
       })
     },
     [centreOfView, say]
+  )
+
+  /* The pictures picked out on the board, offered to the sheet as things it
+     could work from. Only ones that have a picture: a note has nothing to
+     show a model. */
+  const working = useMemo(
+    () =>
+      selection
+        .map((id) => store.getItem(id))
+        .filter((it): it is Item => !!it && it.kind === 'image' && !!it.media)
+        .map((it) => ({ id: it.id, media: it.media, name: it.name || 'Picture' })),
+    [selection]
   )
 
   /* Everything the board can do, as a list. Built here because this is where
@@ -898,7 +916,7 @@ export default function App() {
         />
       )}
       {drawSheet && (
-        <GenerateSheet onClose={() => setDrawSheet(false)} onDraw={onDraw} busy={drawBusy} />
+        <GenerateSheet onClose={() => setDrawSheet(false)} onDraw={onDraw} working={working} busy={drawBusy} />
       )}
       {relaySheet && <RelaySheet onClose={() => setRelaySheet(false)} />}
       {comparing && (

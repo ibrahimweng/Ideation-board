@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useItem, store } from '../state/store'
 import { TAGS } from '../state/types'
 import { FxAnimCanvas, FxCanvas } from './FxCanvas'
@@ -7,7 +7,7 @@ import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
 import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
-import { urlForKey } from '../store/media'
+import { useObjectURL } from '../store/media'
 import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
@@ -38,24 +38,6 @@ interface Props {
   onPointerDown: (e: React.PointerEvent, id: string) => void
   onOpenEditor: (id: string) => void
   onContextMenu: (e: React.MouseEvent, id: string) => void
-}
-
-function useObjectURL(key: string | undefined) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let live = true
-    if (!key) {
-      setUrl(null)
-      return
-    }
-    void urlForKey(key).then((u) => {
-      if (live) setUrl(u)
-    })
-    return () => {
-      live = false
-    }
-  }, [key])
-  return url
 }
 
 export const Card = memo(function Card({

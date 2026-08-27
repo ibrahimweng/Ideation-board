@@ -7,7 +7,8 @@ import { newKey, decodeCapped } from '../store/media'
 import { putBlob } from '../store/idb'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
-import { AiError, generate, type GenOpts } from '../ai/gemini'
+import { AiError, generate, type GenOpts, type Ref } from '../ai/gemini'
+import { getBlob } from '../store/idb'
 
 /* ---------------------------------------------------------------------------
  * A picture that did not exist until you asked for it.
@@ -107,6 +108,76 @@ export const placeholderItem = (at: { x: number; y: number }, prompt: string, as
   fx: { ...FX_0 },
   tag: null,
 })
+
+/* ---------------------------------------------------------------------------
+ * Working from a picture that is already on the board.
+ *
+ * "This one, but at night" is a different request from "a pot at night", and
+ * on a board full of references the first is nearly always the one meant. The
+ * card's own file is what gets sent — not what is on screen, which has the
+ * card's effect and framing on it and is a smaller thing than the file behind
+ * it.
+ * ------------------------------------------------------------------------- */
+
+/* Big enough for a model to see what it is being shown, small enough that four
+ * of them do not make a request nobody's connection will carry. Base64 costs a
+ * third again on top of whatever this comes to. */
+const REF_LONG = 1024
+const REF_TYPE = 'image/jpeg'
+
+function base64Of(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => {
+      const s = String(r.result || '')
+      /* A data URL, of which only the part after the comma is the picture. */
+      const at = s.indexOf(',')
+      resolve(at >= 0 ? s.slice(at + 1) : '')
+    }
+    r.onerror = () => reject(new Error('could not read that picture'))
+    r.readAsDataURL(blob)
+  })
+}
+
+/* One card's picture, ready to be handed over. Null when the card holds
+ * nothing, or holds something that will not decode. */
+export async function pictureFrom(mediaKey: string): Promise<Ref | null> {
+  try {
+    const blob = await getBlob(mediaKey)
+    if (!blob) return null
+    const bmp = await createImageBitmap(blob)
+    const long = Math.max(bmp.width, bmp.height)
+    const scale = long > REF_LONG ? REF_LONG / long : 1
+    const w = Math.max(1, Math.round(bmp.width * scale))
+    const h = Math.max(1, Math.round(bmp.height * scale))
+    const canvas = new OffscreenCanvas(w, h)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      bmp.close()
+      return null
+    }
+    ctx.drawImage(bmp, 0, 0, w, h)
+    bmp.close()
+    /* Re-encoded rather than sent as it lies: the file might be a 12 megapixel
+     * photograph, or a format the model does not take, and either way what is
+     * wanted is a look at it and not a copy of it. */
+    const small = await canvas.convertToBlob({ type: REF_TYPE, quality: 0.85 })
+    return { mime: REF_TYPE, data: await base64Of(small) }
+  } catch {
+    return null
+  }
+}
+
+/* The pictures behind a set of cards, in the order they were asked for, with
+ * anything that could not be read left out. */
+export async function picturesFrom(ids: string[]): Promise<Ref[]> {
+  const keys = ids
+    .map((id) => store.getItem(id))
+    .filter((it): it is Item => !!it && it.kind === 'image' && !!it.media)
+    .map((it) => it.media!)
+  const got = await Promise.all(keys.map(pictureFrom))
+  return got.filter((r): r is Ref => !!r)
+}
 
 export interface DrawResult {
   id: string

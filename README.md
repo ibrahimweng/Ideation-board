@@ -499,6 +499,33 @@ The whole prompt stays on the card, so a board of generated pictures still says
 what each one was asked for six months later, and the search box finds one by a
 word from its prompt.
 
+### Working from a picture already on the board
+
+Pick out a picture and press **D**. The sheet shows it — shown, not named,
+because it is a picture and a row of filenames would be the one thing on this
+board you cannot look at — and the prompt becomes what to do to it rather than
+what to make from nothing. "The same pot, at night." Ask for four and press
+**C** to hold them up against each other.
+
+What is sent is the card's own file, not what is on screen: the card has an
+effect and a framing on it and is a smaller thing than the file behind it. It
+is scaled to a thousand pixels on its long edge and re-encoded before it goes,
+because the file may be a twelve megapixel photograph and what is wanted is a
+look at it rather than a copy of it.
+
+The pictures go before the words, which is the order the model reads them in:
+here is the thing, now here is what to do with it.
+
+Only Gemini models take a picture to work from. Imagen answers to `predict`,
+and how that takes a reference is not in Google's discovery document —
+`instances` is typed as `any` there, so there is nothing to build the request
+from but memory, and a request built from memory fails in a way nobody can
+debug. So it is refused with a sentence saying which model to pick instead,
+before anything is sent.
+
+Claude can do the same thing through the relay: `draw_image` takes `from` with
+card ids.
+
 ### Your key, on your machine
 
 This is a static site with no server, so it has no key of its own and no way to

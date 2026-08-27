@@ -2,7 +2,7 @@ import type { Item, Kind } from '../state/types'
 import { store } from '../state/store'
 import { labelItem, noteItem, sectionItem, addUrl } from '../state/ingest'
 import { wordsField } from '../state/kinds'
-import { drawMany } from '../state/generate'
+import { drawMany, picturesFrom } from '../state/generate'
 import { fitToBoard, viewportSize } from '../state/walk'
 import { allBoards } from '../store/idb'
 import type { AlignMode } from '../state/arrange'
@@ -145,7 +145,17 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     if (!prompt) throw new Error('Say what to draw.')
     const count = Math.max(1, Math.min(4, Math.round(numOr(a.count, 1))))
     const at = { x: numOr(a.x, centre().x), y: numOr(a.y, centre().y) }
-    const made = await drawMany(at, prompt, count, { aspect: str(a.aspect) })
+    /* Pictures to work from, if any were named. Cards that are not pictures
+     * are dropped rather than argued about — an agent naming a note among four
+     * photographs meant the photographs. */
+    const from = Array.isArray(a.from) ? ids(a.from) : []
+    const missing = from.filter((id) => !store.getItem(id))
+    if (missing.length) throw new Error(`No card ${missing[0]} on this board. Ids come from get_board.`)
+    const refs = from.length ? await picturesFrom(from) : []
+    if (from.length && !refs.length) {
+      throw new Error('None of those cards hold a picture to work from.')
+    }
+    const made = await drawMany(at, prompt, count, { aspect: str(a.aspect), refs })
     const drew = made.filter((m) => m.ok)
     if (!drew.length) {
       /* One sentence about the key or the model, not four copies of it. */
@@ -154,6 +164,7 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     return {
       drew: drew.length,
       of: made.length,
+      ...(refs.length ? { workedFrom: refs.length } : {}),
       cards: drew.map((m) => store.getItem(m.id)).filter((i): i is Item => !!i).map(describe),
       ...(drew.length < made.length ? { note: made.find((m) => m.error)?.error } : {}),
     }

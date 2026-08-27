@@ -60,6 +60,7 @@ const png = (w, h, rgb) => {
 const PICTURE = png(240, 160, [0xd0, 0x50, 0x20]).toString('base64')
 
 /* ---------- a stand-in for Google, so draw_image has something to ask ------ */
+const sent = []
 const ai = http.createServer((req, res) => {
   const head = {
     'Access-Control-Allow-Origin': '*',
@@ -76,9 +77,17 @@ const ai = http.createServer((req, res) => {
   }
   let body = ''
   req.on('data', (c) => (body += c))
-  req.on('end', () => setTimeout(() => res.writeHead(200, head).end(JSON.stringify({
-    candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: PICTURE } }] }, finishReason: 'STOP' }],
-  })), 300))
+  req.on('end', () => {
+    /* Kept so the test can check what was asked, not only what came back. */
+    try {
+      sent.push({ path: url.pathname, body: JSON.parse(body || '{}') })
+    } catch {
+      sent.push({ path: url.pathname, body: null })
+    }
+    setTimeout(() => res.writeHead(200, head).end(JSON.stringify({
+      candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: PICTURE } }] }, finishReason: 'STOP' }],
+    })), 300)
+  })
 })
 await new Promise((r) => ai.listen(AI_PORT, '127.0.0.1', r))
 
@@ -255,6 +264,26 @@ ok('Claude can ask for a picture that does not exist yet',
 ok('and both are real pictures on the board',
    (await page.locator('.card[data-kind="image"] img.media').count()) === 2)
 fs.writeFileSync(path.join(OUT, 'mcp-drawn.png'), await page.screenshot())
+
+/* ---------- and can work from what is already there ---------- */
+/* The reason this matters on a moodboard: the reference is on the board
+   already, so "the same one, at night" said about a card beats describing it
+   from scratch. Checked at the request, not at the card: a picture that landed
+   while nothing was sent would look exactly like it worked. */
+const shown = r.json?.cards?.[0]?.id
+r = await call('draw_image', { prompt: 'the same pot, at night', from: [shown] })
+await page.waitForTimeout(600)
+ok('Claude can ask for a picture made from one already on the board',
+   !r.isError && r.json?.workedFrom === 1, r.text.slice(0, 120))
+const asked = sent.filter((s) => s.path.endsWith('fake-image-generate:generateContent')).slice(-1)[0]
+const parts = asked?.body?.contents?.[0]?.parts || []
+ok('and the picture really goes with it',
+   parts.some((p) => p.inlineData?.data?.length > 100) && parts[parts.length - 1]?.text === 'the same pot, at night',
+   JSON.stringify(parts.map((p) => (p.inlineData ? `a picture, ${p.inlineData.data.length}b` : p.text))))
+
+r = await call('draw_image', { prompt: 'x', from: ['i_nosuchcard'] })
+ok('and a card that is not there is said plainly rather than quietly ignored',
+   r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 
 /* ---------- arranging and looking ---------- */
 r = await call('arrange', { how: 'tidy' })

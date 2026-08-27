@@ -118,13 +118,20 @@ const TOOLS = [
   {
     name: 'draw_image',
     description:
-      'Make a picture that does not exist yet, from a description, and put it on the board. Uses the key ' +
-      'the person saved in their own browser — this asks their browser to ask Google, and it is billed to ' +
-      'them, so do not draw things nobody asked for. Slow: ten seconds or more each.',
+      'Make a picture and put it on the board. Uses the key the person saved in their own browser — this ' +
+      'asks their browser to ask Google, and it is billed to them, so do not draw things nobody asked for. ' +
+      'Slow: ten seconds or more each. Pass `from` with card ids to work from pictures already on the ' +
+      'board — "the same pot, at night" said about a card beats describing that pot from scratch, and it ' +
+      'is what a board full of references is for.',
     inputSchema: {
       type: 'object',
       properties: {
-        prompt: str('What to draw. Write it as a description of a picture, not as an instruction.'),
+        prompt: str('What to draw. A description of a picture; with `from`, what to do to the ones given.'),
+        from: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Card ids, from get_board, whose pictures the model should work from. Image cards only.',
+        },
         count: num('How many, 1 to 4. Several answers to one prompt arrive side by side. Default 1.'),
         aspect: str('Shape, e.g. "1:1", "3:2", "16:9", "9:16". Omit to let the model choose.'),
         x: num('Board coordinates. Omitted, they go in the middle of the view.'),
