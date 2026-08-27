@@ -443,6 +443,39 @@ told rather than left guessing:
 
 An address that turns out not to be a video stays an ordinary link card.
 
+### A player is a separate document
+
+An embedded player is an iframe, and an iframe's pointer events never reach the
+page around it. That is fine until something out here is mid-drag: the pointerup
+that should end the drag lands in the player and is lost, and the card goes on
+following the mouse until it is clicked again.
+
+It was worst on the card that caused it. Pressing an unselected player selects
+it, and selecting it takes away the shield covering it — so the act of starting
+the drag exposed the very thing that would swallow the end of it.
+
+Pointer capture is the textbook answer and it does not work, twice over. A
+cross-origin frame runs in its own process, and Chromium routes input into it
+before the parent document's capture is consulted: the capture is held,
+`hasPointerCapture` agrees, and not one `pointermove` arrives. And holding a
+pointer on an ancestor retargets the release, so a click is no longer dispatched
+to a button inside it — which quietly stopped the zoom buttons working the
+moment it was tried.
+
+So the frame is made untargetable instead, for as long as a press that reached
+the board is still down. Hit testing then walks straight past it. Pressing a
+selected player to play it lands in the frame, is never seen out here, and so
+never sets the flag. The flag is released by a listener on the window rather
+than by each path, because there are four ways out of that handler and a finger
+takes a different one from a mouse — and one path that forgot would leave every
+player on the board dead to the touch until the page was reloaded.
+
+A selected player also keeps a strip along the top to be taken hold of by. The
+name plate was meant to be that, and never could be: it is drawn with pointer
+events off, because it is a label rather than a control, so every point on a
+selected player belonged to the player and the card could only be moved by
+clicking away to deselect it first.
+
 ## Drawing a picture from a prompt
 
 Press **D**, or the frame button in the top bar, and describe something. A card
@@ -1018,6 +1051,7 @@ npm run test:compare -- http://localhost:5173
 npm run test:draw -- http://localhost:5173
 npm run test:mcp -- http://localhost:5173
 npm run test:moving -- http://localhost:5173
+npm run test:embed -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1077,6 +1111,13 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:embed` serves a player from the test itself, so the iframe is a real
+  cross-origin document with no internet involved, then drags the card by the
+  picture and lets go over the player. It has to stay where it was let go of
+  rather than follow the mouse, the board has to take a press again afterwards,
+  a selected player has to still be movable by its strip while its picture
+  belongs to the player, and neither a click nor a tap may leave the players
+  unclickable afterwards.
 - `test:moving` drops a hand-written animated GIF and a recorded video on the
   board, puts an effect on each, and screenshots the painted card to count how
   many different pictures it draws. Both must keep moving, the GIF must still

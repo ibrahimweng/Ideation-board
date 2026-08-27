@@ -736,6 +736,10 @@ body[data-dragging] .card-chrome { opacity: 0; }
    every pointer event, so without this the card could not be picked up or
    dragged by its picture. */
 .embed-shield { position: absolute; inset: 0; cursor: grab; }
+/* Where a selected player can still be taken hold of. The same strip the name
+   plate occupies — a label, drawn with pointer events off, so without this
+   there is no point on a selected player that belongs to the board. */
+.embed-grip { position: absolute; left: 0; right: 0; top: 0; height: 38px; cursor: grab; }
 
 .note { width: 100%; height: 100%; padding: 14px; font-size: var(--t-md); line-height: 1.5; overflow: hidden; }
 
@@ -1377,6 +1381,21 @@ ul.gen-models button[data-on] { border-color: var(--accent); color: var(--ink); 
 .stats-relay[data-on] { color: var(--accent); font-weight: 500; }
 .stats-relay[data-on]::before { content: '● '; font-size: 8px; vertical-align: 2px; }
 .stats-relay[data-warn] { color: var(--warn); }
+
+/* A player is an iframe, and an iframe is a separate document: pointer events
+   that land in it never reach this one. Mid-drag that means the pointerup that
+   should end the drag is simply lost, and the card follows the mouse until it
+   is clicked again.
+
+   Pointer capture is the textbook answer and it does not work twice over: a
+   cross-origin frame runs in its own process and Chromium routes input into it
+   before the parent's capture is consulted, and holding a pointer on an
+   ancestor retargets the release, which stops a click ever reaching a button
+   inside it. So the frame is made untargetable instead, for as long as a press
+   that reached the board is still down — hit testing then walks straight past
+   it. Pressing a selected player to play it lands in the frame, is never seen
+   out here, and so never sets the flag. */
+body[data-pressing] .embed-frame { pointer-events: none; }
 
 /* ---------- chrome ---------- */
 

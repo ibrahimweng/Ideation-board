@@ -42,6 +42,7 @@
     "test:draw": "node test/draw.mjs",
     "test:mcp": "node test/mcp.mjs",
     "test:moving": "node test/moving.mjs",
+    "test:embed": "node test/embed.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",
     "test:unit": "vitest run",

@@ -18,7 +18,7 @@ import path from 'node:path'
 const SUITES = [
   'ui', 'menu', 'search', 'sections', 'notes', 'boards', 'wires', 'transfer',
   'arrange', 'touch', 'access', 'looks', 'palette', 'present', 'decide', 'fit', 'drop', 'tabs', 'curate', 'compare',
-  'draw', 'mcp', 'moving',
+  'draw', 'mcp', 'moving', 'embed',
   'png', 'poster', 'urlimage', 'aspect', 'video', 'effects',
 ]
 const NETWORK = ['urlvideo']

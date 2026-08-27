@@ -183,6 +183,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       const sy = e.clientY - r.top
 
       /* Middle mouse or space-drag pans; plain drag on empty space marquees. */
+      /* Same reason as the card drag below: a player must not be able to take
+       * the end of a marquee or a pan that crosses it. */
+      holdPress()
       const panning = e.button === 1 || e.altKey
       const startView = { ...store.peekView() }
       const engine = getEngine()
@@ -255,7 +258,26 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     [paintTransform]
   )
 
-  /* Dragging a card moves the whole selection, and dragging a section takes
+/* A press that reached the board, held until it is let go.
+ *
+ * While it is on, embedded players are untargetable, so nothing that begins
+ * out here can have its ending swallowed by one. The release is hung on the
+ * window rather than written into each path because there are four of them —
+ * pan, marquee, card drag, and a finger, which returns before any of the
+ * others — and one that forgot would leave every player on the board dead to
+ * the touch until the page was reloaded. */
+function holdPress() {
+  document.body.dataset.pressing = '1'
+  const off = () => {
+    delete document.body.dataset.pressing
+    window.removeEventListener('pointerup', off)
+    window.removeEventListener('pointercancel', off)
+  }
+  window.addEventListener('pointerup', off)
+  window.addEventListener('pointercancel', off)
+}
+
+/* Dragging a card moves the whole selection, and dragging a section takes
    * everything inside it along. Positions are written with recording off, so
    * one snapshot is taken when the drag actually starts moving and the whole
    * drag becomes a single undo step. */
@@ -273,6 +295,38 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       if (!sel.includes(id)) store.select([id])
       setMenu({ x: px, y: py, ids })
     })
+    /* Take the embedded players out of the way for as long as the button is
+     * down.
+     *
+     * A drag that passes over a player used to lose its own pointerup — an
+     * iframe is a separate document and its events never reach this window —
+     * so the card went on following the mouse for ever. It was worst on the
+     * card that caused it: pressing an unselected player selects it, and
+     * selecting it takes away the shield that was covering it, so the act of
+     * starting the drag exposed the very thing that would swallow the end of
+     * it.
+     *
+     * Pointer capture is the textbook answer and it does not work here. It is
+     * set, and `hasPointerCapture` agrees it is held, and not one pointermove
+     * arrives: a cross-origin frame runs in its own process, and Chromium
+     * routes input into it before the parent document's capture is consulted.
+     * Measured, with the capture confirmed held, before this was written.
+     *
+     * What does work is making the frame untargetable, so hit testing walks
+     * past it. The flag goes on now rather than when the drag starts moving,
+     * because "when it starts moving" needs a pointermove, and a pointermove
+     * is the thing being lost.
+     *
+     * It is only ever set by a press that reached the card, so pressing a
+     * selected player to play it — which lands in the frame and is never seen
+     * here — is untouched.
+     *
+     * And capture is not the answer to add on top, either. Held on the card it
+     * retargets the pointerup, and a click is only dispatched where the press
+     * and the release agree — so the zoom buttons, and a video's own play
+     * controls, quietly stop working. It was tried, it broke both, and it was
+     * never fixing the thing it was there for. */
+    holdPress()
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
     /* The left button, or a finger. A right button is on its way to the menu,
        which acts on the whole selection and must not have it taken away. */
@@ -389,6 +443,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       held.cancel()
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
       delete document.body.dataset.dragging
       setHighlight(null)
       drawGuide(guideV.current, null, true)
@@ -410,6 +465,10 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    /* A capture torn away — by a touch being cancelled, or the element going —
+     * fires this instead of pointerup, and a drag that never ends is exactly
+     * what this whole passage is about. */
+    window.addEventListener('pointercancel', up)
   }, [])
 
   /* The middle of what is on screen, in board coordinates. */

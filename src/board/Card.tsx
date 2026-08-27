@@ -9,6 +9,7 @@ import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
 import { urlForKey } from '../store/media'
 import { useDrawing } from '../state/generate'
+import { useMoves } from './moving'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
@@ -69,6 +70,10 @@ export const Card = memo(function Card({
    * every render. */
   const [stillOnly, setStillOnly] = useState(false)
   const fallBackToStill = useCallback(() => setStillOnly(true), [])
+  /* Whether this picture moves. Written on the card for anything that arrived
+   * since the app learned to ask; worked out on the spot for everything that
+   * was already on a board before it did. */
+  const moves = useMoves(it)
 
   if (!it) return null
 
@@ -219,7 +224,7 @@ export const Card = memo(function Card({
             /* A picture that moves keeps moving with an effect on it: its
                frames are decoded and fed through one at a time, the way a
                video's are. Everything else is one still, uploaded once. */
-            (effected && it.anim && it.media && !stillOnly ? (
+            (effected && moves && it.media && !stillOnly ? (
               <FxAnimCanvas
                 id={id}
                 mediaKey={it.media}
