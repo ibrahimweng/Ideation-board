@@ -1,4 +1,5 @@
 import { VERT, BLUR, PRE } from './shaders'
+import { paintGlyphs } from './glyphs'
 import { BY_ID } from './effects'
 import type { EffectSpec, Params } from './types'
 
@@ -426,49 +427,26 @@ export class Renderer {
     this.sizeFBO(this.stack[1], w, h)
   }
 
-  /* Three ramps of characters, darkest first, drawn into one atlas of sixteen
-   * columns by three rows.
+  /* Three ramps of characters, lightest first, in one atlas of sixteen columns
+   * by three rows.
    *
    * The cells are the shape of a character rather than square. Square cells
-   * left a monospace glyph with a wide margin either side, so the picture came
-   * out as widely spaced dots rather than as text, and anything drawn into a
-   * cell of a different shape was stretched. These match what the effect lays
-   * on screen, so a letter is letter-shaped. */
+   * left a glyph with a wide margin either side, so the picture came out as
+   * widely spaced dots rather than as text, and anything drawn into a cell of
+   * a different shape was stretched. These match what the effect lays on
+   * screen, so a letter is letter-shaped.
+   *
+   * The characters are drawn rather than typed, which is a decision with a
+   * long enough story to live in its own file: see `glyphs.ts`. Built once,
+   * because nothing about it can change any more. */
   private mkGlyphs(): WebGLTexture {
-    const sets = [' .:-=+*#%@', ' .:*#']
     const cw = 24
     const ch = 40
     const c: AnyCanvas =
       typeof OffscreenCanvas !== 'undefined'
         ? new OffscreenCanvas(cw * 16, ch * 3)
         : Object.assign(document.createElement('canvas'), { width: cw * 16, height: ch * 3 })
-    const x = c.getContext('2d') as OffscreenCanvasRenderingContext2D
-    x.fillStyle = '#000'
-    x.fillRect(0, 0, cw * 16, ch * 3)
-    x.fillStyle = '#fff'
-    x.textAlign = 'center'
-    x.textBaseline = 'middle'
-    x.font = 'bold ' + Math.round(ch * 0.84) + 'px ui-monospace, "JetBrains Mono", Menlo, monospace'
-    sets.forEach((set, row) => {
-      for (let i = 0; i < set.length; i++) x.fillText(set[i], i * cw + cw / 2, row * ch + ch / 2 + 1)
-    })
-
-    /* The third row is drawn rather than typed. A font's block characters sit
-     * inside their cell with a margin, which tiled into a grid of seams across
-     * the picture, and not every platform has them at all. These are the same
-     * five densities as patterns that meet edge to edge. */
-    const step = 4
-    for (let i = 0; i < 5; i++) {
-      const cov = i / 4
-      if (!cov) continue
-      const size = step * Math.sqrt(cov)
-      const inset = (step - size) / 2
-      for (let py = 0; py < ch; py += step) {
-        for (let px = 0; px < cw; px += step) {
-          x.fillRect(i * cw + px + inset, 2 * ch + py + inset, size, size)
-        }
-      }
-    }
+    paintGlyphs(c.getContext('2d') as OffscreenCanvasRenderingContext2D, cw, ch)
     const gl = this.gl
     const t = this.mkTex()
     gl.bindTexture(gl.TEXTURE_2D, t)

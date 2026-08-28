@@ -166,15 +166,15 @@ await page.waitForTimeout(150)
 await page.keyboard.press('1')
 await page.waitForTimeout(700)
 const afterReload = await shot()
-/* That it is still stacked, not that it is pixel for pixel what it was.
+/* That it is still stacked: the picture must not be the one-effect picture and
+ * must not be the bare one.
  *
- * Pixel identity across a reload is not something this engine offers and never
- * was: a single ASCII effect does not survive that comparison either, because
- * the glyph atlas is drawn once when the engine starts and depends on which
- * font has resolved by then. Asserting it here would be asserting something
- * about fonts under the name of stacking. What has to be true is that both
- * effects came back — so the picture must not be the one-effect picture, and
- * must not be the bare one. */
+ * This used to carry a note saying pixel identity across a reload was not on
+ * offer, because a single ASCII effect did not survive that comparison either
+ * — its glyph atlas was built once at engine start out of whichever font had
+ * resolved by then. That is fixed, and `test/ascii.mjs` holds it fixed. This
+ * check stays as it is anyway: what it is about is stacking, and it should
+ * not start failing over something that is not. */
 ok('a stacked card comes back stacked after a reload',
    afterReload !== one && afterReload !== plain,
    `reloaded ${afterReload.slice(0, 8)}, one effect ${one.slice(0, 8)}, none ${plain.slice(0, 8)}`)

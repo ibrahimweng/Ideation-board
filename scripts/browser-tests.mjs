@@ -19,7 +19,7 @@ const SUITES = [
   'ui', 'menu', 'search', 'sections', 'notes', 'boards', 'wires', 'transfer',
   'arrange', 'touch', 'access', 'looks', 'palette', 'present', 'decide', 'fit', 'drop', 'tabs', 'curate', 'compare',
   'help', 'draw', 'mcp', 'moving', 'embed', 'offline', 'reclaim', 'manyboards', 'stacked',
-  'png', 'poster', 'urlimage', 'aspect', 'video', 'effects',
+  'png', 'poster', 'urlimage', 'aspect', 'video', 'effects', 'ascii',
 ]
 const NETWORK = ['urlvideo']
 
