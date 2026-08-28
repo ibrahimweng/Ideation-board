@@ -184,6 +184,10 @@ export async function renderCardPicture(
     picture = await getEngine().renderOnce(src, {
       effectId: item.fx.fxid,
       params: item.fx.ep,
+      /* Everything stacked on top, or a card exported at full size would come
+       * out as its bottom layer only — which looks like a working export and
+       * is not the picture on the board. */
+      stack: item.fx.more?.length ? item.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep })) : undefined,
       seed: seedFor(item.id),
       width: w,
       height: h,

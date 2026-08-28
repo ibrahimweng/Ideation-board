@@ -1472,6 +1472,35 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .boards-wait { padding: 8px 9px; font-size: var(--t-sm); color: var(--muted); }
 .boards-hint { margin: 4px 9px 2px; font-size: var(--t-xs); color: var(--faint); line-height: 1.4; }
 
+/* A card's effects, in the order they are applied. */
+.fx-stack {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 0 var(--s3) var(--s2);
+}
+.fx-layer {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); overflow: hidden;
+}
+.fx-layer > button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 8px; font-size: var(--t-xs); color: var(--ink-2); background: none;
+}
+.fx-layer > button i { font: 400 10px/1 var(--mono); color: var(--faint); font-style: normal; }
+.fx-layer[data-on] { border-color: var(--accent); background: var(--accent-wash); }
+.fx-layer[data-on] > button { color: var(--ink); }
+.fx-layer[data-on] > button i { color: var(--accent); }
+.fx-layer-off {
+  padding: 4px 6px; font-size: 12px; line-height: 1; color: var(--faint); background: none;
+  border-left: 1px solid var(--line);
+}
+.fx-layer-off:hover { color: var(--warn); background: var(--hover); }
+.fx-layer-add {
+  padding: 4px 9px; border-radius: var(--r-sm); border: 1px dashed var(--line);
+  font-size: var(--t-xs); color: var(--muted); background: none;
+}
+.fx-layer-add:hover { color: var(--ink); border-color: var(--muted); }
+
 /* ---------- chrome ---------- */
 
 /* Not a toast. A toast is for things that have gone right and can be missed;

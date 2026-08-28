@@ -19,6 +19,7 @@ export interface Job {
   id: string
   key: string
   effectId: string
+  stack?: { effectId: string; params: Params | null }[]
   params: Params | null
   width: number
   height: number

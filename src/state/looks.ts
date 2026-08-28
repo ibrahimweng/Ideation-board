@@ -1,4 +1,4 @@
-import type { FxState, Params } from '../engine/types'
+import type { FxState, Layer, Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
  * Looks: an effect and a grade, saved under a name and put on other cards.
@@ -21,6 +21,10 @@ import type { FxState, Params } from '../engine/types'
 export interface LookFx {
   fxid: string
   ep: Params | null
+  /* Effects after the first. A look that dropped these would silently flatten
+   * a stacked card to its bottom layer, which is the sort of loss nobody
+   * notices until the picture is wrong. */
+  more?: Layer[]
   exp: number
   con: number
   sat: number
@@ -46,6 +50,7 @@ export function lookFrom(fx: FxState): LookFx {
   return {
     fxid: fx.fxid,
     ep: fx.ep ? { ...fx.ep } : null,
+    more: fx.more?.length ? fx.more.map((l) => ({ fxid: l.fxid, ep: l.ep ? { ...l.ep } : null })) : undefined,
     exp: fx.exp,
     con: fx.con,
     sat: fx.sat,

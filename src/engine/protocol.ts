@@ -23,6 +23,8 @@ export interface RenderMsg {
   jobId: number
   key: string
   effectId: string
+  /* Effects after the first, in order. Absent for the ordinary card. */
+  stack?: { effectId: string; params: Params | null }[]
   params: Params | null
   width: number
   height: number
@@ -36,6 +38,8 @@ export interface RenderLiveMsg {
   jobId: number
   bitmap: ImageBitmap
   effectId: string
+  /* Effects after the first, in order. Absent for the ordinary card. */
+  stack?: { effectId: string; params: Params | null }[]
   params: Params | null
   width: number
   height: number

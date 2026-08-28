@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FxVideoCanvas } from './FxCanvas'
 import { GRAIN_URL } from './grain'
-import type { Params } from '../engine/types'
+import type { Layer, Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
  * A video card.
@@ -35,6 +35,9 @@ interface Props {
   blocked?: boolean
   effectId: string
   params: Params | null
+  /* Effects after the first. Passed through untouched; the card holds them and
+   * the renderer applies them. */
+  more?: Layer[]
   seed: number
   w: number
   h: number
@@ -55,7 +58,7 @@ const fmt = (s: number) => {
 }
 
 export function VideoCard({
-  id, url, effected, selected, crossOrigin, blocked, effectId, params, seed, w, h, filter, frame, grain,
+  id, url, effected, selected, crossOrigin, blocked, effectId, params, more, seed, w, h, filter, frame, grain,
 }: Props) {
   /* State rather than a ref: the canvas needs to re-render once the element
    * exists so it can start pulling frames from it. */
@@ -186,6 +189,7 @@ export function VideoCard({
               playing={playing}
               effectId={effectId}
               params={params}
+              more={more}
               seed={seed}
               w={w}
               h={pictureH}

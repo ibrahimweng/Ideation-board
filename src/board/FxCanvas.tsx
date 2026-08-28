@@ -4,7 +4,7 @@ import { useSourceReady } from './sources'
 import { getBlob } from '../store/idb'
 import { openReel } from '../store/anim'
 import type { Reel } from '../store/anim'
-import type { Params } from '../engine/types'
+import type { Layer, Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
  * The pixel surface of an effected card.
@@ -20,6 +20,12 @@ import type { Params } from '../engine/types'
  * changed. FxVideoCanvas pulls frames off a playing video and hands each one
  * over for a single render.
  * ------------------------------------------------------------------------- */
+
+/* A card keeps its layers as `{ fxid, ep }` because that is what a card's
+ * effect has always looked like; the engine takes `{ effectId, params }`. One
+ * place translates, so the two names never have to agree anywhere else. */
+const asStack = (more?: Layer[]) =>
+  more && more.length ? more.map((l) => ({ effectId: l.fxid, params: l.ep })) : undefined
 
 /* See the note on TRACE in engine/client.ts. */
 const TRACE = (globalThis as unknown as { __fxTrace?: boolean }).__fxTrace === true
@@ -98,6 +104,8 @@ interface Props {
   mediaKey: string
   effectId: string
   params: Params | null
+  /* Effects after the first. */
+  more?: Layer[]
   seed: number
   /* Card size in CSS pixels. */
   w: number
@@ -107,7 +115,7 @@ interface Props {
   className?: string
 }
 
-export function FxCanvas({ id, mediaKey, effectId, params, seed, w, h, distance, className }: Props) {
+export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, distance, className }: Props) {
   /* The dirty check for "have we already asked for exactly this?". */
   const sigRef = useRef('')
   const distRef = useRef(distance)
@@ -129,7 +137,10 @@ export function FxCanvas({ id, mediaKey, effectId, params, seed, w, h, distance,
     if (!engine.ok || !mediaKey || !sourceReady) return
     /* Size is quantised by the engine's buckets, so this string changes only
      * on a change that would alter the pixels. */
-    const sig = `${mediaKey}|${effectId}|${JSON.stringify(params)}|${Math.round(w)}x${Math.round(h)}`
+    /* The stack is part of what makes a render the one already on screen. Left
+     * out, a card would keep the picture it had before an effect was put on
+     * top of it and never ask for another. */
+    const sig = `${mediaKey}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${Math.round(w)}x${Math.round(h)}`
     if (sigRef.current === sig) return
     sigRef.current = sig
     engine.request({
@@ -137,12 +148,13 @@ export function FxCanvas({ id, mediaKey, effectId, params, seed, w, h, distance,
       key: mediaKey,
       effectId,
       params,
+      stack: asStack(more),
       cssW: w,
       cssH: h,
       seed,
       distance: distRef.current,
     })
-  }, [id, mediaKey, effectId, params, seed, w, h, sourceReady])
+  }, [id, mediaKey, effectId, params, more, seed, w, h, sourceReady])
 
   return <canvas ref={ref} className={className} aria-hidden />
 }
@@ -153,6 +165,7 @@ interface VideoProps {
   playing: boolean
   effectId: string
   params: Params | null
+  more?: Layer[]
   seed: number
   w: number
   h: number
@@ -163,7 +176,7 @@ interface VideoProps {
  * again. Without it one dropped frame would stall playback for good. */
 const FRAME_TIMEOUT_MS = 500
 
-export function FxVideoCanvas({ id, video, playing, effectId, params, seed, w, h, className }: VideoProps) {
+export function FxVideoCanvas({ id, video, playing, effectId, params, more, seed, w, h, className }: VideoProps) {
   /* Timestamp of the frame currently being rendered, or 0 when idle. Capturing
    * a new frame while one is in flight would build a backlog of frames that
    * are already stale by the time they are drawn. */
@@ -179,8 +192,8 @@ export function FxVideoCanvas({ id, video, playing, effectId, params, seed, w, h
 
   /* Read inside the frame loop so a parameter change takes effect on the next
    * frame without tearing down and restarting the loop. */
-  const jobRef = useRef({ effectId, params, seed, w, h })
-  jobRef.current = { effectId, params, seed, w, h }
+  const jobRef = useRef({ effectId, params, stack: asStack(more), seed, w, h })
+  jobRef.current = { effectId, params, stack: asStack(more), seed, w, h }
 
   useEffect(() => {
     const engine = getEngine()
@@ -240,7 +253,7 @@ export function FxVideoCanvas({ id, video, playing, effectId, params, seed, w, h
           }
           const c = jobRef.current
           engine.renderLive(
-            { id, key: '', effectId: c.effectId, params: c.params, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
+            { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
             bmp,
             playing
           )
@@ -290,6 +303,7 @@ interface AnimProps {
   mediaKey: string
   effectId: string
   params: Params | null
+  more?: Layer[]
   seed: number
   w: number
   h: number
@@ -300,15 +314,15 @@ interface AnimProps {
   onCannot?: () => void
 }
 
-export function FxAnimCanvas({ id, mediaKey, effectId, params, seed, w, h, className, onCannot }: AnimProps) {
+export function FxAnimCanvas({ id, mediaKey, effectId, params, more, seed, w, h, className, onCannot }: AnimProps) {
   const waitingRef = useRef(0)
   const settled = useCallback(() => {
     waitingRef.current = 0
   }, [])
   const ref = useFxSink(id, settled)
 
-  const jobRef = useRef({ effectId, params, seed, w, h })
-  jobRef.current = { effectId, params, seed, w, h }
+  const jobRef = useRef({ effectId, params, stack: asStack(more), seed, w, h })
+  jobRef.current = { effectId, params, stack: asStack(more), seed, w, h }
   const cannotRef = useRef(onCannot)
   cannotRef.current = onCannot
 
@@ -372,7 +386,7 @@ export function FxAnimCanvas({ id, mediaKey, effectId, params, seed, w, h, class
         }
         const c = jobRef.current
         engine.renderLive(
-          { id, key: '', effectId: c.effectId, params: c.params, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
+          { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
           bmp,
           true
         )

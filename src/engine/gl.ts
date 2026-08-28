@@ -49,9 +49,20 @@ interface FBO {
   h: number
 }
 
+/* One effect and its settings. A card is a list of these. */
+export interface JobLayer {
+  effectId: string
+  params: Params | null
+}
+
 export interface RenderJob {
   effectId: string
   params: Params | null
+  /* Effects applied after the first, in order, each reading what the one
+   * before it drew. Absent or empty for a card with a single effect, which is
+   * nearly every card — and that path is untouched by any of this: no extra
+   * buffer, no extra pass, the same one draw straight to the canvas. */
+  stack?: JobLayer[]
   width: number
   height: number
   seed: number
@@ -115,6 +126,10 @@ export class Renderer {
   private blurProg!: Program
   private glyph!: WebGLTexture
   private fbo!: [FBO, FBO]
+  /* Only ever made if something is actually stacked. */
+  private stack: [FBO, FBO] | null = null
+  private stackW = 0
+  private stackH = 0
   private fboW = 0
   private fboH = 0
 
@@ -396,6 +411,21 @@ export class Renderer {
     this.sizeFBO(this.fbo[1], w, h)
   }
 
+  /* Where one effect leaves its picture for the next one to read.
+   *
+   * Full size, unlike the blur's pair, which are deliberately downscaled — a
+   * blur is throwing detail away on purpose and a stacked effect is not. Made
+   * on first use and not before, so a board that never stacks anything never
+   * pays for these at all. */
+  private ensureStackBufs(w: number, h: number) {
+    if (!this.stack) this.stack = [this.mkFBO(), this.mkFBO()]
+    if (this.stackW === w && this.stackH === h) return
+    this.stackW = w
+    this.stackH = h
+    this.sizeFBO(this.stack[0], w, h)
+    this.sizeFBO(this.stack[1], w, h)
+  }
+
   /* Three ramps of characters, darkest first, drawn into one atlas of sixteen
    * columns by three rows.
    *
@@ -503,7 +533,6 @@ export class Renderer {
   render(source: Source, srcW: number, srcH: number, key: string | null, job: RenderJob): boolean {
     if (!this.ok || !source) return false
     const gl = this.gl
-    const spec: EffectSpec = BY_ID[job.effectId] || BY_ID.none
     /* Four thousand and ninety six rather than two thousand: nothing on the
      * board asks for more than fifteen hundred, but an export asks for the
      * picture's own resolution and that is the point of it. */
@@ -519,10 +548,70 @@ export class Renderer {
 
     gl.bindVertexArray(this.vao)
     const src = key ? this.uploadCached(key, source, srcW, srcH) : this.uploadLive(source)
-    const p = job.params || {}
 
     /* How much of the picture the card can show without distorting it. */
     const cover = coverUv(srcW, srcH, w, h)
+
+    const stacked = job.stack && job.stack.length ? job.stack : null
+    if (!stacked) {
+      /* The whole of the board, nearly always: one effect, one draw, straight
+       * to the canvas. Deliberately not routed through the loop below — a card
+       * with one effect must cost exactly what it cost before any of this. */
+      return this.pass({ effectId: job.effectId, params: job.params }, src, cover, w, h, null, job.seed)
+    }
+
+    /* Each layer draws into a buffer for the next one to read, and the last
+     * draws to the canvas. Two buffers are enough however deep the stack goes,
+     * because a pass only ever needs what the pass before it wrote. */
+    this.ensureStackBufs(w, h)
+    const bufs = this.stack!
+    const layers: JobLayer[] = [{ effectId: job.effectId, params: job.params }, ...stacked]
+    let read = src
+    /* Only the first layer sees the picture at its own proportions and has to
+     * crop it. Everything after reads a buffer that is already the shape of
+     * the card, so it takes the whole of it. */
+    let from = cover
+    let target = 0
+
+    for (let i = 0; i < layers.length; i++) {
+      const last = i === layers.length - 1
+      const into = last ? null : bufs[target]
+      if (!this.pass(layers[i], read, from, w, h, into, job.seed + i)) {
+        /* A layer whose shader would not build. Anything already drawn stands;
+         * finishing the rest would paint over it with a half-made stack. */
+        if (!last) gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        return i > 0
+      }
+      if (!last) {
+        read = into!.tex
+        from = { sx: 1, sy: 1, ox: 0, oy: 0 }
+        target = 1 - target
+      }
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    return true
+  }
+
+  /* One effect, from one texture, into a buffer or onto the canvas.
+   *
+   * Everything that used to be the back half of `render`. Pulled out so a
+   * stack is a loop over it rather than a second copy of it — two copies of
+   * thirty lines of uniform binding is how a stacked card ends up subtly
+   * different from a plain one. */
+  private pass(
+    layer: JobLayer,
+    src: WebGLTexture,
+    cover: Cover,
+    w: number,
+    h: number,
+    into: FBO | null,
+    seed: number
+  ): boolean {
+    const gl = this.gl
+    const spec: EffectSpec = BY_ID[layer.effectId] || BY_ID.none
+    const job = { effectId: layer.effectId, params: layer.params, seed }
+    const p = job.params || {}
+
     const bl = spec.blurKey
       ? this.blurChain(src, ((p[spec.blurKey] as number) || 0) * (h / 420), w, h, cover)
       : { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
@@ -533,7 +622,7 @@ export class Renderer {
     if (pr.u.uBlurScale) gl.uniform2f(pr.u.uBlurScale, bl.sx, bl.sy)
     if (pr.u.uBlurOff) gl.uniform2f(pr.u.uBlurOff, bl.ox, bl.oy)
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, into ? into.fb : null)
     gl.viewport(0, 0, w, h)
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, src)

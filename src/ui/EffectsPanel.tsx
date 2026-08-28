@@ -2,12 +2,17 @@ import { memo, useMemo, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
 import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
 import { isColor, isEnum } from '../engine/types'
-import type { Control, Params, FxState } from '../engine/types'
+import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable } from '../state/kinds'
 import { IconEffects, IconSearch } from './icons'
+
+/* Every layer past the first is another full pass over the card, so this is a
+ * real cost and not a taste. Four is past what anybody has wanted and still
+ * cheap enough not to have to think about. */
+const MAX_LAYERS = 4
 
 /* ---------------------------------------------------------------------------
  * Effects panel.
@@ -44,6 +49,10 @@ interface Props {
 export function EffectsPanel({ tab, onTab, say }: Props) {
   const selection = useSelection()
   const [find, setFind] = useState('')
+  /* Which of a card's effects the grid and the sliders are working on. Held
+     here rather than on the card: it is where you are looking, not something
+     about the board. */
+  const [layer, setLayer] = useState(0)
   const found = useMemo(() => {
     const q = find.trim().toLowerCase()
     if (!q) return GROUPS
@@ -74,8 +83,14 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   }
 
   const fx = primary.fx
-  const spec = BY_ID[fx.fxid] || BY_ID.none
   const ids = targets.map((t) => t!.id)
+
+  /* A card's effects, as a list. The first has always lived on the card itself
+   * and the rest in `more`, so that every board ever saved reads back as it
+   * was; here they are one thing, because to work on them they are one thing. */
+  const layers: Layer[] = [{ fxid: fx.fxid, ep: fx.ep }, ...(fx.more || [])]
+  const at = Math.min(layer, layers.length - 1)
+  const spec = BY_ID[layers[at].fxid] || BY_ID.none
 
   /* Shaders need the picture's pixels. An embedded player never gives them up,
    * and neither does a video whose host refused cross-origin access. Tone,
@@ -101,16 +116,57 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
     }
   }
 
-  const setEffect = (fxid: string) => patchFx({ fxid, ep: fxid === 'none' ? null : (defaults(fxid) as Params) })
+  /* Back into the shape a card keeps: the first effect on the card, the rest
+   * in `more`, and no `more` at all when there is only one — so a card with a
+   * single effect is byte for byte what it was before stacking existed. */
+  const pack = (list: Layer[]): Partial<FxState> => ({
+    fxid: list[0]?.fxid || 'none',
+    ep: list[0]?.ep ?? null,
+    more: list.length > 1 ? list.slice(1) : undefined,
+  })
 
-  const setParam = (k: string, v: number | string) => {
+  /* Each card is edited from its own layers, not from the one whose panel is
+   * on screen: several cards can be selected with different stacks, and
+   * writing this card's list onto all of them would quietly flatten them. */
+  const editLayers = (fn: (list: Layer[]) => Layer[]) => {
     store.beginGesture(600)
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
-      const ep = { ...(cur.fx.ep || (defaults(cur.fx.fxid) as Params)), [k]: v }
-      store.update(id, { fx: { ...cur.fx, ep } }, false)
+      const mine: Layer[] = [{ fxid: cur.fx.fxid, ep: cur.fx.ep }, ...(cur.fx.more || [])]
+      store.update(id, { fx: { ...cur.fx, ...pack(fn(mine)) } }, false)
     }
+  }
+
+  const setEffect = (fxid: string) =>
+    editLayers((list) => {
+      const next = [...list]
+      const i = Math.min(at, next.length - 1)
+      next[i] = { fxid, ep: fxid === 'none' ? null : (defaults(fxid) as Params) }
+      /* Setting the only layer to nothing is taking the effect off, which is
+       * what it has always meant. Setting a later one to nothing is asking for
+       * a pass that does nothing, so it goes instead. */
+      return i > 0 && fxid === 'none' ? next.filter((_, n) => n !== i) : next
+    })
+
+  const addLayer = () => {
+    if (layers.length >= MAX_LAYERS) return
+    editLayers((list) => [...list, { fxid: 'none', ep: null }])
+    setLayer(layers.length)
+  }
+
+  const dropLayer = (i: number) => {
+    editLayers((list) => (list.length <= 1 ? [{ fxid: 'none', ep: null }] : list.filter((_, n) => n !== i)))
+    setLayer(Math.max(0, i - 1))
+  }
+
+  const setParam = (k: string, v: number | string) => {
+    editLayers((list) => {
+      const next = [...list]
+      const i = Math.min(at, next.length - 1)
+      next[i] = { ...next[i], ep: { ...(next[i].ep || (defaults(next[i].fxid) as Params)), [k]: v } }
+      return next
+    })
   }
 
   return (
@@ -171,6 +227,38 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
             )}
           </div>
 
+          {/* A card's effects, in the order they are applied. One at a time is
+              what the grid and the sliders below work on, so which one that is
+              has to be something you can see and point at. Hidden entirely
+              until there is more than one, because a board where nobody has
+              stacked anything should look exactly as it did. */}
+          {(layers.length > 1 || shadeable) && (
+            <div className="fx-stack" role="group" aria-label="Effects on this card">
+              {layers.map((l, i) => (
+                <span key={i} className="fx-layer" data-on={i === at || undefined}>
+                  <button onClick={() => setLayer(i)} title={`Work on ${(BY_ID[l.fxid] || BY_ID.none).name}`}>
+                    <i>{i + 1}</i>
+                    {(BY_ID[l.fxid] || BY_ID.none).name}
+                  </button>
+                  {layers.length > 1 && (
+                    <button
+                      className="fx-layer-off"
+                      aria-label={`Take off ${(BY_ID[l.fxid] || BY_ID.none).name}`}
+                      onClick={() => dropLayer(i)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              ))}
+              {layers.length < MAX_LAYERS && layers[0].fxid !== 'none' && (
+                <button className="fx-layer-add" onClick={addLayer} title="Put another effect on top">
+                  + Add
+                </button>
+              )}
+            </div>
+          )}
+
           {found.map((g) => (
             <section key={g.name} className="fx-group">
               <h4>{g.name}</h4>
@@ -181,7 +269,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                     effectId={e.id}
                     name={e.name}
                     mediaKey={previewKey}
-                    active={fx.fxid === e.id}
+                    active={layers[at].fxid === e.id}
                     onPick={() => setEffect(e.id)}
                   />
                 ))}
@@ -197,11 +285,21 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                 <ControlRow
                   key={c.k}
                   control={c}
-                  value={(fx.ep || (defaults(fx.fxid) as Params))[c.k]}
+                  value={(layers[at].ep || (defaults(layers[at].fxid) as Params))[c.k]}
                   onChange={(v) => setParam(c.k, v)}
                 />
               ))}
-              <button className="ghost" onClick={() => patchFx({ ep: defaults(fx.fxid) as Params })}>
+              <button
+                className="ghost"
+                onClick={() =>
+                  editLayers((list) => {
+                    const next = [...list]
+                    const i = Math.min(at, next.length - 1)
+                    next[i] = { ...next[i], ep: defaults(next[i].fxid) as Params }
+                    return next
+                  })
+                }
+              >
                 Reset {spec.name}
               </button>
             </section>

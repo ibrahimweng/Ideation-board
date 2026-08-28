@@ -81,6 +81,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
       }
       const okRender = r.render(src, src.width, src.height, msg.key, {
         effectId: msg.effectId,
+        stack: msg.stack,
         params: msg.params,
         width: msg.width,
         height: msg.height,
@@ -104,6 +105,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
       try {
       okRender = r.render(msg.bitmap, msg.bitmap.width, msg.bitmap.height, null, {
         effectId: msg.effectId,
+        stack: msg.stack,
         params: msg.params,
         width: msg.width,
         height: msg.height,

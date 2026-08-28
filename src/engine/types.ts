@@ -60,10 +60,23 @@ export const ADJUST_0: Adjust = {
   zoom: 1, ox: 0, oy: 0, rot: 0, fh: false, fv: false,
 }
 
+/* One effect and the settings it was given. */
+export interface Layer {
+  fxid: string
+  ep: Params | null
+}
+
 export interface FxState extends Adjust {
   preset: string
   fxid: string
   ep: Params | null
+  /* Effects applied after `fxid`, in order, each working on what the one
+   * before it produced.
+   *
+   * An addition rather than a replacement: `fxid` stays the first effect, so
+   * every board ever saved reads back exactly as it did, and a card with one
+   * effect has no `more` at all. */
+  more?: Layer[]
 }
 
 export const FX_0: FxState = { ...ADJUST_0, preset: 'none', fxid: 'none', ep: null }
