@@ -1,5 +1,5 @@
 import type { Item } from './types'
-import { getBoard, putBoard } from '../store/idb'
+import { delBoard, getBoard, putBoard } from '../store/idb'
 import type { StoredBoard } from '../store/idb'
 import { hasPixels } from './kinds'
 
@@ -32,6 +32,56 @@ export async function createBoard(name = 'Board'): Promise<string> {
   const id = newBoardId()
   await putBoard(emptyBoard(id, name))
   return id
+}
+
+/* A board and every board under it, once each.
+ *
+ * The same walk whether it is being written out to a zip, copied to a folder,
+ * or destroyed, which is why it lives here rather than in whichever of those
+ * needed it first. `seen` is not tidiness: a board card can point at a board
+ * that is already somewhere above it, and without it this recurses for ever. */
+export async function boardTree(rootId: string): Promise<StoredBoard[]> {
+  const seen = new Set<string>()
+  const out: StoredBoard[] = []
+  const walk = async (id: string) => {
+    if (seen.has(id)) return
+    seen.add(id)
+    const rec = await getBoard(id)
+    if (!rec) return
+    out.push(rec)
+    for (const it of rec.items as Item[]) {
+      if (it.kind === 'board' && it.board) await walk(it.board)
+    }
+  }
+  await walk(rootId)
+  return out
+}
+
+/* What deleting a board would take with it, so it can be said out loud before
+ * it is done rather than discovered afterwards. This app holds the only copy
+ * of the work, so "74 cards, and 3 boards inside it" is the difference between
+ * a decision and an accident. */
+export async function weighBoard(id: string): Promise<{ boards: number; cards: number }> {
+  const tree = await boardTree(id)
+  return {
+    boards: tree.length,
+    cards: tree.reduce((n, b) => n + (b.items?.length || 0), 0),
+  }
+}
+
+/* Gone, along with every board inside it.
+ *
+ * The files they used are not touched here. They may be shared with a board
+ * that is staying, so which of them are really unreferenced is a question
+ * about the whole store rather than about this board — `store/reclaim.ts`
+ * answers it, and is what actually gets the room back. */
+export async function deleteBoardTree(id: string): Promise<number> {
+  const tree = await boardTree(id)
+  for (const b of tree) {
+    await delBoard(b.id)
+    invalidateSummary(b.id)
+  }
+  return tree.length
 }
 
 /* ---------- summaries ---------- */

@@ -746,6 +746,54 @@ app would go on working and simply never be available offline again, which is
 the kind of breakage only ever noticed on a train. `test/unit/offline.test.ts`
 parses it.
 
+## Getting the room back
+
+Deleting a card never deleted its picture. Nothing ever deleted a board at all.
+So the store only ever grew — while the corner of the screen warned that the
+disk was filling up and offered three buttons, not one of which freed a byte.
+It told you to remove what you did not need and gave you no way to do it.
+
+**⌘K → "Clear up files nothing uses any more"**, or the button on the warning
+itself.
+
+It is a sweep rather than a delete, and the reason is the whole design. A file
+is keyed by its own name and any number of cards may point at it: duplicating a
+card, pasting one onto another board, importing a board twice. Deleting the file
+when one of those cards goes would blank the others, on boards that are not even
+open. So nothing is deleted when a card is. Instead every board is read, every
+name still pointed at is collected, and what nothing points at goes.
+
+Three things are not garbage and look exactly like it:
+
+- **The board on screen**, which may hold cards not yet written to disk.
+- **Cards taken away with Cut**, which are on no board at all until they are put
+  down somewhere. That is what cutting means.
+- **A file written moments ago**, because a drop writes the file first and puts
+  the card down after. The gap is milliseconds; ten seconds is the margin, which
+  is a thousand times over.
+
+Each of those is a way to delete a picture somebody is still using, so each is
+asked about before anything is removed. `test/unit/reclaim.test.ts` gives every
+one of them a test of its own rather than letting one test happen to cover
+them, because every mistake this can make is the same mistake: a name left out
+is a photograph gone, from a board that may not be open, with no undo and no
+second copy.
+
+A video's first frame is kept too. It is stored under a name derived from the
+video's own, so the name is worked out rather than read — a board saved before
+posters were written onto the item would otherwise lose the still that every
+effected video card falls back to.
+
+### Deleting a board
+
+**⌘K → "Delete a board and everything in it"**, with a board card picked out. It
+says what it is about to destroy — how many cards, and how many boards inside —
+and then does it. There is no undo, so it asks first.
+
+Deleting the *card* that stands for a board is a different thing and still only
+deletes the card: a board card can be cut from one board and put down on
+another, and the board has to survive that.
+
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
@@ -1138,6 +1186,7 @@ npm run test:mcp -- http://localhost:5173
 npm run test:moving -- http://localhost:5173
 npm run test:embed -- http://localhost:5173
 npm run test:offline -- http://localhost:5173
+npm run test:reclaim -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1197,6 +1246,12 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:reclaim` drops four pictures, deletes every card, and checks that the
+  files are all still there — the bug, stated as a test — then clears up and
+  checks the store is really smaller. Then the half that matters more: a
+  picture still on a board, one written moments ago, and one taken away with
+  Cut must all survive a sweep, and the Cut one has to come back with its
+  picture intact.
 - `test:offline` makes a board, cuts the network at the browser, and opens the
   app again: it has to start, and the work has to be there — in a reloaded tab
   and in a fresh one, which is what an installed app is. Then the two things

@@ -14,7 +14,19 @@ import type { MirrorState } from '../store/mirror'
  * stays put and offers the way out: take the board out as a file, now.
  * ------------------------------------------------------------------------- */
 
-export function SpaceAlarm({ onExport, onFolder }: { onExport: () => void; onFolder: () => void }) {
+export function SpaceAlarm({
+  onExport,
+  onFolder,
+  onReclaim,
+}: {
+  onExport: () => void
+  onFolder: () => void
+  /* Clearing up the files nothing points at any more. Offered here because
+     this is where the room being gone is announced, and until it existed every
+     button on this alarm freed exactly nothing — it told you to remove what
+     you did not need while giving you no way to do it. */
+  onReclaim: () => void
+}) {
   const [space, setSpace] = useState<Space>(spaceNow)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   const [hushed, setHushed] = useState(0)
@@ -37,13 +49,16 @@ export function SpaceAlarm({ onExport, onFolder }: { onExport: () => void; onFol
       <strong>{full ? 'There is no room left to save' : 'This browser is refusing to save'}</strong>
       <span>
         {full
-          ? 'What is on screen is still here, but it is not being written down. Take the board out as a file before reloading, then remove what you do not need.'
+          ? 'What is on screen is still here, but it is not being written down. Take the board out as a file before reloading, and clear up the files nothing points at any more.'
           : 'Storage is unavailable — a private window, or a setting that blocks it. What is on screen will not survive a reload.'}
         {' '}
         {describeSpace(space)}.
       </span>
       <div className="alarm-do">
         <button onClick={onExport}>Export the board now</button>
+        <button className="ghost" onClick={onReclaim}>
+          Clear up
+        </button>
         <button className="ghost" onClick={() => setHushed(Date.now())}>
           Not now
         </button>

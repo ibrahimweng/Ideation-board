@@ -83,7 +83,18 @@ export async function delBoard(id: string) {
   mem.boards.delete(id)
   try { await tx('boards', 'readwrite', (s) => s.delete(id)) } catch { /* ignore */ }
 }
+/* When each file was last written, for the sweep.
+ *
+ * A drop writes the file first and puts the card down after, so between those
+ * two moments the file is referenced by nothing on disk. A sweep in that
+ * window would delete the picture out from under a card that was about to
+ * point at it, which is the one way a reclaim can destroy live work. Anything
+ * written recently is therefore left alone. */
+const written = new Map<string, number>()
+export const writtenAt = (k: string) => written.get(k) || 0
+
 export async function putBlob(k: string, b: Blob) {
+  written.set(k, Date.now())
   mem.blobs.set(k, b)
   try {
     await tx('blobs', 'readwrite', (s) => s.put(b, k))
@@ -100,6 +111,23 @@ export async function getBlob(k: string): Promise<Blob | undefined> {
   return mem.blobs.get(k)
 }
 export async function delBlob(k: string) {
+  written.delete(k)
   mem.blobs.delete(k)
   try { await tx('blobs', 'readwrite', (s) => s.delete(k)) } catch { /* ignore */ }
+}
+
+/* Every file this browser is holding, whether or not anything still points at
+ * one. Only the sweep has any business asking. */
+export async function allBlobKeys(): Promise<string[]> {
+  try {
+    const v = await tx<IDBValidKey[]>('blobs', 'readonly', (s) => s.getAllKeys())
+    if (v) return v.map(String)
+  } catch { /* fall through */ }
+  return [...mem.blobs.keys()]
+}
+
+/* What one file costs, without reading it into memory twice over. */
+export async function blobSize(k: string): Promise<number> {
+  const b = await getBlob(k)
+  return b ? b.size : 0
 }

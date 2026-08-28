@@ -27,6 +27,8 @@ export interface CommandActions {
   askForLink: () => void
   draw: () => void
   connectClaude: () => void
+  reclaim: () => void
+  deleteBoard: () => void
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -127,6 +129,15 @@ export function buildCommands(a: CommandActions): Command[] {
     /* The other way out: not a file, but an agent given the board to work on. */
     cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
+    /* Deleting a card never deleted its picture, and deleting the card that
+       stood for a board never deleted the board. So the store only ever grew.
+       This is the one thing that gets the room back. */
+    cmd('out.reclaim', 'Clear up files nothing uses any more', 'Take out', () => a.reclaim(), {
+      keywords: 'storage space free disk clean purge unused orphan reclaim room full',
+    }),
+    cmd('out.delboard', 'Delete a board and everything in it', 'Take out', () => a.deleteBoard(), {
+      keywords: 'remove board destroy nested',
+    }),
     /* The one export that is a deliverable rather than a backup: the board
        as it looks, flat, in a file anyone can open. */
     cmd('out.poster', `Export ${what} as one picture`, 'Take out', () => a.exportPoster('png'), {

@@ -1,11 +1,11 @@
 import type { Item } from './types'
 import type { StoredBoard } from '../store/idb'
-import { getBoard, putBoard, getBlob, putBlob } from '../store/idb'
+import { putBoard, getBlob, putBlob } from '../store/idb'
 import { zip, unzip } from '../store/zip'
 import type { ZipEntry } from '../store/zip'
 import { safeName } from '../store/fs'
 import { boardItem } from './ingest'
-import { newBoardId, invalidateSummary } from './boards'
+import { newBoardId, invalidateSummary, boardTree } from './boards'
 
 /* ---------------------------------------------------------------------------
  * Taking a board out, and putting one back.
@@ -49,23 +49,6 @@ const EXT: Record<string, string> = {
 const extFor = (blob: Blob, key: string) => EXT[blob.type] || (key.includes(':poster') ? '.jpg' : '.bin')
 
 /* Every board reachable from this one, depth first, each visited once. */
-async function collect(rootId: string): Promise<StoredBoard[]> {
-  const seen = new Set<string>()
-  const out: StoredBoard[] = []
-  const walk = async (id: string) => {
-    if (seen.has(id)) return
-    seen.add(id)
-    const rec = await getBoard(id)
-    if (!rec) return
-    out.push(rec)
-    for (const it of rec.items as Item[]) {
-      if (it.kind === 'board' && it.board) await walk(it.board)
-    }
-  }
-  await walk(rootId)
-  return out
-}
-
 export interface ExportResult {
   blob: Blob
   name: string
@@ -86,7 +69,7 @@ export interface Gathered {
 }
 
 export async function gather(rootId: string): Promise<Gathered> {
-  const boards = await collect(rootId)
+  const boards = await boardTree(rootId)
 
   /* Media is shared: two cards can use one picture, and a duplicate keeps the
    * original's key rather than copying the bytes. It is written once. */

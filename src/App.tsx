@@ -28,6 +28,8 @@ import { UpdateBar } from './ui/UpdateBar'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
+import { describeSweep, sweep } from './store/reclaim'
+import { deleteBoardTree, weighBoard } from './state/boards'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -676,6 +678,40 @@ export default function App() {
     [centreOfView, say]
   )
 
+  /* Getting the room back.
+   *
+   * The live board and the cut clipboard are handed over because neither is on
+   * disk: the board on screen may hold cards not yet written, and cards taken
+   * away with Cut are on no board at all until they are put down. Sweeping
+   * without them would delete pictures somebody is still using. */
+  const reclaim = useCallback(async () => {
+    say('Looking for files nothing uses…', 30000)
+    const got = await sweep({ live: store.all(), held: store.clipped() })
+    await measure()
+    say(describeSweep(got), got.files ? 4000 : 2600)
+  }, [say])
+
+  /* Deleting a board is not the same as deleting the card that stands for one:
+     a board card can be cut from here and put down somewhere else, and the
+     board has to survive that. So this is its own thing, and it says what it
+     is about to destroy before it does. */
+  const deleteBoard = useCallback(async () => {
+    const sel = store.getSelection().map((id) => store.getItem(id)).filter((it) => it?.kind === 'board' && it.board)
+    const card = sel[0]
+    if (!card?.board) {
+      say('Pick out a board card first — this deletes the board it opens')
+      return
+    }
+    const { boards, cards } = await weighBoard(card.board)
+    const what = `${cards} card${cards === 1 ? '' : 's'}${boards > 1 ? `, and ${boards - 1} board${boards === 2 ? '' : 's'} inside it` : ''}`
+    if (!window.confirm(`Delete "${card.name || 'that board'}" and everything in it?\n\n${what}. This cannot be undone.`)) return
+    await deleteBoardTree(card.board)
+    store.remove([card.id])
+    const got = await sweep({ live: store.all(), held: store.clipped() })
+    await measure()
+    say(got.files ? `Deleted the board. ${describeSweep(got)}` : 'Deleted the board', 4000)
+  }, [say])
+
   /* The pictures picked out on the board, offered to the sheet as things it
      could work from. Only ones that have a picture: a note has nothing to
      show a model. */
@@ -701,6 +737,8 @@ export default function App() {
         askForLink: () => askForLink(),
         draw: () => setDrawSheet(true),
         connectClaude: () => setRelaySheet(true),
+        reclaim: () => void reclaim(),
+        deleteBoard: () => void deleteBoard(),
         pickFiles: () => fileRef.current?.click(),
         importBoard: () => importRef.current?.click(),
         exportBoard: () => void exportBoard(),
@@ -727,7 +765,7 @@ export default function App() {
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
-      gather, compare, takeAway, putHere, clippedCount,
+      gather, compare, takeAway, putHere, clippedCount, reclaim, deleteBoard,
     ]
   )
 
@@ -907,7 +945,7 @@ export default function App() {
         }}
       />
 
-      <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} />
+      <SpaceAlarm onExport={() => void exportBoard()} onFolder={() => void keepInFolder()} onReclaim={() => void reclaim()} />
       {clash && (
         <TabClash
           onTakeTheirs={() => void takeTheirs()}
