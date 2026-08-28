@@ -1677,6 +1677,10 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   .search { height: 38px; }
   .search-clear { width: 26px; height: 26px; }
   .zoombar button, .zoombar .icon-btn { min-width: 40px; height: 38px; }
+  /* The chevron that opens the list of boards. A fingertip is not a cursor,
+     and this sits in the same row as everything else that had to grow. */
+  .boards-open { width: 40px; height: 38px; }
+  .boards-list a, .boards-new { padding: 11px 12px; }
   /* There is no keyboard to press them on. */
   .first-do em, .search kbd { display: none; }
 }
