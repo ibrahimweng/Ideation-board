@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { findCommands } from './commandFind'
 
 /* ---------------------------------------------------------------------------
  * Everything the board can do, in one list, found by typing.
@@ -25,43 +26,12 @@ export interface Command {
   run: () => void
 }
 
-/* Every letter of the query, in order, somewhere in the text. Typing "expic"
- * finds "Export the selected pictures" without knowing where the gaps are.
- * The score prefers matches that start words and matches that are close
- * together, so the exact thing you meant sorts above the thing that merely
- * contains the same letters. */
-function score(text: string, q: string): number {
-  if (!q) return 1
-  const t = text.toLowerCase()
-  let ti = 0
-  let points = 0
-  let streak = 0
-  for (const ch of q) {
-    const at = t.indexOf(ch, ti)
-    if (at < 0) return 0
-    const startsWord = at === 0 || t[at - 1] === ' ' || t[at - 1] === '-'
-    points += startsWord ? 6 : 1
-    points += at === ti ? (streak += 2) : (streak = 0)
-    ti = at + 1
-  }
-  /* A short name matching is a better match than a long one. */
-  return points + Math.max(0, 24 - text.length) / 8
-}
-
 export function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
   const [q, setQ] = useState('')
   const [at, setAt] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const found = useMemo(() => {
-    const query = q.trim().toLowerCase()
-    return commands
-      .map((c) => ({ c, s: Math.max(score(c.name, query), score(`${c.name} ${c.keywords || ''}`, query) * 0.7) }))
-      .filter((r) => r.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, 40)
-      .map((r) => r.c)
-  }, [commands, q])
+  const found = useMemo(() => findCommands(commands, q), [commands, q])
 
   useEffect(() => setAt(0), [q])
 
