@@ -282,8 +282,14 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .deep-what { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deep-pop em {
   flex: none; font-style: normal; font-size: var(--t-xs); color: var(--muted);
-  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Right to left, so what gets cut off a long "Project / Board" is the front
+     of it rather than the board you would actually be landing on. */
+  direction: rtl; text-align: right;
 }
+/* A result in another project is a bigger jump than one a board down, and the
+   list gives no other sign of it. */
+.deep-pop em[data-away] { color: var(--accent); }
 
 /* ---------- tag filter ---------- */
 

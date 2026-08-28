@@ -30,6 +30,7 @@ export interface CommandActions {
   reclaim: () => void
   deleteBoard: () => void
   help: () => void
+  exportHtml: () => void
   newProject: () => void
   stepProject: (by: number) => void
   closeProject: () => void
@@ -134,6 +135,11 @@ export function buildCommands(a: CommandActions): Command[] {
     /* The other way out: not a file, but an agent given the board to work on. */
     cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
+    /* The one export that is meant for somebody else rather than for you. The
+       zip is a backup and is useless without this app; this opens anywhere. */
+    cmd('out.page', 'Save as a page anyone can open', 'Take out', () => a.exportHtml(), {
+      keywords: 'html web page share send give link standalone single file offline browser',
+    }),
     /* Deleting a card never deleted its picture, and deleting the card that
        stood for a board never deleted the board. So the store only ever grew.
        This is the one thing that gets the room back. */

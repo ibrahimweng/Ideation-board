@@ -8,6 +8,32 @@ import type { Crumb } from '../state/boards'
 import { KEYS } from './shortcuts'
 import { keysHeld } from './modal'
 
+/* Where a result is, in as few words as will do.
+ *
+ * The board it is on is usually enough. When it is in another project, the
+ * project has to be said or the list is a set of card names that jump you
+ * somewhere unannounced — and when the match is on that project's own top
+ * board, its name and the board's name are the same word, so saying it twice
+ * would be worse than saying it once. */
+function placeOf(f: Found): string {
+  if (!f.project) return f.where
+  return f.project === f.where ? f.project : `${f.project} / ${f.where}`
+}
+
+/* What the list is a list of. */
+function headFor(found: Found[]): string {
+  const away = found.filter((f) => f.project)
+  if (!away.length) {
+    const boards = new Set(found.map((f) => f.where))
+    return boards.size === 1 ? `In ${found[0].where}` : 'In other boards'
+  }
+  if (away.length === found.length) {
+    const projects = new Set(away.map((f) => f.project))
+    return projects.size === 1 ? `In ${away[0].project}` : 'In your other projects'
+  }
+  return 'In other boards and projects'
+}
+
 /* ---------------------------------------------------------------------------
  * Search.
  *
@@ -26,7 +52,8 @@ export function SearchBar({ path, onGo }: { path: Crumb[]; onGo: (to: Crumb[], i
   const results = findMatches(store.all(), q, tag)
   const total = results.length
 
-  /* And what is inside the boards you are not looking at. */
+  /* And what is on every board you are not looking at, in this project and in
+   * the others. */
   const [elsewhere, setElsewhere] = useState<Found[]>([])
   const [showElsewhere, setShowElsewhere] = useState(false)
   const popRef = useRef<HTMLDivElement | null>(null)
@@ -186,15 +213,15 @@ export function SearchBar({ path, onGo }: { path: Crumb[]; onGo: (to: Crumb[], i
           </button>
         </>
       )}
-      {/* Nesting is meant to be how you put work away, and without this it is
-          how you lose it: a note one board down was invisible to the box that
-          exists to find things. */}
+      {/* Nesting and tabs are both meant to be how you put work away, and
+          without this they are how you lose it: a note one board down, or one
+          project across, was invisible to the box that exists to find things. */}
       {elsewhere.length > 0 && (
         <button
           className="search-deep"
           onClick={() => setShowElsewhere((v) => !v)}
           aria-expanded={showElsewhere}
-          title="Matches inside the boards on this one"
+          title="Matches on other boards, and in your other projects"
         >
           +{elsewhere.length}
           {elsewhere.length >= MAX_FOUND ? '+' : ''} elsewhere
@@ -202,9 +229,7 @@ export function SearchBar({ path, onGo }: { path: Crumb[]; onGo: (to: Crumb[], i
       )}
       {showElsewhere && (
         <div className="deep-pop" ref={popRef} style={{ left: pos.x, top: pos.y }}>
-          <div className="menu-head">
-            In {new Set(elsewhere.map((f) => f.where)).size === 1 ? elsewhere[0].where : 'other boards'}
-          </div>
+          <div className="menu-head">{headFor(elsewhere)}</div>
           {elsewhere.map((f) => (
             <button
               key={f.path[f.path.length - 1].id + f.item.id}
@@ -213,9 +238,14 @@ export function SearchBar({ path, onGo }: { path: Crumb[]; onGo: (to: Crumb[], i
                 ref.current?.blur()
                 onGo(f.path, f.item.id)
               }}
+              /* Opening one may switch projects, and a list of card names
+                 gives no hint of that. The row says where it is going and the
+                 tooltip says it in full, because the name of a board is often
+                 too long to sit in a menu. */
+              title={placeOf(f)}
             >
               <span className="deep-what">{labelOf(f.item)}</span>
-              <em>{f.where}</em>
+              <em data-away={f.project || undefined}>{placeOf(f)}</em>
             </button>
           ))}
         </div>

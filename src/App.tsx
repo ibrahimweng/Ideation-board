@@ -26,6 +26,7 @@ import { GenerateSheet } from './ui/GenerateSheet'
 import { RelaySheet } from './ui/RelaySheet'
 import { UpdateBar } from './ui/UpdateBar'
 import { BoardTabs } from './ui/BoardTabs'
+import { exportPage, saySize } from './state/exportPage'
 import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
@@ -521,6 +522,32 @@ export default function App() {
     }
   }, [])
 
+  /* The board as something you can send somebody.
+   *
+   * The zip above is a backup: it holds everything and it is also useless to
+   * anyone without this app. This is one HTML file that opens in any browser,
+   * with every picture inside it and the boards inside it reachable — which is
+   * the difference between keeping a board and handing one over. */
+  const exportHtml = useCallback(async () => {
+    setBusy('Baking the pictures…')
+    try {
+      await saveNow.current()
+      const out = await exportPage(store.id, {
+        onProgress: (done, total) => {
+          if (total > 1) setBusy(`Baking board ${done} of ${total}…`)
+        },
+      })
+      download(out.blob, out.name)
+      const bits = [out.cards === 1 ? '1 card' : `${out.cards} cards`]
+      if (out.boards > 1) bits.push(`${out.boards} boards`)
+      setBusy(`Exported ${out.name} — ${bits.join(', ')}, ${saySize(out.bytes)}`)
+      window.setTimeout(() => setBusy(null), 4200)
+    } catch (err) {
+      setBusy(err instanceof Error ? err.message : 'The page could not be made')
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
   /* The picture, as a picture. One card comes out as a PNG; several come out
    * as a zip of them, which is the only sensible thing a browser can hand over
    * in one gesture. */
@@ -904,6 +931,7 @@ export default function App() {
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
         help: () => setHelpOpen(true),
+        exportHtml: () => void exportHtml(),
         newProject: () => void newProject(),
         stepProject: (by) => void stepProject(by),
         closeProject: () => void closeProject(),
@@ -913,7 +941,7 @@ export default function App() {
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
       gather, compare, takeAway, putHere, clippedCount, reclaim, deleteBoard,
-      newProject, stepProject, closeProject, projectCount,
+      newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
   )
 
@@ -1068,8 +1096,11 @@ export default function App() {
       <BoardTabs
         current={path[0].id}
         /* The tab you are in shows what you are typing in the name field,
-           without waiting for the save and the re-read. */
-        currentName={name}
+           without waiting for the save and the re-read — but only while the
+           field is naming the project. One board down it names that board,
+           and a tab that renamed itself to whatever you had walked into would
+           be saying the wrong thing about where you are. */
+        currentName={path.length === 1 ? name : undefined}
         onCount={setProjectCount}
         onOpen={(id) => void openRoot(id)}
         onNew={(id) => void openRoot(id)}

@@ -46,9 +46,8 @@ function parts(): Part[] {
             and it is still there with the network off. But clearing this site's data clears the
             boards with it, and a board is not on your other computer. <K>{KEYS.export.hint}</K>{' '}
             writes the whole thing — every board inside it and every file — to one{' '}
-            <code>.board.zip</code> you can keep or hand to somebody, and{' '}
-            <strong>Keep a copy in a folder</strong> in the command list mirrors it to a folder on
-            your disk as you work.
+            <code>.board.zip</code> you can keep, and <strong>Keep a copy in a folder</strong> in
+            the command list mirrors it to a folder on your disk as you work.
           </p>
         </>
       ),
@@ -144,8 +143,9 @@ function parts(): Part[] {
             else on screen.
           </p>
           <p>
-            <K>{KEYS.search.hint}</K> searches every board in the project, not just this one, and
-            takes you to what it finds. <K>{KEYS.gather.hint}</K> brings a scattered selection back
+            <K>{KEYS.search.hint}</K> searches everything you have — every board in this project
+            and every other project too, not just the board in front of you. A result somewhere
+            else says which project it is in, and picking it takes you there. <K>{KEYS.gather.hint}</K> brings a scattered selection back
             together, <K>{KEYS.fitBoard.hint}</K> fits the whole board on screen and{' '}
             <K>{KEYS.fitSelection.hint}</K> fits what you have selected.
           </p>
@@ -158,11 +158,18 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            <K>{KEYS.picture.hint}</K> writes the selected pictures out as files, with their
-            effects baked in at full size. <strong>Export as a poster</strong> in the command list
-            lays the board out as one PNG or PDF — the thing you send somebody who does not have
-            this app. <K>{KEYS.export.hint}</K> is the backup: everything, in one file,{' '}
-            <K>{KEYS.import.hint}</K> reads it back.
+            Three ways, for three different questions. <strong>Save as a page anyone can open</strong>{' '}
+            in the command list is the one for handing a board to a person: one HTML file with
+            every picture inside it and the boards inside it still reachable, which opens by
+            double-clicking on any machine with no network and nothing installed. It is a document,
+            not a board — it cannot be read back in.
+          </p>
+          <p>
+            <K>{KEYS.export.hint}</K> is the backup, and the one that <em>can</em> be read back in
+            with <K>{KEYS.import.hint}</K>: everything, at full size, in a file only this app
+            understands. And <K>{KEYS.picture.hint}</K> writes the selected pictures out as image
+            files with their effects baked in, while <strong>Export as a poster</strong> lays the
+            whole board out as one PNG or PDF.
           </p>
         </>
       ),
@@ -201,7 +208,7 @@ function parts(): Part[] {
 /* The keys, from the same table the toolbar and the handler read. */
 const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'commands', what: 'Everything the board can do, by name' },
-  { name: 'search', what: 'Search every board in this project' },
+  { name: 'search', what: 'Search every board in every project' },
   { name: 'addFiles', what: 'Add files' },
   { name: 'note', what: 'Note' },
   { name: 'label', what: 'Label' },

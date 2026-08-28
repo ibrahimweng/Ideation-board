@@ -2,6 +2,7 @@ import type { Item } from './types'
 import type { Crumb } from './boards'
 import { onSummary } from './boards'
 import { getBoard } from '../store/idb'
+import { listRoots } from './roots'
 import { parseQuery, passes } from './search'
 
 /* ---------------------------------------------------------------------------
@@ -17,17 +18,33 @@ import { parseQuery, passes } from './search'
  * lose it: everything filed is everything hidden, and the only way back to a
  * card was to remember which board you had put it in.
  *
+ * THE OTHER PROJECTS
+ *
+ * The same argument, one level up. This used to walk down from the board you
+ * were standing on and stop there, which was the whole world back when there
+ * was one project and everything lived inside it. With a row of tabs it is
+ * half the world: "which project did I put that in" was a question you
+ * answered by opening each tab and searching it again.
+ *
+ * So the walk covers every project, and a result says which one it is in. The
+ * project you are in comes first, because that is nearly always the answer and
+ * because there is a cap on how many results are worth showing.
+ *
  * The tree is read once and kept, because the records are small — items and
  * their text, never the pictures themselves — and because searching has to
  * answer on every keystroke. It is dropped whenever any board is written, so
  * what comes back is never stale.
  * ------------------------------------------------------------------------- */
 
-/* One board somewhere below the one you are on, with the way back to it. */
+/* One board you are not looking at, with the way back to it. */
 interface Node {
-  /* The boards to descend through, ending with the one holding these items. */
+  /* The boards to descend through, ending with the one holding these items.
+   * It starts at a project, so following it is enough to get there from
+   * wherever you are — including from a different project. */
   path: Crumb[]
   items: Item[]
+  /* The project this board is in, when that is not the one you are in. */
+  project?: string
 }
 
 /* A card found in one of them. */
@@ -37,6 +54,8 @@ export interface Found {
   path: Crumb[]
   /* What to say: the name of the board it is in. */
   where: string
+  /* And which project that board is in, when it is not this one. */
+  project?: string
 }
 
 /* Depth enough for any tree anybody keeps by hand, and a stop for one that
@@ -58,9 +77,14 @@ onSummary(() => {
   loading = null
 })
 
-async function walk(rootItems: Item[], base: Crumb[]): Promise<Node[]> {
+/* Everything below one board, breadth first.
+ *
+ * `seen` is not tidiness: a board card can point at a board already above it,
+ * and without it this walks for ever. It is seeded with the trail so that
+ * walking down from where you are cannot climb back up into it, and it is
+ * carried across projects so a board reached from two of them is read once. */
+async function walk(rootItems: Item[], base: Crumb[], seen: Set<string>, project?: string): Promise<Node[]> {
   const out: Node[] = []
-  const seen = new Set(base.map((c) => c.id))
   const queue: { card: Item; path: Crumb[] }[] = []
 
   const enqueue = (items: Item[], path: Crumb[]) => {
@@ -80,19 +104,50 @@ async function walk(rootItems: Item[], base: Crumb[]): Promise<Node[]> {
     if (!rec) continue
     const items = (rec.items || []) as Item[]
     const here = [...path, { id, name: rec.name || card.name || 'Board', card: card.id }]
-    out.push({ path: here, items })
+    out.push({ path: here, items, project })
     enqueue(items, here)
   }
   return out
 }
 
-/* Everything below the board you are on, read once and kept. */
+/* Every board that is not the one on screen: the rest of this project first,
+ * then all of every other one. */
+async function walkAll(rootItems: Item[], base: Crumb[]): Promise<Node[]> {
+  /* Shared across both walks. The board you are standing on is already
+   * searched by the box itself, and every crumb above it is on the way back
+   * rather than somewhere to go. */
+  const seen = new Set(base.map((c) => c.id))
+  const out = await walk(rootItems, base, seen)
+
+  /* The other projects, oldest first, which is the order their tabs are in —
+   * so the list reads in the same order as the row above it. */
+  const here = base[0]?.id
+  const roots = (await listRoots())
+    .filter((r) => r.id !== here)
+    .sort((a, b) => a.created - b.created || a.id.localeCompare(b.id))
+
+  for (const root of roots) {
+    if (seen.has(root.id)) continue
+    seen.add(root.id)
+    const rec = await getBoard(root.id)
+    if (!rec) continue
+    const items = (rec.items || []) as Item[]
+    /* A trail of its own, starting at that project rather than at this one, so
+     * that opening a result switches projects the same way a tab does. */
+    const path: Crumb[] = [{ id: root.id, name: rec.name || root.name, card: null }]
+    out.push({ path, items, project: rec.name || root.name })
+    out.push(...(await walk(items, path, seen, rec.name || root.name)))
+  }
+  return out
+}
+
+/* Everywhere you are not, read once and kept. */
 export function loadTree(rootItems: Item[], base: Crumb[]): Promise<Node[]> {
   const key = base.map((c) => c.id).join('/')
   if (tree && treeFor === key) return Promise.resolve(tree)
   if (loading && treeFor === key) return loading
   treeFor = key
-  loading = walk(rootItems, base).then((found) => {
+  loading = walkAll(rootItems, base).then((found) => {
     tree = found
     loading = null
     return found
@@ -112,7 +167,7 @@ export function findInTree(nodes: Node[], q: string, tag: string | null): Found[
     const where = node.path[node.path.length - 1]?.name || 'Board'
     for (const item of node.items) {
       if (!passes(item, words, tag)) continue
-      out.push({ item, path: node.path, where })
+      out.push({ item, path: node.path, where, project: node.project })
       if (out.length >= MAX_FOUND) return out
     }
   }
