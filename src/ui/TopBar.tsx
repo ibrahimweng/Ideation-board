@@ -1,5 +1,6 @@
 import { store } from '../state/store'
 import { SearchBar } from './SearchBar'
+import { BoardsMenu } from './BoardsMenu'
 import { TagFilter } from './TagFilter'
 import { nameFor, titleFor } from './shortcuts'
 import type { ShortcutName } from './shortcuts'
@@ -36,13 +37,16 @@ interface Props {
   onBoard: () => void
   onLink: () => void
   onDraw: () => void
+  /* Which board this tab is pointed at, and what to do with a new one. */
+  boardId: string
+  onNewBoard: (id: string) => void
   onImport: () => void
   onExport: () => void
 }
 
 export function TopBar({
   path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands,
-  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport,
+  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport, boardId, onNewBoard,
 }: Props) {
   return (
   <header className="topbar" data-nested={path.length > 1 || undefined}>
@@ -80,6 +84,10 @@ export function TopBar({
         }}
         spellCheck={false}
       />
+      {/* Only at the top of a board. Inside one the name shown is a nested
+          board's, and a list of top level boards next to it would be reading
+          the crumbs wrong. */}
+      {path.length === 1 && <BoardsMenu current={boardId} onNew={onNewBoard} />}
     </div>
 
     <SearchBar path={path} onGo={onGoTo} />

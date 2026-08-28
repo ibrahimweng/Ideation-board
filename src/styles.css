@@ -1440,6 +1440,38 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   background: var(--ink); color: var(--on-ink);
 }
 
+/* The other boards. Real links, so the browser's own "open in a new tab" is
+   how two boards get onto the screen at once. */
+.boards { position: relative; flex: none; }
+.boards-open {
+  display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: var(--r-sm); color: var(--muted); background: none;
+}
+.boards-open:hover, .boards-open[aria-expanded='true'] { color: var(--ink); background: var(--hover); }
+.boards-list {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
+  min-width: 230px; max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 5px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-3);
+}
+.boards-list a {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 7px 9px; border-radius: var(--r-sm);
+  font-size: var(--t-sm); color: var(--ink-2); text-decoration: none;
+}
+.boards-list a:hover { background: var(--hover); color: var(--ink); }
+.boards-list a[data-on] { background: var(--accent-wash); color: var(--ink); }
+.boards-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boards-count { flex: none; font: 400 var(--t-xs)/1 var(--mono); color: var(--faint); }
+.boards-new {
+  margin-top: 4px; padding: 7px 9px; border-radius: var(--r-sm);
+  font-size: var(--t-sm); text-align: left;
+  background: var(--ink); color: var(--on-ink);
+}
+.boards-wait { padding: 8px 9px; font-size: var(--t-sm); color: var(--muted); }
+.boards-hint { margin: 4px 9px 2px; font-size: var(--t-xs); color: var(--faint); line-height: 1.4; }
+
 /* ---------- chrome ---------- */
 
 /* Not a toast. A toast is for things that have gone right and can be missed;

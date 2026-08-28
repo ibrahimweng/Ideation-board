@@ -30,6 +30,7 @@ import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
 import { describeSweep, sweep } from './store/reclaim'
 import { deleteBoardTree, weighBoard } from './state/boards'
+import { FIRST_BOARD, boardExists, boardFromUrl, pointTabAt, trailKey } from './state/roots'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -44,8 +45,12 @@ import { subject } from './state/subject'
 import { fitToBoard, goToItem, markPick, revealItems } from './state/walk'
 import { hasPixels, isGradeable } from './state/kinds'
 
-const BOARD_ID = 'board_local'
-const PATH_KEY = 'ideation.path'
+/* Which board this tab is pointed at, read from the address once on the way
+ * in. Two tabs on two boards is the whole point of putting it there, and the
+ * value cannot change under a running tab without a reload — so it is read
+ * here rather than watched. */
+const BOARD_ID = boardFromUrl() || FIRST_BOARD
+const PATH_KEY = trailKey(BOARD_ID)
 
 /* Where you are in the tree. The last crumb is the board on screen; `card` is
  * the id of the card that opens it, on the board one step up, which is how a
@@ -161,9 +166,23 @@ export default function App() {
       setEngineOk(ok)
       /* Come back to the board that was open, however deep it was. Any crumb
        * whose board has since gone takes everything below it with it. */
+      /* An address kept from a board since deleted, or typed by hand. Falling
+       * back beats opening an empty board under a name nobody recognises. */
+      if (BOARD_ID !== FIRST_BOARD && !(await boardExists(BOARD_ID))) {
+        window.location.replace(window.location.pathname)
+        return
+      }
+
       let trail: Crumb[] = [ROOT]
       try {
-        const raw = JSON.parse(localStorage.getItem(PATH_KEY) || 'null')
+        /* Trails used to be kept under one name, because there was one board
+         * to have a trail in. Read the old one once, for anybody upgrading
+         * mid-session, so they come back where they left off rather than at
+         * the top of the board wondering what happened. */
+        const stored =
+          localStorage.getItem(PATH_KEY) ||
+          (BOARD_ID === FIRST_BOARD ? localStorage.getItem('ideation.path') : null)
+        const raw = JSON.parse(stored || 'null')
         if (Array.isArray(raw) && raw[0]?.id === BOARD_ID) {
           const checked: Crumb[] = [ROOT]
           for (const c of raw.slice(1)) {
@@ -901,6 +920,13 @@ export default function App() {
         onBoard={() => void addBoard(centreOfView())}
         onLink={() => askForLink()}
         onDraw={() => setDrawSheet(true)}
+        boardId={BOARD_ID}
+        /* A board made here is empty, so there is nothing to save and nothing
+           to lose: this tab is simply pointed at it. */
+        onNewBoard={(id) => {
+          pointTabAt(id)
+          window.location.reload()
+        }}
         onImport={() => importRef.current?.click()}
         onExport={() => void exportBoard()}
       />
