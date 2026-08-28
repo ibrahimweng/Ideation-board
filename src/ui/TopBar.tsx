@@ -1,12 +1,11 @@
 import { store } from '../state/store'
 import { SearchBar } from './SearchBar'
-import { BoardsMenu } from './BoardsMenu'
 import { TagFilter } from './TagFilter'
 import { nameFor, titleFor } from './shortcuts'
 import type { ShortcutName } from './shortcuts'
 import {
   IconBoard, IconCommand, IconDraw, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
-  IconNote, IconSection, IconUndo, IconRedo,
+  IconNote, IconSection, IconUndo, IconRedo, IconHelp,
 } from './icons'
 import type { Crumb } from '../state/boards'
 
@@ -37,16 +36,14 @@ interface Props {
   onBoard: () => void
   onLink: () => void
   onDraw: () => void
-  /* Which board this tab is pointed at, and what to do with a new one. */
-  boardId: string
-  onNewBoard: (id: string) => void
   onImport: () => void
   onExport: () => void
+  onHelp: () => void
 }
 
 export function TopBar({
   path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands,
-  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport, boardId, onNewBoard,
+  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport, onHelp,
 }: Props) {
   return (
   <header className="topbar" data-nested={path.length > 1 || undefined}>
@@ -84,10 +81,6 @@ export function TopBar({
         }}
         spellCheck={false}
       />
-      {/* Only at the top of a board. Inside one the name shown is a nested
-          board's, and a list of top level boards next to it would be reading
-          the crumbs wrong. */}
-      {path.length === 1 && <BoardsMenu current={boardId} onNew={onNewBoard} />}
     </div>
 
     <SearchBar path={path} onGo={onGoTo} />
@@ -156,6 +149,15 @@ export function TopBar({
 
       <ToolButton name="commands" onClick={onCommands}>
         <IconCommand />
+      </ToolButton>
+
+      {/* Beside the command list on purpose. They are the two ways out of not
+          knowing something: one finds the thing you can already name, and this
+          one is for when you cannot name it yet. Never stands down on a narrow
+          window — the smaller the window the more likely it is a first look at
+          this. */}
+      <ToolButton name="help" onClick={onHelp}>
+        <IconHelp />
       </ToolButton>
 
       <button

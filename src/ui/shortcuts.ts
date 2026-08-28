@@ -44,6 +44,9 @@ export const KEYS = {
   import: { key: 'o', mod: true, hint: join(MOD, 'O'), label: 'Import a board file', short: 'Import' },
   picture: { key: 'e', mod: true, hint: join(MOD, 'E'), label: 'Export the selected pictures', short: 'Export pictures' },
   commands: { key: 'k', mod: true, hint: join(MOD, 'K'), label: 'Commands', short: 'Commands' },
+  /* Shifted on nearly every layout, which is why it is handled apart from the
+     single letters rather than among them. */
+  help: { key: '?', hint: '?', label: 'How this works', short: 'Help' },
 } as const
 
 export type ShortcutName = keyof typeof KEYS

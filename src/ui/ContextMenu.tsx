@@ -35,6 +35,7 @@ export interface CanvasActions {
   paste: (at: { x: number; y: number }) => void
   /* Shown on an empty board, where there is no position to act on yet. */
   commands: () => void
+  help: () => void
 }
 
 interface Props {

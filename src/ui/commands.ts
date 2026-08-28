@@ -29,6 +29,11 @@ export interface CommandActions {
   connectClaude: () => void
   reclaim: () => void
   deleteBoard: () => void
+  help: () => void
+  newProject: () => void
+  stepProject: (by: number) => void
+  closeProject: () => void
+  projects: number
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -184,6 +189,26 @@ export function buildCommands(a: CommandActions): Command[] {
        to the whole of it but scrolling until it turned up. */
     cmd('view.fit', KEYS.fitBoard.label, 'View', () => a.fit(false), { hint: KEYS.fitBoard.hint, keywords: 'zoom fit all everything overview zoom out see' }),
     cmd('view.fitsel', KEYS.fitSelection.label, 'View', () => a.fit(true), { hint: KEYS.fitSelection.hint, disabled: !some, keywords: 'zoom fit selected closer focus' }),
+    /* The tab row, for anyone who would rather not reach for it. Switching
+       wraps on purpose: with two projects — which is most of the time — one
+       key gets you to the other and back, and there is nothing to aim at. */
+    cmd('proj.new', 'New project', 'Projects', () => a.newProject(), { keywords: 'board tab add another blank start' }),
+    cmd('proj.next', 'Next project', 'Projects', () => a.stepProject(1), {
+      disabled: a.projects < 2, keywords: 'board tab switch move right forward',
+    }),
+    cmd('proj.prev', 'Previous project', 'Projects', () => a.stepProject(-1), {
+      disabled: a.projects < 2, keywords: 'board tab switch move left back',
+    }),
+    /* Named for what it does rather than for the tab it does it to: closing a
+       project destroys it, and nothing in this list should read as tidier than
+       it is. */
+    cmd('proj.close', 'Delete this project and everything in it', 'Projects', () => a.closeProject(), {
+      keywords: 'close tab remove board destroy',
+    }),
+
+    cmd('view.help', 'How this works', 'View', () => a.help(), {
+      hint: KEYS.help.hint, keywords: 'help guide manual docs explain what how start learn keys shortcuts',
+    }),
     cmd('view.light', 'Light theme', 'View', () => setTheme('light'), { disabled: themeWant() === 'light', keywords: 'bright day appearance' }),
     cmd('view.dark', 'Dark theme', 'View', () => setTheme('dark'), { disabled: themeWant() === 'dark', keywords: 'night appearance' }),
     cmd('view.system', 'Follow the system theme', 'View', () => setTheme('system'), { disabled: themeWant() === 'system', keywords: 'auto appearance' }),

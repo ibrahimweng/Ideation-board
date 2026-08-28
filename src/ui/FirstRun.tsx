@@ -15,10 +15,11 @@ import { IconCommand, IconDraw, IconFiles, IconNote, IconPresent } from './icons
  * there is anything to look at instead. Nothing has to be dismissed.
  * ------------------------------------------------------------------------- */
 
-export function FirstRun({ onAddFiles, onNote, onCommands }: {
+export function FirstRun({ onAddFiles, onNote, onCommands, onHelp }: {
   onAddFiles: () => void
   onNote: () => void
   onCommands: () => void
+  onHelp: () => void
 }) {
   return (
     <div className="first">
@@ -61,6 +62,13 @@ export function FirstRun({ onAddFiles, onNote, onCommands }: {
           <strong>{KEYS.commands.hint}</strong> finds anything the board can do, and tells you the key for it.
         </li>
       </ul>
+
+      {/* Last, and quiet. Somebody who wants to start has three buttons above
+          to start with; this is for the one who would rather read first, and
+          the point of it being here is that they do not have to go looking. */}
+      <button className="first-help" onClick={onHelp}>
+        How this works <em>{KEYS.help.hint}</em>
+      </button>
     </div>
   )
 }

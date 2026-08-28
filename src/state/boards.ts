@@ -25,7 +25,7 @@ const newItemId = () => 'i_' + Math.random().toString(36).slice(2, 10) + Date.no
 const EMPTY_VIEW = { x: 0, y: 0, z: 1 }
 
 export function emptyBoard(id: string, name: string): StoredBoard {
-  return { id, name, items: [], view: { ...EMPTY_VIEW }, updated: Date.now() }
+  return { id, name, items: [], view: { ...EMPTY_VIEW }, updated: Date.now(), created: Date.now() }
 }
 
 export async function createBoard(name = 'Board'): Promise<string> {

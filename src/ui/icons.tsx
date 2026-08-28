@@ -142,6 +142,16 @@ export const IconCommand = (p: P) => (
   </Svg>
 )
 
+/* The question. Deliberately a question mark in a circle rather than a book or
+   a lifebuoy: it is the one help glyph nobody has to learn. */
+export const IconHelp = (p: P) => (
+  <Svg {...p}>
+    <circle cx="8" cy="8" r="6.6" />
+    <path d="M6.3 6.2a1.75 1.75 0 1 1 2.1 1.9c-.5.15-.7.5-.7 1v.4" />
+    <path d="M7.7 11.9h.02" />
+  </Svg>
+)
+
 /* Full screen, nothing else. */
 export const IconPresent = (p: P) => (
   <Svg {...p}>

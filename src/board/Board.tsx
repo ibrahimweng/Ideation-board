@@ -586,6 +586,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
           onAddFiles={() => canvasActions.pickFiles(centre())}
           onNote={() => canvasActions.addNote(centre())}
           onCommands={canvasActions.commands}
+          onHelp={canvasActions.help}
         />
       )}
       <ZoomBar onZoom={zoomBy} onReset={resetZoom} />

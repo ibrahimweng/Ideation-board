@@ -12,6 +12,11 @@ export interface StoredBoard {
   updated: number
   items: unknown[]
   view?: { x: number; y: number; z: number }
+  /* When the board was first made. Only the tab strip cares, and only so that
+   * the row keeps the order you built it in. Absent on boards written before
+   * there were tabs, which is why everything reading it treats it as optional
+   * rather than assuming a number. */
+  created?: number
 }
 
 let dbp: Promise<IDBDatabase | null> | null = null
@@ -57,9 +62,20 @@ async function tx<T>(store: 'boards' | 'blobs', mode: IDBTransactionMode, fn: (s
  * save. A write that fails has to be reported, or a board that is not being
  * saved looks exactly like one that is until the tab is reloaded. */
 export async function putBoard(b: StoredBoard) {
-  mem.boards.set(b.id, b)
+  /* A board's birthday is stamped here rather than by whoever assembled the
+   * record. Three places in the app build a StoredBoard out of its parts —
+   * the debounced save, the clash resolver, the importer — and any one of them
+   * that forgot the field would quietly reshuffle somebody's tabs on the next
+   * keystroke. Set once, kept for ever, and not the caller's problem.
+   *
+   * The read is the cost. It is one keyed get against the record about to be
+   * overwritten, and only on a record that arrived without the field, which
+   * after the first save of a board is every ordinary save. */
+  const created = b.created || (await getBoard(b.id))?.created || Date.now()
+  const rec: StoredBoard = { ...b, created }
+  mem.boards.set(b.id, rec)
   try {
-    await tx('boards', 'readwrite', (s) => s.put(b))
+    await tx('boards', 'readwrite', (s) => s.put(rec))
     reportWriteOk()
   } catch (err) {
     reportWriteFailure(err)

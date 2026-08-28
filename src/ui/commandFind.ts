@@ -67,10 +67,32 @@ export function score(text: string, q: string): number {
   return raw * (0.35 + 0.65 * Math.min(1, covered))
 }
 
+/* Is the query a word of this, or the start of one?
+ *
+ * Everything above is a subsequence match, which is what lets "expic" find
+ * "Export the selected pictures" — and which cannot tell that apart from
+ * "help" walking through "export tHe sELected Pictures", four letters in the
+ * right order and nothing more. Typing a whole word is not a coincidence, and
+ * it was losing to one: the command called Help came second to exporting a
+ * PNG. So a word you really typed counts for more than any number of letters
+ * that happen to be in order. */
+function wordHit(text: string, q: string): boolean {
+  const t = text.toLowerCase()
+  for (let at = t.indexOf(q); at >= 0; at = t.indexOf(q, at + 1)) {
+    if (at === 0 || t[at - 1] === ' ' || t[at - 1] === '-') return true
+  }
+  return false
+}
+
 /* Keywords count, at a discount: they are there so a word nobody put in a
- * name still finds the thing, not so they can outrank the name itself. */
+ * name still finds the thing, not so they can outrank the name itself. The
+ * same order holds for a word hit — in the name it is worth more than in the
+ * keywords, and either is worth more than letters merely appearing in order. */
 export function rate<T extends Findable>(c: T, q: string): number {
-  return Math.max(score(c.name, q), score(`${c.name} ${c.keywords || ''}`, q) * 0.7)
+  const all = `${c.name} ${c.keywords || ''}`
+  const s = Math.max(score(c.name, q), score(all, q) * 0.7)
+  if (!q || !s) return s
+  return s * (wordHit(c.name, q) ? 3 : wordHit(all, q) ? 2 : 1)
 }
 
 /* How far below the best a match may be and still be worth showing. Low

@@ -4,7 +4,7 @@ import { EffectsPanel } from './ui/EffectsPanel'
 import type { PanelTab } from './ui/EffectsPanel'
 import { store, useQuery, useSelection, useTagFilter } from './state/store'
 import { dropColumns, ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
-import { createBoard, renameCardIn, invalidateSummary } from './state/boards'
+import { createBoard, emptyBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
 import { announceSaved, changedElsewhere, markSynced, onBoardSaved } from './store/tabs'
@@ -25,12 +25,14 @@ import { Compare } from './ui/Compare'
 import { GenerateSheet } from './ui/GenerateSheet'
 import { RelaySheet } from './ui/RelaySheet'
 import { UpdateBar } from './ui/UpdateBar'
+import { BoardTabs } from './ui/BoardTabs'
+import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
 import { describeSweep, sweep } from './store/reclaim'
 import { deleteBoardTree, weighBoard } from './state/boards'
-import { FIRST_BOARD, boardExists, boardFromUrl, pointTabAt, trailKey } from './state/roots'
+import { FIRST_BOARD, boardExists, boardFromUrl, listRoots, newRoot, pointTabAt, tabOrder, trailKey, urlForBoard } from './state/roots'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
 import { describeSpace, measure, roomFor, spaceNow } from './store/space'
@@ -49,8 +51,10 @@ import { hasPixels, isGradeable } from './state/kinds'
  * in. Two tabs on two boards is the whole point of putting it there, and the
  * value cannot change under a running tab without a reload — so it is read
  * here rather than watched. */
+/* Which project this tab of the app opened on. After that the project is
+ * whatever the trail's first crumb says, because switching happens in place
+ * rather than by reloading. */
 const BOARD_ID = boardFromUrl() || FIRST_BOARD
-const PATH_KEY = trailKey(BOARD_ID)
 
 /* Where you are in the tree. The last crumb is the board on screen; `card` is
  * the id of the card that opens it, on the board one step up, which is how a
@@ -74,6 +78,10 @@ export default function App() {
   const [drawBusy, setDrawBusy] = useState(false)
   /* Letting Claude at the board. */
   const [relaySheet, setRelaySheet] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  /* Bumped whenever the list of projects could have changed under the strip:
+     a rename, a board made from a card, an import, a deletion. */
+  const [boardRev, setBoardRev] = useState(0)
   const [presentAt, setPresentAt] = useState<string | undefined>(undefined)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
   /* Read out by anything reading the page aloud when the selection moves. */
@@ -98,6 +106,14 @@ export default function App() {
   /* Read by callbacks that must not be rebuilt every time the path changes. */
   const pathRef = useRef(path)
   pathRef.current = path
+  /* The same, for the name in the bar: closing the project you are in has to
+   * be able to say which one it is about to destroy. */
+  const nameRef = useRef(name)
+  nameRef.current = name
+  /* How many projects there are, reported by the row rather than counted
+   * again here — it has just read the list to draw itself. Only the command
+   * list asks, and only to know whether switching is worth offering. */
+  const [projectCount, setProjectCount] = useState(1)
 
   /* ---------- autosave ---------- */
   /* Set up before boot so that leaving a board can force the pending write out
@@ -176,11 +192,27 @@ export default function App() {
       setEngineOk(ok)
       /* Come back to the board that was open, however deep it was. Any crumb
        * whose board has since gone takes everything below it with it. */
-      /* An address kept from a board since deleted, or typed by hand. Falling
-       * back beats opening an empty board under a name nobody recognises. */
-      if (BOARD_ID !== FIRST_BOARD && !(await boardExists(BOARD_ID))) {
-        window.location.replace(window.location.pathname)
-        return
+      /* An address kept from a project since deleted, or typed by hand — and
+       * the bare address too, now that the first board can be closed like any
+       * other. Landing on a project that is really there beats opening an
+       * empty board under a name nobody recognises, and beats a tab row in
+       * which none of the tabs is the one you are looking at.
+       *
+       * On a genuine first visit nothing exists yet and the list stands the
+       * original board in for the empty case, so this finds it already pointed
+       * where it is and carries on rather than bouncing. */
+      if (!(await boardExists(BOARD_ID))) {
+        const first = (await listRoots())[0]
+        if (first && first.id !== BOARD_ID) {
+          window.location.replace(urlForBoard(first.id))
+          return
+        }
+        /* A first visit, then. The board is written out now, empty, so that
+         * the project you are standing in is a record like every other one.
+         * Left unwritten it is missing from the row until the first thing is
+         * put on it — and making a second project would look exactly like the
+         * first one being closed. */
+        await putBoard(emptyBoard(BOARD_ID, 'Untitled board'))
       }
 
       let trail: Crumb[] = [ROOT]
@@ -190,7 +222,7 @@ export default function App() {
          * mid-session, so they come back where they left off rather than at
          * the top of the board wondering what happened. */
         const stored =
-          localStorage.getItem(PATH_KEY) ||
+          localStorage.getItem(trailKey(BOARD_ID)) ||
           (BOARD_ID === FIRST_BOARD ? localStorage.getItem('ideation.path') : null)
         const raw = JSON.parse(stored || 'null')
         if (Array.isArray(raw) && raw[0]?.id === BOARD_ID) {
@@ -251,8 +283,13 @@ export default function App() {
     setEditing(null)
     setPath(next)
     try {
-      localStorage.setItem(PATH_KEY, JSON.stringify(next))
+      localStorage.setItem(trailKey(next[0].id), JSON.stringify(next))
     } catch { /* a session without storage still navigates, it just forgets */ }
+    /* The address names the project, so a reload comes back to the tab you
+     * were on. It names the project rather than the board on screen because
+     * that is what a tab is — how deep you were inside it is remembered above,
+     * and restored with it. */
+    if (next[0].id !== prev[0].id) pointTabAt(next[0].id)
   }, [])
 
   /* Double clicking a card, and the first entry in its menu. A board card
@@ -689,6 +726,71 @@ export default function App() {
     [centreOfView]
   )
 
+  /* Switching projects: a new trail one crumb long, which is what a project
+   * is — the top of its own tree. Everything else openBoard already does. */
+  const openRoot = useCallback(
+    async (id: string) => {
+      if (pathRef.current[0]?.id === id && pathRef.current.length === 1) return
+      const rec = await getBoard(id)
+      await openBoard([{ id, name: rec?.name || 'Untitled board', card: null }])
+    },
+    [openBoard]
+  )
+
+  /* Closing a project is deleting it. There is no file behind a board and no
+   * undo across boards, so this is the one place in the app that destroys work
+   * outright — which is why it says what it is about to take, and why the
+   * files behind it are swept immediately afterwards rather than left. */
+  const closeRoot = useCallback(
+    async (id: string, name: string) => {
+      const { boards, cards } = await weighBoard(id)
+      const what = `${cards} card${cards === 1 ? '' : 's'}${boards > 1 ? `, and ${boards - 1} board${boards === 2 ? '' : 's'} inside it` : ''}`
+      if (!window.confirm(`Delete "${name}" and everything in it?\n\n${what}. This cannot be undone.`)) return
+
+      const leaving = pathRef.current[0]?.id === id
+      /* Somewhere to land before the ground goes. A project you are not in can
+       * be deleted without moving; the one you are in cannot. */
+      let landOn = ''
+      if (leaving) {
+        const others = (await listRoots()).filter((r) => r.id !== id)
+        landOn = others[0]?.id || (await newRoot())
+        await openBoard([{ id: landOn, name: 'Untitled board', card: null }])
+      }
+      await deleteBoardTree(id)
+      try {
+        localStorage.removeItem(trailKey(id))
+      } catch { /* nothing to forget */ }
+      const got = await sweep({ live: store.all(), held: store.clipped() })
+      await measure()
+      setBoardRev((n) => n + 1)
+      say(got.files ? `Deleted "${name}". ${describeSweep(got)}` : `Deleted "${name}"`, 4000)
+    },
+    [openBoard, say]
+  )
+
+  /* Round the row, wrapping. With two projects — which is most of the time —
+   * one key gets you to the other and the same key gets you back. */
+  const stepProject = useCallback(
+    async (by: number) => {
+      const row = tabOrder(await listRoots())
+      if (row.length < 2) return
+      const i = row.findIndex((r) => r.id === pathRef.current[0]?.id)
+      await openRoot(row[(((i < 0 ? 0 : i) + by) % row.length + row.length) % row.length].id)
+    },
+    [openRoot]
+  )
+
+  /* Making one from the command list, which unlike the + in the row has no
+   * button to disable while it is being made. */
+  const newProject = useCallback(async () => {
+    await openRoot(await newRoot())
+  }, [openRoot])
+
+  const closeProject = useCallback(async () => {
+    const id = pathRef.current[0]?.id
+    if (id) await closeRoot(id, nameRef.current || 'this board')
+  }, [closeRoot])
+
   /* Ask for a picture, and report what came back.
    *
    * The sheet closes first, so that the cards it puts down are visible while
@@ -801,11 +903,17 @@ export default function App() {
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
+        help: () => setHelpOpen(true),
+        newProject: () => void newProject(),
+        stepProject: (by) => void stepProject(by),
+        closeProject: () => void closeProject(),
+        projects: projectCount,
       }),
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
       gather, compare, takeAway, putHere, clippedCount, reclaim, deleteBoard,
+      newProject, stepProject, closeProject, projectCount,
     ]
   )
 
@@ -824,6 +932,7 @@ export default function App() {
     togglePanel: () => setPanelOpen((v) => !v),
     togglePalette: () => setPalette((v) => !v),
     present: () => setPresenting(true),
+    help: () => setHelpOpen(true),
     say: setSpoken,
     closeEditor: () => setEditing(null),
     fit: (onlySelection) => {
@@ -879,6 +988,7 @@ export default function App() {
       },
       addLink: (at: { x: number; y: number }) => askForLink(at),
       commands: () => setPalette(true),
+      help: () => setHelpOpen(true),
       pickFiles: (at: { x: number; y: number }) => {
         /* Remembered so the chosen files land where the menu was opened. */
         pendingAt.current = at
@@ -950,15 +1060,23 @@ export default function App() {
         onBoard={() => void addBoard(centreOfView())}
         onLink={() => askForLink()}
         onDraw={() => setDrawSheet(true)}
-        boardId={BOARD_ID}
-        /* A board made here is empty, so there is nothing to save and nothing
-           to lose: this tab is simply pointed at it. */
-        onNewBoard={(id) => {
-          pointTabAt(id)
-          window.location.reload()
-        }}
         onImport={() => importRef.current?.click()}
         onExport={() => void exportBoard()}
+        onHelp={() => setHelpOpen(true)}
+      />
+
+      <BoardTabs
+        current={path[0].id}
+        /* The tab you are in shows what you are typing in the name field,
+           without waiting for the save and the re-read. */
+        currentName={name}
+        onCount={setProjectCount}
+        onOpen={(id) => void openRoot(id)}
+        onNew={(id) => void openRoot(id)}
+        onClose={(id, name) => void closeRoot(id, name)}
+        /* Bumped when a project is made, deleted or imported. Renames do not
+           need it: the tab you are in is told the name directly. */
+        revision={boardRev}
       />
 
       <main className="main">
@@ -1013,6 +1131,7 @@ export default function App() {
         <GenerateSheet onClose={() => setDrawSheet(false)} onDraw={onDraw} working={working} busy={drawBusy} />
       )}
       {relaySheet && <RelaySheet onClose={() => setRelaySheet(false)} />}
+      {helpOpen && <Help onClose={() => setHelpOpen(false)} />}
       {comparing && (
         <Compare ids={selection} onClose={() => setComparing(false)} say={say} />
       )}

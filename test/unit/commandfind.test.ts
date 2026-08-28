@@ -85,3 +85,44 @@ describe('the floor under it', () => {
     expect(weak.length).toBe(2)
   })
 })
+
+describe('a word you actually typed', () => {
+  /* Found by the help screen the moment it existed. Typing "help" put
+     "Export the selected pictures as PNG" first — e, h, l, p really are in
+     that order in it — and the command called Help second. Four letters in
+     the right order is a coincidence; a whole word is not. */
+  it('beats the same letters scattered through a sentence', () => {
+    const list = [
+      { name: 'Export the selected pictures as PNG', keywords: 'save download' },
+      { name: 'How this works', keywords: 'help guide manual docs explain keys shortcuts' },
+    ]
+    expect(findCommands(list, 'help')[0].name).toBe('How this works')
+  })
+
+  it('counts the start of a word, not only a whole one', () => {
+    const list = [
+      { name: 'Clear up files nothing uses any more' },
+      { name: 'Note', keywords: 'text write checklist' },
+    ]
+    expect(findCommands(list, 'not')[0].name).toBe('Note')
+  })
+
+  it('does not count a word buried inside another', () => {
+    /* "png" is in "opngroup" and starts nothing. */
+    const list = [{ name: 'Export as PNG' }, { name: 'The opngroup thing' }]
+    expect(findCommands(list, 'png')[0].name).toBe('Export as PNG')
+  })
+
+  it('still prefers the name over the keywords', () => {
+    const list = [
+      { name: 'Something else entirely', keywords: 'present slideshow' },
+      { name: 'Present the board' },
+    ]
+    expect(findCommands(list, 'present')[0].name).toBe('Present the board')
+  })
+
+  it("leaves a query that is nobody\'s word to the ordinary scoring", () => {
+    const list = [{ name: 'Export the selected pictures' }, { name: 'Tidy up the whole board' }]
+    expect(findCommands(list, 'expic')[0].name).toBe('Export the selected pictures')
+  })
+})

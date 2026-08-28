@@ -1305,6 +1305,91 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .sheet-actions button { padding: 8px 16px; border-radius: var(--r-sm); font-size: var(--t-md); background: var(--ink); color: var(--on-ink); }
 .sheet-actions .ghost { background: var(--surface); color: var(--muted); }
 
+/* The way in from an empty board, for somebody who would rather read first. */
+.first-help {
+  /* The panel it sits in lets clicks through to the board, so anything on it
+     that can be pressed has to say so for itself. */
+  pointer-events: auto; align-self: center;
+  margin-top: var(--s5); padding: 7px 14px; border-radius: var(--r-sm);
+  font-size: var(--t-sm); color: var(--muted); background: none;
+  border: 1px solid var(--line);
+}
+.first-help:hover { color: var(--ink); background: var(--hover); }
+.first-help em {
+  font-style: normal; margin-left: 7px;
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--faint);
+}
+
+/* ---------- how this works ---------- */
+
+/* A page rather than a dialog: wide, scrollable, with the sections listed down
+   the side so you can see at a glance what there is and get to the paragraph
+   you came for. It sits on the same veil as the sheets, so the board behind it
+   is still visibly there and one press of Escape puts you back on it. */
+.help {
+  background: var(--surface); border-radius: var(--r-lg);
+  width: min(880px, 94vw); height: min(720px, 90vh);
+  display: grid; grid-template-columns: 210px 1fr; grid-template-rows: auto 1fr;
+  box-shadow: var(--sh-3); overflow: hidden;
+}
+.help-top {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px var(--s5); border-bottom: 1px solid var(--line);
+}
+.help-top h2 { font-size: var(--t-lg); font-weight: 600; }
+.help-top .ghost {
+  padding: 6px 14px; border-radius: var(--r-sm);
+  font-size: var(--t-sm); color: var(--muted); background: none;
+}
+.help-top .ghost:hover { color: var(--ink); background: var(--hover); }
+
+.help-nav {
+  display: flex; flex-direction: column; gap: 1px; align-content: start;
+  padding: var(--s3); overflow-y: auto;
+  border-right: 1px solid var(--line); background: var(--surface-2);
+}
+.help-nav button {
+  text-align: left; padding: 7px 10px; border-radius: var(--r-sm);
+  font-size: var(--t-sm); line-height: 1.35; color: var(--muted); background: none;
+}
+.help-nav button:hover { color: var(--ink); background: var(--hover); }
+.help-nav button[data-on] { color: var(--ink); background: var(--accent-wash); }
+
+.help-body { overflow-y: auto; padding: var(--s5) var(--s5) 60vh; scroll-behavior: smooth; }
+.help-body section + section { margin-top: var(--s6); }
+.help-body h3 { font-size: var(--t-md); font-weight: 600; margin-bottom: var(--s2); }
+.help-body p {
+  margin: 0 0 var(--s3); max-width: 62ch;
+  font-size: var(--t-md); line-height: 1.65; color: var(--ink-2);
+}
+.help-body strong { color: var(--ink); font-weight: 600; }
+.help-body code { font: 400 var(--t-sm)/1.5 var(--mono); color: var(--ink); }
+.help-body kbd {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--line); border-bottom-width: 2px;
+  background: var(--sunk); color: var(--ink);
+  font: 500 var(--t-xs)/1.7 var(--mono); white-space: nowrap;
+}
+.help-keys { border-collapse: collapse; width: 100%; max-width: 62ch; }
+.help-keys td { padding: 5px 0; font-size: var(--t-sm); color: var(--ink-2); vertical-align: baseline; }
+.help-keys td:first-child { width: 92px; }
+.help-keys tr + tr td { border-top: 1px solid var(--line-soft); }
+.help-last { margin-top: var(--s4); }
+
+/* The list of sections goes across the top when there is no room beside the
+   text, because the text is the part worth having the width. */
+@media (max-width: 720px) {
+  .help { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+  .help-nav {
+    flex-direction: row; overflow-x: auto; scrollbar-width: none;
+    border-right: none; border-bottom: 1px solid var(--line); padding: var(--s2);
+  }
+  .help-nav::-webkit-scrollbar { display: none; }
+  .help-nav button { flex: none; white-space: nowrap; }
+  .help-body { padding: var(--s4) var(--s4) 60vh; }
+}
+
 /* ---------- asking for a picture ---------- */
 
 /* What the answer is being made from. Shown rather than described: these are
@@ -1440,37 +1525,50 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   background: var(--ink); color: var(--on-ink);
 }
 
-/* The other boards. Real links, so the browser's own "open in a new tab" is
-   how two boards get onto the screen at once. */
-.boards { position: relative; flex: none; }
-.boards-open {
-  display: grid; place-items: center; width: 22px; height: 22px;
-  border-radius: var(--r-sm); color: var(--muted); background: none;
+/* One tab per project, along the top.
+ *
+ * Not the breadcrumbs, which say where you are inside a project. These say
+ * which project — two rows because they are two questions, and folding them
+ * together would make a board four levels down look like a fifth project. */
+.tabs {
+  display: flex; align-items: stretch; gap: var(--s1);
+  padding: 0 var(--s3); height: 34px; flex: none;
+  background: var(--bg); border-bottom: 1px solid var(--line);
 }
-.boards-open:hover, .boards-open[aria-expanded='true'] { color: var(--ink); background: var(--hover); }
-.boards-list {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 70;
-  min-width: 230px; max-height: 60vh; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 1px;
-  padding: 5px; border-radius: var(--r-md);
-  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-3);
+.tabs-strip {
+  display: flex; align-items: stretch; gap: 2px; min-width: 0;
+  overflow-x: auto; scrollbar-width: none;
 }
-.boards-list a {
-  display: flex; align-items: center; gap: var(--s2);
-  padding: 7px 9px; border-radius: var(--r-sm);
-  font-size: var(--t-sm); color: var(--ink-2); text-decoration: none;
+.tabs-strip::-webkit-scrollbar { display: none; }
+.tab {
+  display: inline-flex; align-items: center; gap: 2px; flex: none;
+  max-width: 190px; padding: 0 var(--s1) 0 var(--s3);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  font-size: var(--t-sm); color: var(--muted); text-decoration: none;
+  border: 1px solid transparent; border-bottom: none;
+  align-self: flex-end; height: 27px;
 }
-.boards-list a:hover { background: var(--hover); color: var(--ink); }
-.boards-list a[data-on] { background: var(--accent-wash); color: var(--ink); }
-.boards-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.boards-count { flex: none; font: 400 var(--t-xs)/1 var(--mono); color: var(--faint); }
-.boards-new {
-  margin-top: 4px; padding: 7px 9px; border-radius: var(--r-sm);
-  font-size: var(--t-sm); text-align: left;
-  background: var(--ink); color: var(--on-ink);
+.tab:hover { color: var(--ink); background: var(--hover); }
+/* The one you are in reads as part of the board below it rather than as a
+   button sitting on top of it, which is what a tab is. */
+.tab[data-on] {
+  color: var(--ink); background: var(--surface);
+  border-color: var(--line); margin-bottom: -1px; height: 28px;
 }
-.boards-wait { padding: 8px 9px; font-size: var(--t-sm); color: var(--muted); }
-.boards-hint { margin: 4px 9px 2px; font-size: var(--t-xs); color: var(--faint); line-height: 1.4; }
+.tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-close {
+  flex: none; width: 18px; height: 18px; border-radius: var(--r-sm);
+  display: grid; place-items: center; font-size: 13px; line-height: 1;
+  color: var(--faint); background: none; opacity: 0;
+}
+.tab:hover .tab-close, .tab[data-on] .tab-close, .tab-close:focus-visible { opacity: 1; }
+.tab-close:hover { color: var(--on-ink); background: var(--warn); }
+.tab-new {
+  flex: none; align-self: center; width: 24px; height: 24px;
+  border-radius: var(--r-sm); font-size: 15px; line-height: 1;
+  color: var(--muted); background: none;
+}
+.tab-new:hover { color: var(--ink); background: var(--hover); }
 
 /* A card's effects, in the order they are applied. */
 .fx-stack {
@@ -1677,10 +1775,13 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   .search { height: 38px; }
   .search-clear { width: 26px; height: 26px; }
   .zoombar button, .zoombar .icon-btn { min-width: 40px; height: 38px; }
-  /* The chevron that opens the list of boards. A fingertip is not a cursor,
-     and this sits in the same row as everything else that had to grow. */
-  .boards-open { width: 40px; height: 38px; }
-  .boards-list a, .boards-new { padding: 11px 12px; }
+  /* The row of projects. A fingertip is not a cursor, and the × that closes
+     one has to be hittable without hitting the tab it sits in. */
+  .tabs { height: 42px; }
+  .tab { height: 34px; padding-left: var(--s3); }
+  .tab[data-on] { height: 35px; }
+  .tab-close { width: 26px; height: 26px; opacity: 1; }
+  .tab-new { width: 36px; height: 32px; }
   /* There is no keyboard to press them on. */
   .first-do em, .search kbd { display: none; }
 }

@@ -42,6 +42,7 @@ export interface KeyActions {
   togglePanel: () => void
   togglePalette: () => void
   present: () => void
+  help: () => void
   say: (text: string) => void
   closeEditor: () => void
   fit: (onlySelection: boolean) => void
@@ -118,6 +119,15 @@ export function useShortcuts(a: KeyActions) {
 
     /* Single key shortcuts only when no modifier is held, so they cannot
      * swallow a browser or system combination. */
+    /* Apart from the single letters below because it is a shifted key on
+       nearly every layout, and because it is the one thing you want to be able
+       to reach when you do not know what any of the others do. */
+    if (!cmd && !e.altKey && e.key === KEYS.help.key) {
+      e.preventDefault()
+      a.help()
+      return
+    }
+
     if (!cmd && !e.altKey && !e.shiftKey) {
       const k = e.key.toLowerCase()
       const at = a.centreOfView()
