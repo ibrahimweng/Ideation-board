@@ -746,6 +746,46 @@ app would go on working and simply never be available offline again, which is
 the kind of breakage only ever noticed on a train. `test/unit/offline.test.ts`
 parses it.
 
+## More than one effect on the same picture
+
+A card had one effect. Halftone or grain, never both, and no way to say what a
+picture should look like when the answer was two things.
+
+The effects panel shows a card's effects as a row of numbered chips, in the
+order they are applied. Click one to work on it — the grid and the sliders act
+on whichever is chosen — and **+ Add** puts another on top. Four is the cap.
+
+Each layer draws into a buffer the next one reads, and the last draws to the
+canvas. Two buffers are enough however deep it goes, because a pass only ever
+needs what the pass before it wrote.
+
+**A card with one effect costs exactly what it cost before.** It does not go
+through that loop at all: one pass, straight to the canvas, no buffer in the
+way, which is every card on the board unless somebody has asked otherwise. The
+full-size buffers are made on first use, so a board that never stacks anything
+never allocates them. `test/stacked.mjs` measures the frame rate rather than
+reading the code and hoping.
+
+`fx.more` holds what comes after `fx.fxid`, which stays the first effect. An
+addition rather than a replacement: every board ever saved reads back exactly as
+it was, and a card with one effect has no `more` at all.
+
+Two places would have silently flattened a stack, and each looks like working
+software while doing it. A **saved look** stored the first effect only, so
+applying one would have quietly dropped the rest. **Export and the poster**
+render the card again at full size, and would have written out a picture that is
+not the one on the board. Both carry the stack now.
+
+### One thing it does not promise
+
+Two renders of the same card are not guaranteed to be identical to the pixel
+across a page load, and never were. The ASCII effect draws its glyph atlas once
+when the engine starts, from `ui-monospace, "JetBrains Mono", …`, so which font
+had resolved by that moment is baked into it. A single ASCII effect does not
+survive a pixel comparison across a reload either. It is a real inconsistency,
+it predates stacking, and it is worth fixing on its own rather than inside
+something else.
+
 ## Getting the room back
 
 Deleting a card never deleted its picture. Nothing ever deleted a board at all.
@@ -1187,6 +1227,8 @@ npm run test:moving -- http://localhost:5173
 npm run test:embed -- http://localhost:5173
 npm run test:offline -- http://localhost:5173
 npm run test:reclaim -- http://localhost:5173
+npm run test:manyboards -- http://localhost:5173
+npm run test:stacked -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1246,6 +1288,15 @@ npm run bench
   in none of the boards this browser holds, and in no part of an exported
   `.board.zip` — read back out of the file with Python's `zipfile`. No key and
   no internet are needed to run it.
+- `test:stacked` puts one effect on a picture, adds a second on top, and checks
+  the picture is different from either alone, that both are recorded in order,
+  that it comes back stacked after a reload, and that taking the top one off
+  returns it exactly to what one effect looked like. Then the part that is
+  really being asked for: a card with one effect still runs at a sensible frame
+  rate, measured rather than assumed.
+- `test:manyboards` makes a second board, checks it is really separate, and then
+  does the thing an in-app switcher could never do — opens both at once in two
+  browser tabs and checks that working in one does not reach into the other.
 - `test:reclaim` drops four pictures, deletes every card, and checks that the
   files are all still there — the bug, stated as a test — then clears up and
   checks the store is really smaller. Then the half that matters more: a

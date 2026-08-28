@@ -36,13 +36,30 @@ const errors = []
 const watch = (p) => p.on('pageerror', (e) => errors.push(e.message))
 watch(page)
 
+const cards = (p) => p.locator('.card').count()
+
+/* Waited for rather than timed.
+ *
+ * Making a board reloads the tab onto it, and a fixed pause after that is a
+ * guess about how long a boot takes on whatever machine is running this. Worse
+ * than flaky: "the new board is empty" passes for the wrong reason against a
+ * page that has not drawn yet, and the keystroke that follows goes nowhere. */
+const ready = async (p) => {
+  /* The app says when the board on disk has actually been read in. Waiting for
+     the viewport is not enough: the shell draws first, and the read ends by
+     replacing everything in the store, so anything done before it lands is
+     thrown away. That is a real race and this is the app's own answer to it,
+     not a hook put here for the test. */
+  await p.waitForSelector('.app[data-ready]', { timeout: 20000 })
+  await p.waitForTimeout(400)
+}
+
 await page.goto(BASE, { waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(900)
 await page.evaluate(() => { indexedDB.deleteDatabase('ideation.board.db'); localStorage.clear() })
 await page.reload({ waitUntil: 'domcontentloaded' })
-await page.waitForTimeout(1600)
+await ready(page)
 
-const cards = (p) => p.locator('.card').count()
 const openMenu = async (p) => {
   await p.locator('.boards-open').click()
   await p.waitForSelector('.boards-list a', { timeout: 5000 })
@@ -69,8 +86,17 @@ await page.waitForTimeout(1200)
 
 /* ---------- a second board ---------- */
 await openMenu(page)
+/* Marked first, then waited for the mark to be gone.
+ *
+ * Making a board reloads the tab, and the page being replaced is itself
+ * ready — so waiting for readiness straight after the click matches the old
+ * document instantly and the keystrokes that follow go into a page that is
+ * still booting. Waiting for a genuinely new document is the only honest
+ * version of "it has reloaded". */
+await page.evaluate(() => { window.__old = true })
 await page.locator('.boards-new').click()
-await page.waitForTimeout(2600)
+await page.waitForFunction(() => !window.__old, { timeout: 20000 })
+await ready(page)
 const second = new URL(page.url()).searchParams.get('board')
 ok('a new board puts its own address in the bar', !!second && second !== 'board_local', page.url())
 ok('and it is empty, which is the point of it being a different board', (await cards(page)) === 0,
@@ -91,13 +117,29 @@ ok('both boards are listed now', (await page.locator('.boards-list a').count()) 
 const other = await context.newPage()
 watch(other)
 await other.goto(`${BASE}/?board=board_local`, { waitUntil: 'domcontentloaded' })
-await other.waitForTimeout(2400)
+await ready(other)
 ok('a second tab opens the other board at the same time', (await cards(other)) === 1)
-ok('and each tab is on its own board',
-   (await cards(page)) === 1 && (await cards(other)) === 1 &&
-   (await page.locator('.card[data-kind="label"]').count()) === 1 &&
-   (await other.locator('.card[data-kind="note"]').count()) === 1,
-   `new board: ${await page.locator('.card[data-kind="label"]').count()} label, first board: ${await other.locator('.card[data-kind="note"]').count()} note`)
+/* What a board holds, with everything brought on screen first.
+ *
+ * The board draws only the cards near the view and drops the rest, so reading
+ * the document without fitting first asks a question about where the view
+ * happens to be rather than about what is on the board. */
+const holds = async (p) => {
+  await p.keyboard.press('Escape')
+  await p.waitForTimeout(150)
+  await p.keyboard.press('1')
+  await p.waitForTimeout(700)
+  /* `?? 'nokind'` on purpose: [undefined].join() is an empty string, which
+     reads exactly like an empty board and sent this on a long detour. */
+  return p.evaluate(() =>
+    [...document.querySelectorAll('.card')].map((c) => c.dataset.kind ?? 'nokind').sort().join(',')
+  )
+}
+const onNew = await holds(page)
+const onFirst = await holds(other)
+ok('and each tab is on its own board, holding its own work',
+   onNew === 'label' && onFirst === 'note',
+   `new board holds [${onNew}], first board holds [${onFirst}]`)
 
 /* Work in one must not disturb the other. Two tabs on the *same* board argue
    about who saved last, on purpose; two tabs on two boards have nothing to
@@ -115,7 +157,7 @@ fs.writeFileSync(path.join(OUT, 'manyboards-two.png'), await other.screenshot())
 
 /* ---------- and it all survives being reloaded ---------- */
 await page.reload({ waitUntil: 'domcontentloaded' })
-await page.waitForTimeout(2400)
+await ready(page)
 ok('a tab reloads onto the board it was pointed at',
    new URL(page.url()).searchParams.get('board') === second && (await cards(page)) === 1,
    page.url())
@@ -125,7 +167,9 @@ await other.close()
 const stray = await context.newPage()
 watch(stray)
 await stray.goto(`${BASE}/?board=b_nosuchboard`, { waitUntil: 'domcontentloaded' })
-await stray.waitForTimeout(2800)
+/* This one bounces to a different address on the way, so the wait is for the
+   board it lands on rather than the one it was asked for. */
+await ready(stray)
 ok('an address naming a board that does not exist falls back rather than opening a phantom',
    !new URL(stray.url()).searchParams.get('board') && (await stray.locator('.viewport').count()) === 1,
    stray.url())

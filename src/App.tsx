@@ -82,6 +82,16 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null)
   const [name, setName] = useState('Untitled board')
   const [engineOk, setEngineOk] = useState(true)
+  /* Whether the board on screen is the board on disk yet.
+   *
+   * The shell draws before the record has been read, so for a few hundred
+   * milliseconds there is an empty board you can type into — and the read
+   * finishes with store.load(), which replaces everything. Anything put down
+   * in that window was silently wiped a moment later. Ignoring a keystroke is
+   * a poor thing to do; losing a card is a worse one. */
+  const [booted, setBooted] = useState(false)
+  /* Read by callbacks that are built once and must not be rebuilt on boot. */
+  const bootedRef = useRef(false)
   const [path, setPath] = useState<Crumb[]>([ROOT])
   const fileRef = useRef<HTMLInputElement | null>(null)
   const importRef = useRef<HTMLInputElement | null>(null)
@@ -206,6 +216,8 @@ export default function App() {
         setName(saved.name)
       }
       setPath(trail)
+      bootedRef.current = true
+      setBooted(true)
     })()
     return () => getEngine().stop()
   }, [])
@@ -561,6 +573,15 @@ export default function App() {
   const onDropFiles = useCallback(async (files: FileList | File[], at: { x: number; y: number }) => {
     let list = Array.from(files)
     if (!list.length) return
+    /* Dropped onto a board that has not finished opening. The read that is
+     * still in flight ends by replacing everything in the store, so these
+     * would arrive, be seen, and be gone a moment later — twenty photographs
+     * and no sign they were ever there. Refusing and saying so is the only
+     * honest answer while that is true. */
+    if (!bootedRef.current) {
+      say('One moment — still opening this board. Drop them again.', 3000)
+      return
+    }
     /* A board file dropped on the board is a board, not an attachment. One
      * that turns out not to be is added as a file like anything else. */
     const bundles = list.filter((f) => looksLikeBoardFile(f.name))
@@ -790,6 +811,7 @@ export default function App() {
 
   /* ---------- keyboard ---------- */
   useShortcuts({
+    ready: booted,
     centreOfView,
     addBoard: (at) => void addBoard(at),
     askForLink,
@@ -900,7 +922,15 @@ export default function App() {
   )
 
   return (
-    <div className="app" data-panel={panelOpen || undefined}>
+    <div
+      className="app"
+      data-panel={panelOpen || undefined}
+      /* On once the board on disk has been read in. Until then the board is an
+         empty one that is about to be replaced, and nothing put on it would
+         survive — so the keyboard and dropping are held until this is true,
+         and saying so out here is what lets anything else know. */
+      data-ready={booted || undefined}
+    >
       {/* The trail is one more thing in a row that is already full, so the
           narrow-width rules that make room for it only apply while it is
           there. */}

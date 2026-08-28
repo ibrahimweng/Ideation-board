@@ -22,6 +22,14 @@ import { keysHeld } from '../ui/modal'
  * ------------------------------------------------------------------------- */
 
 export interface KeyActions {
+  /* False until the board on disk has been read into the store.
+   *
+   * The board draws before that read finishes, and the read ends by replacing
+   * everything in the store — so a card added in between was thrown away a
+   * moment later with nothing to say it had gone. A key that does nothing is
+   * an annoyance; a card that appears and then vanishes is a bug nobody can
+   * report. */
+  ready: boolean
   centreOfView: () => { x: number; y: number }
   addBoard: (at: { x: number; y: number }) => void
   askForLink: (at: { x: number; y: number }) => void
@@ -46,6 +54,8 @@ export interface KeyActions {
 export function useShortcuts(a: KeyActions) {
   useEffect(() => {
   const onKey = (e: KeyboardEvent) => {
+    /* The board is not the board yet. */
+    if (!a.ready) return
     /* Something is covering the board and listening for these itself. */
     if (keysHeld()) return
     const t = e.target as HTMLElement

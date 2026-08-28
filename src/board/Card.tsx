@@ -94,6 +94,7 @@ export const Card = memo(function Card({
           className="card card-section"
           data-id={id}
           style={{ ...shell, zIndex: 1 }}
+          data-kind={it.kind}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
         >
@@ -117,6 +118,9 @@ export const Card = memo(function Card({
           className="card card-label"
           data-id={id}
           style={{ ...shell, color: it.color || '#111114' }}
+          /* Every other card says what it is; these two did not, so a rule or a
+             question asked as `.card[data-kind=…]` quietly skipped them. */
+          data-kind={it.kind}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
           onPointerDown={(e) => onPointerDown(e, id)}
