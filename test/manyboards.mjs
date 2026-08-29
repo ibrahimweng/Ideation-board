@@ -189,8 +189,76 @@ ok('a reload comes back on the project you were in',
    boardOf(page) === second && (await cards(page)) === 1, page.url())
 ok('and the row is still whole', (await tabs(page)) === 2, `${await tabs(page)} tabs`)
 
+/* ---------- the row from the keyboard ---------- */
+/* Calling this a tablist is a promise that the arrow keys walk along it. It
+   was a promise the row did not keep: every tab sat in the page's own tab
+   order and nothing answered an arrow. */
+ok('the row says what it is, and which one you are in',
+   (await page.locator('.tabs-strip[role="tablist"]').count()) === 1 &&
+   (await page.locator('.tab[aria-selected="true"]').count()) === 1)
+ok('and each tab names the board it shows',
+   (await page.locator(`.tab[aria-controls="board-panel"]`).count()) === 2 &&
+   (await page.locator('#board-panel[role="tabpanel"]').count()) === 1)
+/* One stop for the whole row. Tabbing through the app should not mean tabbing
+   through every project you have. */
+const stops = await page.locator('.tab[tabindex="0"]').count()
+ok('the row is one stop in the page, not one per project',
+   stops === 1 && (await page.locator('.tab[tabindex="-1"]').count()) === 1, `${stops} stops`)
+ok('and the × is not a stop of its own',
+   (await page.locator('.tab-close[tabindex="-1"]').count()) === 2)
+
+/* Which tab has the keyboard, by position. Not by name: two projects made a
+   minute apart are both called "Untitled board", so a name cannot tell them
+   apart and a check written on one would pass whatever happened. */
+const focused = () => page.evaluate(() =>
+  [...document.querySelectorAll('.tab')].indexOf(document.activeElement))
+await page.locator('.tab[data-on]').focus()
+const started = await focused()
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(300)
+const moved = await focused()
+ok('an arrow moves along the row', moved >= 0 && moved !== started, `tab ${started} then tab ${moved}`)
+/* Moving is not opening: reading a board off disk and replacing everything on
+   screen is too much to do four times on the way past. */
+ok('and moving is not opening', boardOf(page) === second, page.url())
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(300)
+ok('and it comes round the end rather than stopping', (await focused()) === started,
+   `back to tab ${await focused()}`)
+await page.keyboard.press('End')
+await page.waitForTimeout(300)
+const atEnd = await focused()
+await page.keyboard.press('Home')
+await page.waitForTimeout(300)
+const atHome = await focused()
+ok('Home and End reach the two ends', atEnd === 1 && atHome === 0, `end ${atEnd}, home ${atHome}`)
+
+/* Enter is what opens one. */
+await page.evaluate(() => { window.__same = true })
+await page.keyboard.press('Enter')
+await page.waitForFunction(() => new URLSearchParams(location.search).get('board') === 'board_local',
+                           { timeout: 15000 })
+await page.waitForTimeout(900)
+ok('Enter opens the one you walked to, still without a reload',
+   boardOf(page) === 'board_local' && (await page.evaluate(() => window.__same === true)), page.url())
+ok('and the row follows, so the arrows carry on from where you are',
+   (await page.locator('.tab[data-on][tabindex="0"]').count()) === 1)
+/* Back where the rest of this expects to be. */
+await otherTab(page).click()
+await page.waitForFunction((id) => new URLSearchParams(location.search).get('board') === id,
+                           second, { timeout: 15000 })
+await page.waitForTimeout(900)
+
 /* ---------- saying no ---------- */
 answer = false
+asked = ''
+/* Delete on the tab itself, which is how the × is reached without a mouse. */
+await otherTab(page).focus()
+await page.keyboard.press('Delete')
+await page.waitForTimeout(900)
+ok('Delete on a tab asks the same question the × does',
+   /delete/i.test(asked) && (await tabs(page)) === 2, JSON.stringify(asked))
+
 asked = ''
 await otherTab(page).locator('.tab-close').click()
 await page.waitForTimeout(900)

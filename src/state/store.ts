@@ -37,7 +37,34 @@ export interface Viewport {
   z: number
 }
 
+/* How many steps back one board keeps. */
 const HISTORY_LIMIT = 60
+/* And how much all of them together may hold, counted in characters of
+ * serialised board. A snapshot is the whole board, so a big board's history is
+ * megabytes and keeping one per board could quietly become hundreds of them.
+ * Past this the least recently visited board's history goes first, because the
+ * board you are on is the one whose undo you are about to press. */
+const HISTORY_CHARS = 12_000_000
+
+/* What one board remembers. */
+interface History {
+  past: string[]
+  future: string[]
+  /* Total characters in both, kept as it goes rather than measured: adding up
+   * sixty strings on every keystroke to decide whether to trim is more work
+   * than the trimming. */
+  size: number
+  /* The `updated` stamp this history sits on top of.
+   *
+   * A board can be written by another tab while you are away from it, and the
+   * snapshots here describe the board as it was before that happened. Undoing
+   * onto somebody else's work is not undo, it is a quiet overwrite — so when
+   * the board that comes back is not the one this history was built on, the
+   * history goes. */
+  base: number
+  /* When this board was last loaded or edited, for deciding what to evict. */
+  used: number
+}
 
 export class BoardStore {
   private items = new Map<string, Item>()
@@ -53,8 +80,16 @@ export class BoardStore {
   private selListeners = new Set<Listener>()
   private viewListeners = new Set<Listener>()
 
-  private past: string[] = []
-  private future: string[] = []
+  /* Undo, per board.
+   *
+   * It used to be two arrays cleared on every load, which is correct — an
+   * undo that reached across a board switch would put one board's cards onto
+   * another — and also meant that stepping into a nested board and back cost
+   * you your undo, silently, with the keystroke doing nothing. Kept per board,
+   * both are true at once. */
+  private history = new Map<string, History>()
+  private hist: History = freshHistory(0)
+  private clock = 0
   private topZ = 20
 
   name = 'Untitled board'
@@ -686,27 +721,77 @@ export class BoardStore {
     this.touch()
   }
   private snapshot() {
-    this.past.push(this.serialize())
-    if (this.past.length > HISTORY_LIMIT) this.past.shift()
-    this.future.length = 0
+    const h = this.hist
+    h.used = ++this.clock
+    const shot = this.serialize()
+    h.past.push(shot)
+    h.size += shot.length
+    while (h.past.length > HISTORY_LIMIT) h.size -= h.past.shift()!.length
+    for (const s of h.future) h.size -= s.length
+    h.future.length = 0
+    this.trimHistory()
   }
   undo() {
-    const prev = this.past.pop()
+    const h = this.hist
+    const prev = h.past.pop()
     if (prev === undefined) return
-    this.future.push(this.serialize())
+    h.size -= prev.length
+    const now = this.serialize()
+    h.future.push(now)
+    h.size += now.length
+    h.used = ++this.clock
     this.restore(prev)
   }
   redo() {
-    const next = this.future.pop()
+    const h = this.hist
+    const next = h.future.pop()
     if (next === undefined) return
-    this.past.push(this.serialize())
+    h.size -= next.length
+    const now = this.serialize()
+    h.past.push(now)
+    h.size += now.length
+    h.used = ++this.clock
     this.restore(next)
   }
   get canUndo() {
-    return this.past.length > 0
+    return this.hist.past.length > 0
   }
   get canRedo() {
-    return this.future.length > 0
+    return this.hist.future.length > 0
+  }
+
+  /* Back under the budget, oldest board first.
+   *
+   * Whole boards rather than odd steps, because half a history is worse than
+   * none: undo would work three times and then stop somewhere arbitrary. The
+   * board on screen is never the one evicted — it is the one whose undo is
+   * about to be pressed. */
+  private trimHistory() {
+    let total = 0
+    for (const h of this.history.values()) total += h.size
+    if (total <= HISTORY_CHARS) return
+    const others = [...this.history.entries()]
+      .filter(([, h]) => h !== this.hist)
+      .sort((a, b) => a[1].used - b[1].used)
+    for (const [id, h] of others) {
+      if (total <= HISTORY_CHARS) break
+      total -= h.size
+      this.history.delete(id)
+    }
+    /* One board over the budget on its own. Its oldest steps go, which is what
+     * the step limit above does anyway — this is the case where sixty steps of
+     * an enormous board is itself too much. */
+    const h = this.hist
+    while (total > HISTORY_CHARS && h.past.length > 1) {
+      const gone = h.past.shift()!.length
+      h.size -= gone
+      total -= gone
+    }
+  }
+
+  /* A board that no longer exists has no undo worth holding. */
+  forgetHistory(id: string) {
+    this.history.delete(id)
   }
 
   /* ---------- persistence ---------- */
@@ -734,8 +819,17 @@ export class BoardStore {
     this.order = board.items.map((i) => i.id)
     this.topZ = board.items.reduce((m, i) => Math.max(m, i.z || 0), 20)
     this.view = board.view || { x: 0, y: 0, z: 1 }
-    this.past.length = 0
-    this.future.length = 0
+
+    /* The history this board left behind, unless it is not this board's any
+     * more: somebody else wrote it while we were away, and these snapshots
+     * describe what it looked like before they did. */
+    const stamp = board.updated || 0
+    const kept = this.history.get(board.id)
+    if (kept && kept.base !== stamp) this.history.delete(board.id)
+    this.hist = this.history.get(board.id) || freshHistory(stamp)
+    this.history.set(board.id, this.hist)
+    this.hist.used = ++this.clock
+    this.trimHistory()
     /* Selection first: ids from the board that has just been left are not ids
      * on this one, and a card cannot be told it is still selected. */
     this.sel.clear()
@@ -745,15 +839,29 @@ export class BoardStore {
     this.pingSel()
   }
 
+  /* The board as it is now, ready to be written.
+   *
+   * The stamp it is given is also written down as what this board's history
+   * now sits on top of. Every caller of this writes the record straight
+   * afterwards, so the two agree — and coming back to a board this tab saved
+   * itself finds its undo intact, while coming back to one another tab saved
+   * finds it gone. */
   toBoard(): Board {
+    const updated = Date.now()
+    const h = this.history.get(this.id)
+    if (h) h.base = updated
     return {
       id: this.id,
       name: this.name,
       items: this.all().map((i) => ({ ...i, src: undefined })),
       view: this.view,
-      updated: Date.now(),
+      updated,
     }
   }
+}
+
+function freshHistory(base: number): History {
+  return { past: [], future: [], size: 0, base, used: 0 }
 }
 
 export const store = new BoardStore()

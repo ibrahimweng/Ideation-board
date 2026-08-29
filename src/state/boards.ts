@@ -75,13 +75,16 @@ export async function weighBoard(id: string): Promise<{ boards: number; cards: n
  * that is staying, so which of them are really unreferenced is a question
  * about the whole store rather than about this board — `store/reclaim.ts`
  * answers it, and is what actually gets the room back. */
-export async function deleteBoardTree(id: string): Promise<number> {
+export async function deleteBoardTree(id: string): Promise<string[]> {
   const tree = await boardTree(id)
   for (const b of tree) {
     await delBoard(b.id)
     invalidateSummary(b.id)
   }
-  return tree.length
+  /* The ids rather than how many of them: whoever asked for this is the only
+   * one who knows what else is holding something for these boards — undo
+   * history, in the one case there is — and it cannot be told from a count. */
+  return tree.map((b) => b.id)
 }
 
 /* ---------- summaries ---------- */

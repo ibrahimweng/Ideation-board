@@ -25,7 +25,7 @@ import { Compare } from './ui/Compare'
 import { GenerateSheet } from './ui/GenerateSheet'
 import { RelaySheet } from './ui/RelaySheet'
 import { UpdateBar } from './ui/UpdateBar'
-import { BoardTabs } from './ui/BoardTabs'
+import { BoardTabs, BOARD_PANEL } from './ui/BoardTabs'
 import { exportPage, saySize } from './state/exportPage'
 import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
@@ -783,7 +783,7 @@ export default function App() {
         landOn = others[0]?.id || (await newRoot())
         await openBoard([{ id: landOn, name: 'Untitled board', card: null }])
       }
-      await deleteBoardTree(id)
+      for (const gone of await deleteBoardTree(id)) store.forgetHistory(gone)
       try {
         localStorage.removeItem(trailKey(id))
       } catch { /* nothing to forget */ }
@@ -874,7 +874,7 @@ export default function App() {
     const { boards, cards } = await weighBoard(card.board)
     const what = `${cards} card${cards === 1 ? '' : 's'}${boards > 1 ? `, and ${boards - 1} board${boards === 2 ? '' : 's'} inside it` : ''}`
     if (!window.confirm(`Delete "${card.name || 'that board'}" and everything in it?\n\n${what}. This cannot be undone.`)) return
-    await deleteBoardTree(card.board)
+    for (const gone of await deleteBoardTree(card.board)) store.forgetHistory(gone)
     store.remove([card.id])
     const got = await sweep({ live: store.all(), held: store.clipped() })
     await measure()
@@ -1110,7 +1110,15 @@ export default function App() {
         revision={boardRev}
       />
 
-      <main className="main">
+      {/* Named as what the row of tabs is showing. The board inside keeps its
+          own role: this says which project you are looking at, and that one
+          says how to work it. */}
+      <main
+        className="main"
+        id={BOARD_PANEL}
+        role="tabpanel"
+        aria-label={`${name || 'Untitled board'}, project`}
+      >
         <Board
           onDropFiles={onDropFiles}
           onOpenEditor={openItem}
