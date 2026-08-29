@@ -64,9 +64,14 @@ function parts(): Part[] {
             and only that one.
           </p>
           <p>
-            The <strong>×</strong> on a tab deletes that project and everything in it. There is no
-            undo across projects and this browser holds the only copy, so it asks first and tells
-            you what it is about to take. Closing the one you are in leaves you on another.
+            The <strong>×</strong> on a tab deletes that project and everything in it. This browser
+            holds the only copy, so it asks first and tells you what it is about to take — and for
+            about ten seconds afterwards the line along the bottom offers it back, whole, in the
+            same place in the row. Closing the one you are in leaves you on another.
+          </p>
+          <p>
+            Double-click a tab to rename it, or press <K>F2</K> when it has the keyboard. The
+            arrow keys walk along the row and <K>Enter</K> opens the one you have walked to.
           </p>
         </>
       ),

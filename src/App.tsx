@@ -32,7 +32,8 @@ import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
 import { describeSweep, sweep } from './store/reclaim'
-import { deleteBoardTree, weighBoard } from './state/boards'
+import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
+import { heldItems, holdDeleted, takeBack } from './state/undelete'
 import { FIRST_BOARD, boardExists, boardFromUrl, listRoots, newRoot, pointTabAt, tabOrder, trailKey, urlForBoard } from './state/roots'
 import { SpaceAlarm } from './ui/SpaceAlarm'
 import { TabClash } from './ui/TabClash'
@@ -62,6 +63,15 @@ const BOARD_ID = boardFromUrl() || FIRST_BOARD
  * rename made from inside a board finds its way back to the card. */
 const ROOT: Crumb = { id: BOARD_ID, name: 'Untitled board', card: null }
 
+/* How long the offer to put a deleted project back stands.
+ *
+ * Long enough to read the line, notice it says the wrong name and reach for
+ * it; short enough that the pictures of a project you meant to delete are not
+ * being held onto while you work. Ten seconds is what the file sweep already
+ * waits before touching anything freshly written, and one number for "long
+ * enough to change your mind" is easier to hold than two. */
+const UNDO_MS = 10_000
+
 export default function App() {
   const selection = useSelection()
   /* The command names say what they are about to act on, and what that is
@@ -88,7 +98,18 @@ export default function App() {
   /* Read out by anything reading the page aloud when the selection moves. */
   const [spoken, setSpoken] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  /* The line along the bottom. */
+  const [busy, setBusy] = useState<{ text: string } | null>(null)
+  /* And a way back out of something that has just been done, which outlives
+   * the sentence announcing it.
+   *
+   * Kept apart from the message on purpose. The two are on the same line, but
+   * a message is a thing said once and an offer is a thing that stands for a
+   * few seconds — and the first version folded them together, so the next
+   * message along took the Undo away while the undo itself was still perfectly
+   * possible. Anything else the app has to say is more urgent than the offer's
+   * own wording, and none of it is a reason to withdraw the offer. */
+  const [openOffer, setOpenOffer] = useState<{ text: string; label: string; run: () => void } | null>(null)
   const [name, setName] = useState('Untitled board')
   const [engineOk, setEngineOk] = useState(true)
   /* Whether the board on screen is the board on disk yet.
@@ -343,8 +364,24 @@ export default function App() {
 
   /* A line along the bottom that takes itself away again. */
   const say = useCallback((msg: string, ms = 2200) => {
-    setBusy(msg)
-    window.setTimeout(() => setBusy(null), ms)
+    setBusy({ text: msg })
+    window.setTimeout(() => setBusy((b) => (b?.text === msg ? null : b)), ms)
+  }, [])
+
+  /* Something done, and a few seconds in which to take it back. */
+  const offer = useCallback((msg: string, label: string, run: () => void, ms = 10000) => {
+    const made = {
+      text: msg,
+      label,
+      run: () => {
+        setOpenOffer(null)
+        setBusy(null)
+        run()
+      },
+    }
+    setBusy(null)
+    setOpenOffer(made)
+    window.setTimeout(() => setOpenOffer((o) => (o === made ? null : o)), ms)
   }, [])
 
   /* An agent asking what is on this board should be able to say "inside
@@ -507,17 +544,17 @@ export default function App() {
    * one file. The pending save is forced out first so what leaves is what is
    * on screen rather than what was there a moment ago. */
   const exportBoard = useCallback(async () => {
-    setBusy('Packing the board…')
+    setBusy({ text: 'Packing the board…' })
     try {
       await saveNow.current()
       const out = await exportTree(store.id)
       download(out.blob, out.name)
       const bits = [out.boards === 1 ? '1 board' : `${out.boards} boards`]
       if (out.media) bits.push(out.media === 1 ? '1 file' : `${out.media} files`)
-      setBusy(`Exported ${bits.join(' and ')}`)
+      setBusy({ text: `Exported ${bits.join(' and ')}` })
       window.setTimeout(() => setBusy(null), 2200)
     } catch (err) {
-      setBusy(err instanceof Error ? err.message : 'The board could not be exported')
+      setBusy({ text: err instanceof Error ? err.message : 'The board could not be exported' })
       window.setTimeout(() => setBusy(null), 3200)
     }
   }, [])
@@ -529,21 +566,21 @@ export default function App() {
    * with every picture inside it and the boards inside it reachable — which is
    * the difference between keeping a board and handing one over. */
   const exportHtml = useCallback(async () => {
-    setBusy('Baking the pictures…')
+    setBusy({ text: 'Baking the pictures…' })
     try {
       await saveNow.current()
       const out = await exportPage(store.id, {
         onProgress: (done, total) => {
-          if (total > 1) setBusy(`Baking board ${done} of ${total}…`)
+          if (total > 1) setBusy({ text: `Baking board ${done} of ${total}…` })
         },
       })
       download(out.blob, out.name)
       const bits = [out.cards === 1 ? '1 card' : `${out.cards} cards`]
       if (out.boards > 1) bits.push(`${out.boards} boards`)
-      setBusy(`Exported ${out.name} — ${bits.join(', ')}, ${saySize(out.bytes)}`)
+      setBusy({ text: `Exported ${out.name} — ${bits.join(', ')}, ${saySize(out.bytes)}` })
       window.setTimeout(() => setBusy(null), 4200)
     } catch (err) {
-      setBusy(err instanceof Error ? err.message : 'The page could not be made')
+      setBusy({ text: err instanceof Error ? err.message : 'The page could not be made' })
       window.setTimeout(() => setBusy(null), 3200)
     }
   }, [])
@@ -555,31 +592,31 @@ export default function App() {
     const items = ids.map((id) => store.getItem(id)).filter((i): i is Item => !!i)
     const shootable = items.filter(hasPixels)
     if (!shootable.length) {
-      setBusy('Select a picture or a video to export')
+      setBusy({ text: 'Select a picture or a video to export' })
       window.setTimeout(() => setBusy(null), 2200)
       return
     }
-    setBusy(shootable.length > 1 ? `Rendering ${shootable.length} pictures…` : 'Rendering…')
+    setBusy({ text: shootable.length > 1 ? `Rendering ${shootable.length} pictures…` : 'Rendering…' })
     try {
       const made = await exportCards(shootable)
       if (!made.length) {
-        setBusy('Nothing there could be exported')
+        setBusy({ text: 'Nothing there could be exported' })
         window.setTimeout(() => setBusy(null), 2600)
         return
       }
       if (made.length === 1) {
         download(made[0].blob, made[0].name)
-        setBusy(`Exported ${made[0].name} at ${made[0].w}×${made[0].h}`)
+        setBusy({ text: `Exported ${made[0].name} at ${made[0].w}×${made[0].h}` })
       } else {
         const bundle = await zip(made.map((m) => ({ name: m.name, blob: m.blob })))
         download(bundle, `${safeName(store.name || 'board')}-pictures.zip`)
-        setBusy(`Exported ${made.length} pictures`)
+        setBusy({ text: `Exported ${made.length} pictures` })
       }
       const missed = shootable.length - made.length
-      if (missed > 0) setBusy(`Exported ${made.length}, ${missed} could not be read`)
+      if (missed > 0) setBusy({ text: `Exported ${made.length}, ${missed} could not be read` })
       window.setTimeout(() => setBusy(null), 2600)
     } catch (err) {
-      setBusy(err instanceof Error ? err.message : 'That could not be exported')
+      setBusy({ text: err instanceof Error ? err.message : 'That could not be exported' })
       window.setTimeout(() => setBusy(null), 3200)
     }
   }, [])
@@ -591,24 +628,24 @@ export default function App() {
     const what = subject()
     const items = what.items
     if (!items.length) {
-      setBusy('Nothing on this board yet')
+      setBusy({ text: 'Nothing on this board yet' })
       window.setTimeout(() => setBusy(null), 2200)
       return
     }
-    setBusy(as === 'pdf' ? 'Laying out the page…' : 'Painting the board…')
+    setBusy({ text: as === 'pdf' ? 'Laying out the page…' : 'Painting the board…' })
     try {
       const info = { name: store.name, of: what.why === 'board' ? undefined : what.total }
       const made = as === 'pdf' ? await exportPosterPdf(items, info) : await exportPoster(items, info)
       if (!made) {
-        setBusy('That could not be exported')
+        setBusy({ text: 'That could not be exported' })
         window.setTimeout(() => setBusy(null), 2600)
         return
       }
       download(made.blob, made.name)
-      setBusy(`Exported ${made.name}${made.note ? `, ${made.note}` : ` at ${made.w}×${made.h}`}`)
+      setBusy({ text: `Exported ${made.name}${made.note ? `, ${made.note}` : ` at ${made.w}×${made.h}`}` })
       window.setTimeout(() => setBusy(null), 2800)
     } catch (err) {
-      setBusy(err instanceof Error ? err.message : 'That could not be exported')
+      setBusy({ text: err instanceof Error ? err.message : 'That could not be exported' })
       window.setTimeout(() => setBusy(null), 3200)
     }
   }, [])
@@ -617,18 +654,18 @@ export default function App() {
    * than replacing anything: nothing is lost, and the same file can be brought
    * in twice as two separate boards. */
   const importBoard = useCallback(async (file: Blob, at: { x: number; y: number }) => {
-    setBusy('Reading the board…')
+    setBusy({ text: 'Reading the board…' })
     try {
       const out = await importTree(file, at)
       store.add(out.card)
       store.select([out.card.id])
       const bits = [out.boards === 1 ? '1 board' : `${out.boards} boards`]
       if (out.media) bits.push(out.media === 1 ? '1 file' : `${out.media} files`)
-      setBusy(`Imported ${bits.join(' and ')}`)
+      setBusy({ text: `Imported ${bits.join(' and ')}` })
       window.setTimeout(() => setBusy(null), 2200)
       return true
     } catch (err) {
-      setBusy(err instanceof Error ? err.message : 'That file could not be read')
+      setBusy({ text: err instanceof Error ? err.message : 'That file could not be read' })
       window.setTimeout(() => setBusy(null), 3200)
       return false
     }
@@ -671,7 +708,7 @@ export default function App() {
       return
     }
 
-    setBusy(`Adding ${list.length} file${list.length > 1 ? 's' : ''}…`)
+    setBusy({ text: `Adding ${list.length} file${list.length > 1 ? 's' : ''}…` })
     let n = 0
     const made: Item[] = []
     const r = document.querySelector('.viewport')?.getBoundingClientRect()
@@ -681,7 +718,7 @@ export default function App() {
       store.add(item)
       made.push(item)
       n++
-      setBusy(n < list.length ? `Adding ${n + 1} of ${list.length}…` : null)
+      setBusy(n < list.length ? { text: `Adding ${n + 1} of ${list.length}…` } : null)
     }
     /* And then the view goes to them. A drop of twenty laid eight on screen
        and twelve below the fold with nothing to say they were there, which is
@@ -764,6 +801,44 @@ export default function App() {
     [openBoard]
   )
 
+  /* Renaming a project from its own tab.
+   *
+   * The name field in the bar does the same job for the project you are in,
+   * and cannot do it for the others or on a window too narrow to hold it. This
+   * goes through the record rather than the store, because the tab being
+   * renamed is very often not the board that is loaded. */
+  const renameRoot = useCallback(
+    async (id: string, next: string) => {
+      if (id === store.id) {
+        store.setName(next)
+        setName(next)
+      } else {
+        await renameBoard(id, next)
+      }
+      setBoardRev((n) => n + 1)
+    },
+    []
+  )
+
+  /* Putting a project back, while the offer to do so still stands.
+   *
+   * The records go back under their own ids, so the tab returns to its own
+   * place in the row rather than to the end of it, and any link anybody kept
+   * to it still works. The summaries have to be told, or search would go on
+   * answering with the board as it was before it was deleted. */
+  const undoDelete = useCallback(async () => {
+    const back = takeBack()
+    if (!back) return
+    for (const b of back.boards) {
+      await putBoard(b)
+      invalidateSummary(b.id)
+    }
+    setBoardRev((n) => n + 1)
+    await measure()
+    await openRoot(back.root)
+    say(`Put "${back.name}" back`)
+  }, [openRoot, say])
+
   /* Closing a project is deleting it. There is no file behind a board and no
    * undo across boards, so this is the one place in the app that destroys work
    * outright — which is why it says what it is about to take, and why the
@@ -783,16 +858,31 @@ export default function App() {
         landOn = others[0]?.id || (await newRoot())
         await openBoard([{ id: landOn, name: 'Untitled board', card: null }])
       }
+      /* The records, before they go, so the offer below has something to put
+       * back. They are the same objects that were on disk, ids and all, so an
+       * undo restores the project rather than making a copy of it. */
+      const held = await boardTree(id)
+
       for (const gone of await deleteBoardTree(id)) store.forgetHistory(gone)
       try {
         localStorage.removeItem(trailKey(id))
       } catch { /* nothing to forget */ }
-      const got = await sweep({ live: store.all(), held: store.clipped() })
-      await measure()
       setBoardRev((n) => n + 1)
-      say(got.files ? `Deleted "${name}". ${describeSweep(got)}` : `Deleted "${name}"`, 4000)
+
+      /* The sweep waits. Deleting the boards left their pictures referenced by
+       * nothing, which is exactly what a sweep collects — and collecting them
+       * now would mean undo brought back a project of empty frames. */
+      holdDeleted(held, id, name, UNDO_MS, () => {
+        void (async () => {
+          const got = await sweep({ live: store.all(), held: [...store.clipped(), ...heldItems()] })
+          await measure()
+          if (got.files) say(describeSweep(got), 3000)
+        })()
+      })
+
+      offer(`Deleted "${name}"`, 'Undo', () => void undoDelete(), UNDO_MS)
     },
-    [openBoard, say]
+    [openBoard, offer, say, undoDelete]
   )
 
   /* Round the row, wrapping. With two projects — which is most of the time —
@@ -852,10 +942,16 @@ export default function App() {
    * The live board and the cut clipboard are handed over because neither is on
    * disk: the board on screen may hold cards not yet written, and cards taken
    * away with Cut are on no board at all until they are put down. Sweeping
-   * without them would delete pictures somebody is still using. */
+   * without them would delete pictures somebody is still using.
+   *
+   * A project deleted a moment ago is the third of those. Its boards are off
+   * disk and its pictures are referenced by nothing, and for as long as the
+   * offer to put it back stands they are spoken for — otherwise asking for the
+   * room back during those few seconds would quietly turn the undo into a
+   * project of empty frames. */
   const reclaim = useCallback(async () => {
     say('Looking for files nothing uses…', 30000)
-    const got = await sweep({ live: store.all(), held: store.clipped() })
+    const got = await sweep({ live: store.all(), held: [...store.clipped(), ...heldItems()] })
     await measure()
     say(describeSweep(got), got.files ? 4000 : 2600)
   }, [say])
@@ -876,7 +972,7 @@ export default function App() {
     if (!window.confirm(`Delete "${card.name || 'that board'}" and everything in it?\n\n${what}. This cannot be undone.`)) return
     for (const gone of await deleteBoardTree(card.board)) store.forgetHistory(gone)
     store.remove([card.id])
-    const got = await sweep({ live: store.all(), held: store.clipped() })
+    const got = await sweep({ live: store.all(), held: [...store.clipped(), ...heldItems()] })
     await measure()
     say(got.files ? `Deleted the board. ${describeSweep(got)}` : 'Deleted the board', 4000)
   }, [say])
@@ -1105,6 +1201,7 @@ export default function App() {
         onOpen={(id) => void openRoot(id)}
         onNew={(id) => void openRoot(id)}
         onClose={(id, name) => void closeRoot(id, name)}
+        onRename={(id, next) => void renameRoot(id, next)}
         /* Bumped when a project is made, deleted or imported. Renames do not
            need it: the tab you are in is told the name directly. */
         revision={boardRev}
@@ -1186,7 +1283,18 @@ export default function App() {
       )}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
       {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
-      {busy && <div className="toast">{busy}</div>}
+      {/* One line, whether it is carrying a message, an offer, or a message
+          that arrived while an offer was standing. */}
+      {(busy || openOffer) && (
+        <div className="toast">
+          <span>{busy?.text || openOffer?.text}</span>
+          {openOffer && (
+            <button className="toast-undo" onClick={openOffer.run}>
+              {openOffer.label}
+            </button>
+          )}
+        </div>
+      )}
       {!engineOk && (
         <div className="toast warn">
           This browser cannot run the GPU effects engine. Images and adjustments still work.

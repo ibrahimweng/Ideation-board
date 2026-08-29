@@ -189,6 +189,51 @@ ok('a reload comes back on the project you were in',
    boardOf(page) === second && (await cards(page)) === 1, page.url())
 ok('and the row is still whole', (await tabs(page)) === 2, `${await tabs(page)} tabs`)
 
+/* ---------- renaming from the tab ---------- */
+/* The name field in the bar does this for the project you are in and cannot do
+   it for the others — and on a narrow window there is no field at all. */
+await page.locator('.tab[data-on]').dblclick()
+await page.waitForTimeout(400)
+ok('double clicking a tab opens its name for editing',
+   (await page.locator('.tab-edit').count()) === 1)
+await page.locator('.tab-edit').fill('Autumn palette')
+await page.keyboard.press('Enter')
+await page.waitForTimeout(1400)
+ok('and typing a new one renames the project',
+   (await page.locator('.tab[data-on] .tab-name').innerText()) === 'Autumn palette',
+   await page.locator('.tab[data-on] .tab-name').innerText())
+ok('which the name field in the bar agrees with',
+   (await page.locator('.board-name').inputValue()) === 'Autumn palette',
+   await page.locator('.board-name').inputValue())
+
+/* Escape means the name it had. */
+await page.locator('.tab[data-on]').dblclick()
+await page.waitForTimeout(400)
+await page.locator('.tab-edit').fill('Not this')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(900)
+ok('and escaping leaves it as it was',
+   (await page.locator('.tab[data-on] .tab-name').innerText()) === 'Autumn palette',
+   await page.locator('.tab[data-on] .tab-name').innerText())
+
+/* Another tab renames the same way, and the first of the two clicks has
+   already taken you there — which is what a click on a tab means, and the
+   right place to be standing when you rename it. */
+await otherTab(page).dblclick()
+await page.waitForTimeout(1200)
+await page.locator('.tab-edit').fill('Winter')
+await page.keyboard.press('Enter')
+await page.waitForTimeout(1500)
+const named = await page.locator('.tab-name').allInnerTexts()
+ok('another tab can be renamed too', named.includes('Winter'), named.join(' | '))
+ok('and you are standing in the one you renamed', boardOf(page) === 'board_local', page.url())
+
+/* Back where the checks below expect to be. */
+await otherTab(page).click()
+await page.waitForFunction((id) => new URLSearchParams(location.search).get('board') === id,
+                           second, { timeout: 15000 })
+await page.waitForTimeout(900)
+
 /* ---------- the row from the keyboard ---------- */
 /* Calling this a tablist is a promise that the arrow keys walk along it. It
    was a promise the row did not keep: every tab sat in the page's own tab

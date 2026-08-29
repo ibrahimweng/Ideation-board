@@ -109,7 +109,7 @@ export function revealItems(items: Item[]): boolean {
     return x >= 0 && y >= 0 && x + i.w * view.z <= size.w && y + i.h * view.z <= size.h
   }
   if (items.every(onScreen)) return false
-  const next = fitView(items, size.w, size.h, 64, view.z)
+  const next = fitView(items, size.w, size.h, undefined, view.z)
   if (!next) return false
   store.setView(next)
   return true

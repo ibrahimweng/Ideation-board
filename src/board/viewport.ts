@@ -75,7 +75,24 @@ export function revealView(view: Viewport, it: Item, vpW: number, vpH: number, p
  *
  * Never zooms past life size: a board of four cards should fill the window at
  * a hundred per cent rather than being blown up to fit it. */
-export function fitView(items: Item[], vpW: number, vpH: number, pad = 64, maxZoom = 1): Viewport | null {
+/* The margin a fit leaves around the board.
+ *
+ * It was a flat 64 on every side, which is a comfortable frame on a laptop and
+ * a third of the screen on a phone: three cards fitted to a 390 pixel window
+ * came out at 43% when they would have gone in at 56%, with the whole board
+ * huddled in the middle of an empty page. So it is a share of the smaller
+ * dimension, floored so a fit never puts a card against the very edge and
+ * capped so a wide window does not grow the frame instead of the board. */
+export const fitPad = (vpW: number, vpH: number) =>
+  Math.max(16, Math.min(64, Math.min(vpW, vpH) * 0.06))
+
+export function fitView(
+  items: Item[],
+  vpW: number,
+  vpH: number,
+  pad = fitPad(vpW, vpH),
+  maxZoom = 1
+): Viewport | null {
   const boxes = items.filter((i) => i.w > 0 && i.h > 0)
   if (!boxes.length || vpW <= 0 || vpH <= 0) return null
   const x0 = Math.min(...boxes.map((i) => i.x))

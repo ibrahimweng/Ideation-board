@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { coverUv } from '../../src/engine/gl'
+import { fitPad, fitView } from '../../src/board/viewport'
 import { exportSize } from '../../src/state/exportImage'
 import { readingOrder, showable } from '../../src/state/order'
 import { alignTo, distributeAlong, tidyOnto } from '../../src/state/arrange'
@@ -206,5 +207,41 @@ describe('tidyOnto', () => {
     const at = list.map((it) => ({ ...it, ...(m.get(it.id) || {}) }))
     expect(Math.min(...at.map((p) => p.x))).toBe(400)
     expect(Math.min(...at.map((p) => p.y))).toBe(300)
+  })
+})
+
+describe('the margin a fit leaves round the board', () => {
+  /* It was a flat 64 on every side. That is a comfortable frame on a laptop
+     and a third of the screen on a phone: three cards fitted to a 390 pixel
+     window came out at 43% when they would have gone in at 56%, with the whole
+     board huddled in the middle of an empty page. */
+  it('is small enough on a phone to leave the board the screen', () => {
+    expect(fitPad(390, 780)).toBeLessThan(30)
+  })
+
+  it('and stays a proper frame on a laptop', () => {
+    expect(fitPad(1440, 900)).toBeGreaterThan(40)
+  })
+
+  it('never puts a card against the very edge', () => {
+    expect(fitPad(200, 120)).toBeGreaterThanOrEqual(16)
+    expect(fitPad(1, 1)).toBeGreaterThanOrEqual(16)
+  })
+
+  it('and never grows the frame instead of the board', () => {
+    expect(fitPad(4000, 3000)).toBeLessThanOrEqual(64)
+  })
+
+  it('follows the short side, because that is the one that runs out', () => {
+    /* A wide, short window is short. Taking the width would leave a frame
+       taller than the space it is framing. */
+    expect(fitPad(1600, 300)).toBe(fitPad(300, 1600))
+  })
+
+  it('leaves more of a small window to the board than the old flat margin did', () => {
+    const items = [{ x: 0, y: 0, w: 700, h: 500 }] as Item[]
+    const was = fitView(items, 390, 690, 64)
+    const now = fitView(items, 390, 690)
+    expect(now!.z).toBeGreaterThan(was!.z * 1.2)
   })
 })

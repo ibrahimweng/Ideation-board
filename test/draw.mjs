@@ -411,9 +411,27 @@ ok('a refused prompt says it was refused, and why',
    /refused/i.test(await page.locator('.toast').innerText().catch(() => '')),
    await page.locator('.toast').innerText().catch(() => 'nothing'))
 
+/* What the board actually holds, rather than what is mounted right now.
+ *
+ * The board draws only the cards near the view and drops the rest, so counting
+ * the document answers a question about where the view happens to be. It went
+ * wrong the moment a fit stopped leaving a wide margin: the same board framed
+ * a little larger mounts one card fewer, and a picture that had arrived
+ * perfectly well read as a picture that had not. */
+const onBoard = () => page.evaluate(() => new Promise((res) => {
+  const q = indexedDB.open('ideation.board.db')
+  q.onsuccess = () => {
+    const t = q.result.transaction('boards', 'readonly').objectStore('boards').getAll()
+    t.onsuccess = () => res(t.result.reduce((n, b) => n + (b.items || []).length, 0))
+    t.onerror = () => res(-1)
+  }
+  q.onerror = () => res(-1)
+}))
+
 /* ---------- it survives a reload, so the picture is really held here ------- */
 await page.waitForTimeout(1400)
 const beforeReload = (await cards()).length
+const heldBefore = await onBoard()
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(2600)
 list = await cards()
@@ -442,8 +460,9 @@ ok('a model that answers to predict but is not named for it is still asked corre
    seen.some((s) => s.path.endsWith('fake-drawing-3.0-generate:predict')) &&
    !seen.some((s) => s.path.endsWith('fake-drawing-3.0-generate:generateContent')),
    JSON.stringify(seen.filter((s) => s.path.includes('fake-drawing')).map((s) => s.path)))
-ok('and its picture is on the board like any other', (await cards()).length === beforeReload + 1,
-   `${(await cards()).length}, was ${beforeReload}`)
+const heldAfter = await onBoard()
+ok('and its picture is on the board like any other', heldAfter === heldBefore + 1,
+   `${heldAfter} on the board, was ${heldBefore}`)
 
 /* ---------- and the key is in none of it ---------- */
 const stored = await page.evaluate(() => {

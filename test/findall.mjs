@@ -201,9 +201,10 @@ await page.locator('.tab:not([data-on])').first().locator('.tab-close').click()
 await page.waitForFunction(() => document.querySelectorAll('.tab').length === 1, { timeout: 15000 })
 await page.waitForTimeout(1200)
 await search('zellige')
+/* Counted rather than read: asking a missing element for its text waits out
+   the whole locator timeout before giving up. */
 ok('a project you deleted stops turning up in the answers',
-   (await page.locator('.search-deep').count()) === 0,
-   await page.locator('.search-deep').innerText().catch(() => 'no button'))
+   (await page.locator('.search-deep').count()) === 0)
 
 console.log('\npage errors:', errors.length ? errors.slice(0, 5) : 'none')
 const failed = results.filter((r) => !r.p)

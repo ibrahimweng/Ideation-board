@@ -44,11 +44,27 @@ export interface BoardTabsProps {
   /* Bumped by the app whenever the list could have changed underneath: a
    * rename, a board added from a card, an import. */
   revision?: number
+  /* Renaming from the tab itself. The name field in the bar is the other way,
+   * and on a narrow window it is the only way — there is no room up there for
+   * a name and everything else. */
+  onRename?: (id: string, name: string) => void
 }
 
-export function BoardTabs({ current, currentName, onOpen, onNew, onClose, onCount, revision = 0 }: BoardTabsProps) {
+export function BoardTabs({
+  current, currentName, onOpen, onNew, onClose, onCount, onRename, revision = 0,
+}: BoardTabsProps) {
   const [roots, setRoots] = useState<Root[]>([])
   const [making, setMaking] = useState(false)
+  /* Which tab is being renamed, and what it has been typed to so far. */
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null)
+  /* The same, where finishing can clear it at once.
+   *
+   * Escape ends the edit, and ending the edit takes the field off the page,
+   * which fires its own blur — and blur means keep. Reading the state through
+   * a closure, both calls saw an edit still in progress and the second one
+   * quietly saved the name Escape had just refused. */
+  const editRef = useRef<{ id: string; text: string } | null>(null)
+  editRef.current = editing
   const strip = useRef<HTMLDivElement | null>(null)
 
   const refresh = useCallback(async () => {
@@ -103,6 +119,7 @@ export function BoardTabs({ current, currentName, onOpen, onNew, onClose, onCoun
       e.preventDefault()
       tabs[(i + tabs.length) % tabs.length]?.focus()
     }
+    if (editing) return
     if (e.key === 'ArrowRight') return go(at + 1)
     if (e.key === 'ArrowLeft') return go(at - 1)
     if (e.key === 'Home') return go(0)
@@ -116,6 +133,28 @@ export function BoardTabs({ current, currentName, onOpen, onNew, onClose, onCoun
       e.preventDefault()
       onClose(r.id, nameOf(r) || 'this board')
     }
+    /* F2 is what renames a thing in a list, on every desktop there is. */
+    if (e.key === 'F2') {
+      const r = shown[at]
+      if (!r || !onRename) return
+      e.preventDefault()
+      setEditing({ id: r.id, text: nameOf(r) })
+    }
+  }
+
+  const startRename = (r: Root) => {
+    if (!onRename) return
+    setEditing({ id: r.id, text: nameOf(r) })
+  }
+  const finishRename = (keep: boolean) => {
+    const was = editRef.current
+    editRef.current = null
+    setEditing(null)
+    if (!was || !onRename) return
+    const next = was.text.trim()
+    if (keep && next) onRename(was.id, next)
+    /* Back to the tab, so the arrows still work after. */
+    strip.current?.querySelector<HTMLElement>(`.tab[data-id="${was.id}"]`)?.focus()
   }
 
   return (
@@ -137,15 +176,43 @@ export function BoardTabs({ current, currentName, onOpen, onNew, onClose, onCoun
              * project you have. */
             tabIndex={r.id === current ? 0 : -1}
             data-on={r.id === current || undefined}
+            data-id={r.id}
             title={`${nameOf(r)} — ${r.cards} card${r.cards === 1 ? '' : 's'}`}
             onClick={(e) => {
               /* A modifier means the browser's own gesture: let it have it. */
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
               e.preventDefault()
+              if (editing?.id === r.id) return
               if (r.id !== current) onOpen(r.id)
             }}
+            /* Renaming from the tab. On one you are not in, the first of the
+             * two clicks has already moved you there — which is what a click
+             * on a tab means, and the right place to be standing when you
+             * rename it. */
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              startRename(r)
+            }}
           >
-            <span className="tab-name">{nameOf(r) || 'Untitled board'}</span>
+            {editing?.id === r.id ? (
+              <input
+                className="tab-edit"
+                value={editing.text}
+                autoFocus
+                spellCheck={false}
+                aria-label="Name for this project"
+                onChange={(e) => setEditing({ id: r.id, text: e.target.value })}
+                onBlur={() => finishRename(true)}
+                onClick={(e) => e.preventDefault()}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') finishRename(true)
+                  if (e.key === 'Escape') finishRename(false)
+                }}
+              />
+            ) : (
+              <span className="tab-name">{nameOf(r) || 'Untitled board'}</span>
+            )}
             <button
               className="tab-close"
               /* Reachable by pointer, and by Delete on the tab itself. Not by

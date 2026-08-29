@@ -110,21 +110,36 @@ ok('and deleting them frees nothing at all, which is the bug',
 /* Run the way a person runs it, out of the command list, rather than through a
    hook put in the product for the test's benefit. What is checked is therefore
    the real path, message and all. */
+/* What the line along the bottom says right now, or nothing if it is not
+   there. Asked this way round on purpose: reading the text of an element that
+   does not exist waits out the whole locator timeout before giving up, and
+   thirty seconds spent here is thirty seconds of the ten-second grace this
+   suite is about — the sweep it then runs finds every file old enough to take
+   and the test fails describing behaviour that is perfectly correct. */
+const toastNow = async () =>
+  (await page.locator('.toast').count()) ? await page.locator('.toast').innerText() : ''
+
 const clearUp = async () => {
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
+  /* Whatever the last thing done is still saying. Without this the first look
+     below can catch it and read it as this sweep's answer — the line lives a
+     couple of seconds and getting to the command list takes about that long,
+     so which one you saw came down to the machine's mood. */
+  const before = await toastNow()
   await page.keyboard.press('Control+k')
   await page.waitForTimeout(400)
   await page.keyboard.type('clear up')
   await page.waitForTimeout(500)
   await page.keyboard.press('Enter')
-  /* The toast says what happened; wait for one that is not "looking…". */
+  /* The toast says what happened; wait for one that is neither the message
+     that was already there nor "looking…". */
   for (let i = 0; i < 40; i++) {
-    const said = await page.locator('.toast').innerText().catch(() => '')
-    if (said && !/looking/i.test(said)) return said
+    const said = await toastNow()
+    if (said && said !== before && !/looking/i.test(said)) return said
     await page.waitForTimeout(250)
   }
-  return await page.locator('.toast').innerText().catch(() => '')
+  return await toastNow()
 }
 
 /* A file written moments ago is left alone on purpose, so that a drop still

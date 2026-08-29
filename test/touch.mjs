@@ -173,6 +173,44 @@ const targets = await page.evaluate(() => {
 check('the browser is being treated as a touch one', targets.coarse, `pointer: coarse = ${targets.coarse}`)
 check('every button in the row is big enough for a finger', targets.small.length === 0, targets.small.join(', '))
 
+/* ---------- what a small window gives the board ---------- */
+/* Everything above is a touch screen the size of a laptop, which is a real
+   thing and not the hard case. This is the hard case. */
+await page.setViewportSize({ width: 390, height: 780 })
+await page.waitForTimeout(700)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+await page.keyboard.press('1')
+await page.waitForTimeout(900)
+
+/* The name field used to hold on at every width and came out as "Untit" — too
+   short to read, let alone edit — while the row of tabs underneath said the
+   same name in full. It stands down now, and a double tap on the tab renames
+   the project instead. */
+const bar = await page.evaluate(() => {
+  const vis = (s) => {
+    const e = document.querySelector(s)
+    return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0
+  }
+  return { name: vis('.board-name'), mark: vis('.brand .dot'), tabs: vis('.tabs'), width: innerWidth }
+})
+check('the board name gives up rather than sitting there unreadable', !bar.name, `window ${bar.width}px`)
+check('and the row of tabs is still there to say what the project is called', bar.tabs)
+check('with the mark back in the space the name gave up', bar.mark)
+
+/* And a fit uses the window rather than framing it. A flat margin was a third
+   of the screen at this width. */
+const fitted = await page.evaluate(() => {
+  const vp = document.querySelector('.viewport')
+  const cards = [...document.querySelectorAll('.card')].map((c) => c.getBoundingClientRect())
+  if (!cards.length) return null
+  const r = vp.getBoundingClientRect()
+  const w = Math.max(...cards.map((c) => c.right)) - Math.min(...cards.map((c) => c.left))
+  return { share: w / r.width }
+})
+check('a fitted board is given most of a narrow window',
+  !fitted || fitted.share > 0.7, fitted ? `${Math.round(fitted.share * 100)}% of the width` : 'no cards')
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

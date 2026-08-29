@@ -199,6 +199,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: none; backgroun
 @media (max-width: 1180px) {
   .board-name { min-width: 48px; }
 }
+/* Below this there is no room for a name and everything else, and it came out
+   as "Untit" — a field too short to read, let alone edit. The row of tabs is
+   right underneath saying the same name in full, and a double tap on the tab
+   renames it, so the field stands down rather than being kept as a stub. */
+@media (max-width: 620px) {
+  .board-name { display: none; }
+}
 .board-name:hover { background: var(--hover); }
 .board-name:focus { outline: 2px solid var(--accent); background: var(--surface); }
 
@@ -1562,6 +1569,13 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   border-color: var(--line); margin-bottom: -1px; height: 28px;
 }
 .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Renaming in place. Sized to the tab it is replacing rather than to its own
+   contents, so the row does not jump the moment you start typing. */
+.tab-edit {
+  width: 100%; min-width: 0; padding: 0; border: none; outline: none;
+  background: transparent; color: var(--ink);
+  font: inherit; font-size: var(--t-sm);
+}
 .tab-close {
   flex: none; width: 18px; height: 18px; border-radius: var(--r-sm);
   display: grid; place-items: center; font-size: 13px; line-height: 1;
@@ -1639,8 +1653,22 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 
 .toast {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--s3);
+  max-width: calc(100vw - 32px);
   background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: var(--r-md);
   font-size: var(--t-md); z-index: 60; box-shadow: var(--shadow);
+}
+/* The way back out of what the line is reporting. Underlined rather than
+   boxed: it is a thing to press, and a button drawn on the dark strip would
+   read as heavier than the sentence it belongs to. */
+.toast-undo {
+  flex: none; margin: -4px -6px -4px 0; padding: 4px 6px; border-radius: var(--r-sm);
+  font: 600 var(--t-md)/1 var(--sans); color: var(--on-ink);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.toast-undo:hover { background: rgba(255, 255, 255, .16); }
+@media (pointer: coarse) {
+  .toast-undo { padding: 9px 12px; margin: -6px -8px -6px 0; }
 }
 .toast.warn { background: var(--warn); }
 
@@ -1759,6 +1787,16 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   /* Without this the free space goes to the auto margin that pushes the tools
      right, and the board's name is squeezed to six letters beside it. */
   .tools { margin-left: 0; }
+}
+
+/* Narrower still, and the name field has stood down entirely — see where it is
+   hidden, above. What is left of the brand is an empty forty pixels, so the
+   mark comes back into it: there is room for it again now that it is not
+   competing with a name, and a row that starts with nothing at all reads as a
+   toolbar somebody forgot to finish. */
+@media (max-width: 620px) {
+  .brand { flex: none; }
+  .brand .dot { display: block; }
 }
 @media (max-width: 620px) {
   /* One control that narrows the board is enough on a screen this size, and
