@@ -69,6 +69,18 @@ export interface Item {
    * and give up its colours without any of that code knowing what a PDF is. */
   pages?: number
   page?: number
+  /* The shape of a sound, and how long it runs.
+   *
+   * A couple of hundred whole numbers rather than a picture of a waveform: it
+   * is a few hundred bytes on the board record, it draws crisply at any size
+   * because it is drawn rather than scaled, and redrawing it as the track
+   * plays costs nothing. Read once when the file arrives, because decoding a
+   * track to find out is not something to do on every render.
+   *
+   * The cover inside the file, where it has one, is a real picture and is kept
+   * under `poster` like any other still. */
+  peaks?: number[]
+  secs?: number
 }
 
 export interface Board {

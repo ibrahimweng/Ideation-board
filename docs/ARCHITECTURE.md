@@ -221,6 +221,12 @@ on disk, with the media written next to a `board.json`.
 `media.ts` decodes pictures, pulls a still frame out of a video and manages
 object URLs.
 
+`audio.ts` reads a sound: the peaks a waveform is drawn from, how long it runs,
+and the cover out of an ID3 tag where an mp3 has one. Peaks are kept on the
+card as a couple of hundred whole numbers rather than as a picture of a
+waveform, which is a few hundred bytes, draws crisply at any size, and costs
+nothing to redraw while the track plays.
+
 `pdf.ts` draws a page of a document. pdf.js is loaded through a dynamic import
 the first time a PDF is dropped, so a board that never holds one never fetches
 it, and the legacy build is the one asked for: the modern one calls a Map

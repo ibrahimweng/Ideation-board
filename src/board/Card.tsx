@@ -3,6 +3,7 @@ import { useItem, store } from '../state/store'
 import { TAGS } from '../state/types'
 import { FxAnimCanvas, FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
+import { AudioCard } from './AudioCard'
 import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
 import { GRAIN_URL } from './grain'
@@ -49,6 +50,8 @@ export const Card = memo(function Card({
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
   const pageUrl = useObjectURL(it?.kind === 'pdf' ? it?.poster : undefined)
+  /* The cover out of a sound file, where it had one. */
+  const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
   const ready = useSourceReady(
     it?.kind === 'image' || it?.kind === 'pdf' ? pixelKey(it) : undefined
   )
@@ -321,15 +324,16 @@ export const Card = memo(function Card({
             </>
           )}
 
-          {it.kind === 'audio' &&
-            (url ? (
-              <div className="audio-wrap">
-                <div className="audio-title">{it.name}</div>
-                <audio src={url} controls preload="metadata" />
-              </div>
-            ) : (
-              <div className="media placeholder" />
-            ))}
+          {it.kind === 'audio' && (
+            <AudioCard
+              url={url}
+              name={it.name || 'Sound'}
+              art={artUrl}
+              peaks={it.peaks || []}
+              secs={it.secs || 0}
+              selected={selected}
+            />
+          )}
 
           {it.kind === 'note' && (
             /* The writing takes its colour from the paper. A note can be any

@@ -13,6 +13,7 @@ import { getBlob } from '../store/idb'
 import { portPoint, sideFacing, wirePath } from '../board/wire'
 import { safeName } from '../store/fs'
 import { hostOf } from './urls'
+import { clock } from '../store/audio'
 
 /* ---------------------------------------------------------------------------
  * The whole board, as one picture.
@@ -71,6 +72,11 @@ interface Tokens {
   hover: string
   wire: string
   sans: string
+  /* The quietest ink, and the face figures are set in. Added for the length of
+     a track, which is a figure and belongs beside the others in the app rather
+     than in whatever the sans happens to do with digits. */
+  faint: string
+  mono: string
 }
 
 function tokens(): Tokens {
@@ -89,6 +95,8 @@ function tokens(): Tokens {
     hover: v('--hover', 'rgba(24, 24, 27, 0.05)'),
     wire: v('--wire', '#a8a8b0'),
     sans: v('--sans', "'Instrument Sans', -apple-system, sans-serif"),
+    faint: v('--faint', '#a1a1aa'),
+    mono: v('--mono', "'JetBrains Mono', ui-monospace, Menlo, monospace"),
   }
 }
 
@@ -384,16 +392,44 @@ function drawAudio(cx: Ctx, it: Item, t: Tokens) {
   cx.textBaseline = 'middle'
   cx.fillStyle = t.muted
   cx.font = `12px ${t.sans}`
-  cx.fillText(ellipsis(cx, it.name || 'Audio', width), left, it.y + it.h / 2 - 14)
-  /* Stand-in for the player: the shape of one, so the card reads as sound. */
-  cx.fillStyle = t.sunk
-  rrect(cx, left, it.y + it.h / 2 + 2, width, 22, 11)
-  cx.fill()
-  cx.fillStyle = t.muted
-  cx.beginPath()
-  cx.arc(left + 13, it.y + it.h / 2 + 13, 5, 0, Math.PI * 2)
-  cx.fill()
-  cx.fillRect(left + 24, it.y + it.h / 2 + 12, width - 36, 2)
+  cx.fillText(ellipsis(cx, it.name || 'Audio', width - 34), left, it.y + it.h / 2 - 22)
+
+  const peaks = it.peaks || []
+  const top = it.y + it.h / 2 - 10
+  const tall = 30
+
+  if (peaks.length) {
+    /* The real shape of the track, the same peaks the card draws from. This
+     * used to be a stand-in — a drawing of a play button and a line, so the
+     * card at least read as sound. There is no need to stand anything in now
+     * that the sound itself is written on the card. */
+    const slot = width / peaks.length
+    const bar = Math.max(0.6, slot * 0.6)
+    cx.fillStyle = t.muted
+    for (let i = 0; i < peaks.length; i++) {
+      const h = Math.max(0.05, (peaks[i] || 0) / 100) * tall
+      cx.fillRect(left + i * slot + (slot - bar) / 2, top + (tall - h) / 2, bar, h)
+    }
+  } else {
+    /* A file nothing could decode still has a length and a name, so it keeps
+     * the shape of a player rather than becoming an empty rectangle. */
+    cx.fillStyle = t.sunk
+    rrect(cx, left, top + 4, width, 22, 11)
+    cx.fill()
+    cx.fillStyle = t.muted
+    cx.beginPath()
+    cx.arc(left + 13, top + 15, 5, 0, Math.PI * 2)
+    cx.fill()
+    cx.fillRect(left + 24, top + 14, width - 36, 2)
+  }
+
+  if (it.secs) {
+    cx.fillStyle = t.faint
+    cx.font = `11px ${t.mono}`
+    cx.textAlign = 'right'
+    cx.fillText(clock(it.secs), it.x + it.w - PAD, it.y + it.h / 2 - 22)
+    cx.textAlign = 'left'
+  }
 }
 
 function drawBoardCard(cx: Ctx, it: Item, t: Tokens) {

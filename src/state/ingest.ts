@@ -4,6 +4,7 @@ import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped 
 import { putBlob } from '../store/idb'
 import { isAnimated, mightMove } from '../store/anim'
 import { isPdf, renderPdfPage } from '../store/pdf'
+import { readSound } from '../store/audio'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -171,7 +172,23 @@ export async function* ingest(
     }
 
     if (kind === 'audio') {
-      yield { ...base, kind: 'audio', media: key, w: 320, h: 130 }
+      /* Decoded once, here, so the card has the shape of the track from the
+       * moment it appears rather than a grey bar that fills in later. A file
+       * this browser cannot decode gives back nothing, and the card is then
+       * what it always was: a name and a player. */
+      const sound = await readSound(file)
+      let artKey: string | undefined
+      if (sound?.art) {
+        artKey = newKey('art')
+        await putBlob(artKey, sound.art)
+        void ensureSource(artKey, sound.art)
+      }
+      yield {
+        ...base, kind: 'audio', media: key, poster: artKey,
+        ...(sound?.peaks.length ? { peaks: sound.peaks } : {}),
+        ...(sound?.secs ? { secs: sound.secs } : {}),
+        w: 320, h: artKey ? 320 : 130,
+      }
       continue
     }
 

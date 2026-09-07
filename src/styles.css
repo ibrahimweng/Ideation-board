@@ -893,9 +893,85 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .file-name { font-size: var(--t-sm); color: var(--muted); word-break: break-all; }
 .file-dl { font-size: var(--t-sm); color: var(--sel); margin-top: auto; }
 
-.audio-wrap { padding: 14px; display: flex; flex-direction: column; gap: 10px; height: 100%; justify-content: center; }
-.audio-title { font-size: var(--t-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.audio-wrap audio { width: 100%; }
+/* ---------- sound ----------
+
+   A track is drawn as its own waveform rather than handed to the browser's
+   player bar, which is a black box that cannot be styled and is a different
+   shape in every browser. The waveform doubles as the scrub bar: the shape
+   tells you where the quiet part is, and pressing on it is how you get there,
+   so drawing those as two separate things was drawing one thing twice. */
+
+.sound {
+  position: relative; height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s2);
+  background: var(--surface-2);
+}
+/* With a cover behind it the card needs its own ground, or the ink sits
+   straight on somebody's album art and neither can be read. */
+.sound[data-art] { background: var(--surface); }
+.sound[data-art]::after {
+  content: ''; position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.sound > * { position: relative; z-index: 1; }
+
+.sound-art {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+
+.sound-head { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.sound-play {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ink); color: var(--on-ink);
+}
+.sound-play:hover { background: var(--accent); color: var(--accent-ink); }
+.sound-name {
+  flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Tall enough that a waveform is a shape rather than a line, and the whole of
+   it is the target: a scrub bar you have to hit exactly is not one. */
+.sound-wave { flex: none; height: 46px; cursor: pointer; touch-action: none; }
+.sound-wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+.sound-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* Bars rather than strokes, so they scale with the card in both directions. */
+.sound-svg path { stroke: none; }
+.wave-rest { fill: var(--well-2); }
+.wave-done { fill: var(--accent); }
+
+/* A file this browser would not decode. The track still plays; what is missing
+   is the picture of it, so this is the plain bar that says so. */
+.sound-flat {
+  height: 100%; border-radius: var(--r-sm); background: var(--well);
+  position: relative; overflow: hidden;
+}
+.sound-flat::after {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--done, 0%);
+  background: var(--accent-wash); border-right: 2px solid var(--accent);
+}
+
+/* The card's own name plate is suppressed on a sound card. This card already
+   carries the name beside the play button, so the plate was the filename
+   written twice — and being at the bottom of the card it sat straight on top
+   of the times, which is where it was noticed. */
+.card[data-kind='audio'] .card-chrome { display: none; }
+
+.sound-time {
+  display: flex; justify-content: space-between;
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (pointer: coarse) {
+  .sound-play { width: 38px; height: 38px; }
+  .sound-wave { height: 54px; }
+}
 
 .card-label {
   background: transparent; border: none; box-shadow: none;

@@ -48,6 +48,7 @@
     "test:manyboards": "node test/manyboards.mjs",
     "test:big": "node test/big.mjs",
     "test:pdf": "node test/pdf.mjs",
+    "test:audio": "node test/audio.mjs",
     "test:stacked": "node test/stacked.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",

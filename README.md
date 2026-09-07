@@ -1241,6 +1241,7 @@ npm run test:manyboards -- http://localhost:5173
 npm run test:stacked -- http://localhost:5173
 npm run test:big -- http://localhost:5173
 npm run test:pdf -- http://localhost:5173
+npm run test:audio -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1317,6 +1318,15 @@ npm run bench
   an effect runs on a page the way it does on any picture, that the document
   itself is still in storage afterwards with `%PDF` at the front of it, and that
   all of it comes back after a reload on the page it was left on.
+- `test:audio` drops a clip written by hand in `test/fixtures/wav.mjs` that is
+  loud, then quiet, then loud again — so "the waveform has a shape" is a thing
+  that can be asserted rather than assumed, and a test that only counted peaks
+  would pass against a flat line. It checks that the track was really decoded,
+  that the shape is that clip's and not any clip's, that the card says how long
+  it is before anybody presses anything, that play and pause work, that pressing
+  three quarters along the waveform goes three quarters into the track, that an
+  arrow key moves through it, and that it all comes back after a reload without
+  decoding again.
 - `test:big` is the only suite that works at scale. Two thousand cards, written
   straight into IndexedDB because that is how a board that size really arrives,
   then the questions that only have an answer at that size: does it open, is
