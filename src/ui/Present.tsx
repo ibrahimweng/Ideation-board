@@ -4,6 +4,7 @@ import type { Item } from '../state/types'
 import { readingOrder } from '../state/order'
 import { Stage, fitStage } from './Stage'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 
 /* ---------------------------------------------------------------------------
  * The board, shown rather than worked on.
@@ -58,10 +59,10 @@ export function Present({ ids, startAt, onClose }: { ids: string[]; startAt?: st
   /* The board's own keys stand down while this is up. Without it the arrows
      that step through the show also nudge whatever is selected underneath. */
   useEffect(holdKeys, [])
+  const dialog = useDialog(onClose)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose()
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
         e.preventDefault()
         return go(1)
@@ -114,7 +115,9 @@ export function Present({ ids, startAt, onClose }: { ids: string[]; startAt?: st
 
   return (
     <div
+      ref={dialog}
       className="present"
+      aria-label="Showing the board"
       data-idle={idle || undefined}
       onPointerMove={() => setIdle(false)}
       onPointerDown={(e) => {

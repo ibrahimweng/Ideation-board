@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 import { KEYS, MOD } from './shortcuts'
 
 /* ---------------------------------------------------------------------------
@@ -252,29 +253,7 @@ export function Help({ onClose }: { onClose: () => void }) {
   const shown = parts()
 
   useEffect(holdKeys, [])
-
-  /* Where the keyboard goes, and where it comes back to.
-   *
-   * This covers the board and takes its keys, so leaving focus behind on
-   * whatever was pressed to open it means Tab walks through a board nobody can
-   * see. Putting it on Close is the honest starting point — it is the way out,
-   * and from it Tab reaches the sections and then the page. */
-  useEffect(() => {
-    const was = document.activeElement as HTMLElement | null
-    close.current?.focus()
-    return () => was?.focus?.()
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  const dialog = useDialog(onClose)
 
   /* Which section you are reading, so the list on the left says where you are.
    * Watching the sections go by rather than only listening for clicks: most of
@@ -302,9 +281,8 @@ export function Help({ onClose }: { onClose: () => void }) {
   return (
     <div className="sheet-veil" onPointerDown={onClose}>
       <div
+        ref={dialog}
         className="help"
-        role="dialog"
-        aria-modal="true"
         aria-label="How this works"
         onPointerDown={(e) => e.stopPropagation()}
       >

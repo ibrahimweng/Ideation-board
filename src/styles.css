@@ -1367,6 +1367,7 @@ body[data-dragging] .card-chrome { opacity: 0; }
   padding: 12vh var(--s4) var(--s4);
 }
 .cmd {
+  position: relative;
   width: min(560px, 100%); max-height: 62vh;
   display: flex; flex-direction: column;
   background: var(--surface);
@@ -1375,6 +1376,18 @@ body[data-dragging] .card-chrome { opacity: 0; }
   box-shadow: var(--sh-3);
   overflow: hidden;
 }
+/* There is more below. The same screen as the plate over a photograph, used
+   as a mask over the surface colour rather than as ink: the last row dots out
+   into the box instead of fading behind glass, and it takes the theme's own
+   colour for nothing. Only there while there is somewhere to scroll to. */
+.cmd::after {
+  content: ''; position: absolute; left: 1px; right: 1px; bottom: 0; height: 38px;
+  background: var(--surface);
+  -webkit-mask: var(--screen-up) repeat-x bottom / auto 38px;
+  mask: var(--screen-up) repeat-x bottom / auto 38px;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s ease;
+}
+.cmd[data-more]::after { opacity: 1; }
 .cmd-input {
   flex: none; height: 50px; padding: 0 var(--s4);
   border: none; border-bottom: 1px solid var(--line-soft);

@@ -67,6 +67,77 @@ check('the command list opens on the shortcut', (await page.locator('.cmd').coun
 check('and every entry is there to be found', (await page.locator('.cmd-row').count()) > 15, `${await page.locator('.cmd-row').count()} entries`)
 fs.writeFileSync(path.join(OUT, 'palette-open.png'), await page.screenshot())
 
+/* ---------- how the list reads ---------- */
+
+/* Forty commands in a box that holds fourteen, and the only sign of the other
+ * twenty six was the last row happening to be cut off — at ninety four percent
+ * of its height, which does not read as cut at all. */
+const scroll = () =>
+  page.evaluate(() => {
+    const list = document.querySelector('.cmd-list')
+    const box = document.querySelector('.cmd')
+    return {
+      more: box.hasAttribute('data-more'),
+      hidden: list.scrollHeight - list.clientHeight,
+      hint: Number(getComputedStyle(box, '::after').opacity),
+    }
+  })
+let sc = await scroll()
+check('a list longer than the box says there is more below', sc.more && sc.hint > 0.9,
+  `${sc.hidden}px out of sight, hint at ${sc.hint}`)
+
+await page.evaluate(() => {
+  const list = document.querySelector('.cmd-list')
+  list.scrollTop = list.scrollHeight
+})
+await page.waitForTimeout(400)
+sc = await scroll()
+check('and stops saying it at the bottom', !sc.more && sc.hint < 0.1, `hint at ${sc.hint}`)
+
+/* No row should say its group and then say it again as the first word of its
+ * own name: "Add · Add files" is one word twice and reads like a stutter. */
+const stutter = await page.evaluate(() =>
+  [...document.querySelectorAll('.cmd-row')]
+    .map((r) => ({
+      group: r.querySelector('.cmd-group').textContent.trim(),
+      name: r.querySelector('.cmd-name').textContent.trim(),
+    }))
+    .filter((r) => r.group && r.name.toLowerCase().startsWith(r.group.toLowerCase()))
+    .map((r) => `${r.group} ${r.name}`)
+)
+check('and no row says its group twice', stutter.length === 0, stutter.join(' | '))
+check('while the ones that need it keep it',
+  (await page.locator('.cmd-row .cmd-group').allInnerTexts()).filter((t) => t.trim()).length > 10)
+
+/* ---------- and says which row is about to run ---------- */
+
+/* The focus never leaves the field, so nothing reading the page can find the
+ * highlighted row by following the focus. It has to be named. */
+const named = () =>
+  page.evaluate(() => {
+    const input = document.querySelector('.cmd-input')
+    const id = input.getAttribute('aria-activedescendant')
+    const row = id ? document.getElementById(id) : null
+    return {
+      role: input.getAttribute('role'),
+      list: document.querySelector('.cmd-list')?.getAttribute('role'),
+      option: row?.getAttribute('role'),
+      selected: row?.getAttribute('aria-selected'),
+      onIt: !!row?.hasAttribute('data-at'),
+      says: row?.querySelector('.cmd-name')?.textContent.trim(),
+    }
+  })
+let said = await named()
+check('the field says it is a list you type into', said.role === 'combobox', `role="${said.role}"`)
+check('and the rows are a list of choices', said.list === 'listbox' && said.option === 'option',
+  `${said.list} / ${said.option}`)
+check('and it names the row Enter would run', said.onIt && said.selected === 'true', JSON.stringify(said))
+await page.keyboard.press('ArrowDown')
+await page.waitForTimeout(250)
+const moved = await named()
+check('and names the next one when the arrow moves', moved.says !== said.says && moved.onIt,
+  `${said.says} -> ${moved.says}`)
+
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 check('Escape puts it away', (await page.locator('.cmd').count()) === 0)
