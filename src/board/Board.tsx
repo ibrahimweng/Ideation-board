@@ -101,6 +101,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   /* ---------- the visible set ---------- */
   const rectRef = useRef<Rect>({ x: 0, y: 0, w: 0, h: 0 })
   const paintedRef = useRef('')
+  /* Viewport, window size and store revision, as of the last frame that
+     actually did the work. See the note in the loop. */
+  const restRef = useRef('')
   useEffect(() => {
     let raf = 0
     let last = ''
@@ -112,11 +115,30 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
        * zoom buttons, would otherwise never move the surface. Painting here
        * when the value actually changed covers both. */
       const vk = `${v.x},${v.y},${v.z}`
-      if (vk !== paintedRef.current) {
+      const moved = vk !== paintedRef.current
+      if (moved) {
         paintedRef.current = vk
         paintTransform()
       }
+      /* Nothing has moved and nothing has changed, so the answer is the one
+       * from last frame and working it out again would produce the same set.
+       *
+       * The scan itself is cheap — a few tenths of a millisecond on a board of
+       * eight thousand — so this is not about the cost of one frame. It is that
+       * without it the loop walked every item and built two strings sixty times
+       * a second forever, on a board nobody was touching, and a tab that never
+       * goes quiet is one that keeps a laptop awake.
+       *
+       * Three things in the key, and each is a way the set can change without
+       * the other two moving. The viewport, for a pan or a zoom. The size, for
+       * a window resized while the viewport stayed put. And the store's
+       * revision, which covers everything else: a card added, deleted, dragged,
+       * tidied, undone, or moved by the relay. `touch()` sits on every write
+       * path, so there is no fourth way. */
       const { w, h } = sizeRef.current
+      const restKey = `${vk}|${w}x${h}|${store.rev}`
+      if (restKey === restRef.current) return
+      restRef.current = restKey
       noteViewportSize(w, h)
       const r = visibleRect(v, w, h, 320)
       rectRef.current = r

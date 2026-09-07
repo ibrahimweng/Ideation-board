@@ -185,6 +185,51 @@ const plain = await page.evaluate(() => {
 })
 check('plain text is left alone', plain.paras === 2 && plain.text.includes('just some words'))
 
+/* ---------- a link a note is not allowed to be ----------
+ *
+ * A note is not always one you wrote: an imported board file brings its notes
+ * with it, and so does the relay. The card used to put whatever was in the
+ * brackets straight into an href, so a `javascript:` link in somebody else's
+ * board was one click from reading every board in IndexedDB and the picture
+ * key in localStorage. `test/unit/richlinks.test.ts` holds the rule; this
+ * holds the card that has to apply it.
+ *
+ * No parentheses and no spaces in the payload, because the parser stops at
+ * either — this is the shape one would really have to take. */
+await tool('Note').click()
+await page.waitForTimeout(400)
+await page.locator('.card[data-kind="note"]').last().dblclick({ position: { x: 60, y: 90 } })
+await page.waitForSelector('.sheet textarea', { timeout: 5000 })
+await page.locator('.sheet textarea').fill(
+  '[run me](javascript:location=`https://evil.example`)\n' +
+    '[a document](data:text/html;base64,PHNjcmlwdD4=)\n' +
+    '[safe](https://example.com/ok)'
+)
+await page.locator('.sheet-actions button', { hasText: 'Save' }).click()
+await page.waitForTimeout(500)
+
+const links = await page.evaluate(() => {
+  const cards = [...document.querySelectorAll('.card[data-kind="note"] .rich')]
+  const last = cards[cards.length - 1]
+  return {
+    hrefs: [...last.querySelectorAll('a')].map((a) => a.getAttribute('href')),
+    text: last.textContent,
+  }
+})
+
+check(
+  'a javascript: link in a note is not drawn as a link',
+  !links.hrefs.some((h) => /^\s*javascript:/i.test(h || '')),
+  JSON.stringify(links.hrefs)
+)
+check(
+  'nor is a data: document',
+  !links.hrefs.some((h) => /^\s*data:/i.test(h || '')),
+  JSON.stringify(links.hrefs)
+)
+check('but the words of both are still on the card', links.text.includes('run me') && links.text.includes('a document'))
+check('and an ordinary address still works', links.hrefs.includes('https://example.com/ok'))
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

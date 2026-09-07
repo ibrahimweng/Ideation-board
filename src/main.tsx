@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { installScreens } from './board/screen'
 import { goOffline } from './app/offline'
+/* Before the stylesheet, so the faces are declared by the time anything asks
+   for them by name. They used to come from Google, which was the one request
+   this app made to anybody. */
+import './fonts.css'
 import './styles.css'
 
 /* The halftone ramps the stylesheet asks for by name. Worked out here rather

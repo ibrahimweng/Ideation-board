@@ -24,10 +24,13 @@ const VERSION = '__VERSION__'
 const SHELL = __SHELL__
 
 const APP = `ideation-app-${VERSION}`
-/* Fonts come from Google and are versioned by URL. Kept apart from the shell
- * so a new build does not throw them away and send everyone back for them. */
-const FONTS = 'ideation-fonts'
-const FONT_HOSTS = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com']
+
+/* The cache the fonts used to live in, back when they came from Google and
+ * were kept apart from the shell so a new build would not send everybody back
+ * to fetch them again. They are served from this origin now, so they are part
+ * of the shell like everything else and this name is only here to be cleaned
+ * up on the browsers that already have one. */
+const OLD_FONTS = 'ideation-fonts'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -52,7 +55,9 @@ self.addEventListener('activate', (e) => {
     (async () => {
       const names = await caches.keys()
       await Promise.all(
-        names.filter((n) => n.startsWith('ideation-app-') && n !== APP).map((n) => caches.delete(n))
+        names
+          .filter((n) => (n.startsWith('ideation-app-') && n !== APP) || n === OLD_FONTS)
+          .map((n) => caches.delete(n))
       )
       await self.clients.claim()
     })()
@@ -65,8 +70,6 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('message', (e) => {
   if (e.data === 'take-over') void self.skipWaiting()
 })
-
-const isFont = (url) => FONT_HOSTS.some((h) => url.startsWith(h))
 
 async function fromCacheFirst(req, cacheName) {
   const cache = await caches.open(cacheName)
@@ -85,14 +88,12 @@ self.addEventListener('fetch', (e) => {
   /* Anything that is not this app is none of this file's business: Google
    * being asked for a picture, the relay on the loopback address, a photograph
    * dragged in from another site. Left alone entirely — an event stream that
-   * went through here would be buffered into uselessness. */
-  const ours = url.origin === self.location.origin
-  if (!ours && !isFont(req.url)) return
-
-  if (isFont(req.url)) {
-    e.respondWith(fromCacheFirst(req, FONTS).catch(() => caches.match(req)))
-    return
-  }
+   * went through here would be buffered into uselessness.
+   *
+   * There used to be an exception here for the two Google font hosts. There is
+   * nothing to except any more: the faces are served from this origin, so they
+   * come through the same path as the rest of the shell. */
+  if (url.origin !== self.location.origin) return
 
   /* The document, however it was asked for. Network first, so a deploy is
    * picked up the moment there is a network to pick it up from, and the cached

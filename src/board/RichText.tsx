@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { store } from '../state/store'
-import { parse, toggleTodo } from '../state/rich'
+import { parse, safeHref, toggleTodo } from '../state/rich'
 import type { Block, Span } from '../state/rich'
 
 /* ---------------------------------------------------------------------------
@@ -71,11 +71,16 @@ function Spans({ spans }: { spans: Span[] }) {
     <>
       {spans.map((s, i) => {
         if (s.href) {
+          const href = safeHref(s.href)
+          /* A link this side will not follow keeps its words and loses only
+             the link. Dropping the text would take part of the note with it,
+             and the note is the thing worth keeping. */
+          if (!href) return <span key={i}>{s.text}</span>
           return (
             <a
               key={i}
               className="rich-link"
-              href={s.href}
+              href={href}
               target="_blank"
               rel="noreferrer noopener"
               onPointerDown={(e) => e.stopPropagation()}

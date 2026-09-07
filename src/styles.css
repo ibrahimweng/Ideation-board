@@ -129,7 +129,12 @@
 html, body, #root { height: 100%; }
 
 body {
-  background: var(--paper);
+  /* --bg, and not a name of its own. This said var(--paper) for a long time
+     and --paper has never been defined anywhere, so the declaration was
+     invalid and the page ground fell back to whatever the browser paints.
+     It hid because .viewport paints --bg itself and color-scheme kept the
+     dark theme from flashing white; it showed at the edges of an overscroll. */
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -139,6 +144,29 @@ body {
 }
 
 button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+
+/* Where the keyboard is.
+ *
+ * The board can be walked with Tab, the walk is tested, and what it lands on
+ * is announced — and none of that could be seen, because there was exactly one
+ * :focus-visible rule in this whole file and it was on the × of a board tab.
+ * Every other control fell back to whatever ring the browser draws over a
+ * surface it knows nothing about, which on the dark theme is close to nothing.
+ *
+ * :focus-visible rather than :focus, so a pressed button does not wear a ring
+ * a mouse user never asked for. The text fields are left out on purpose: each
+ * one already shows focus by lighting its own border or its wrapper's, and a
+ * ring on top of that would be saying it twice. */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+input[type='range']:focus-visible,
+input[type='color']:focus-visible,
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
 
 /* ---------- shell ---------- */
 
@@ -1651,12 +1679,34 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .alarm-more:hover { color: var(--ink); }
 .app[data-panel] .alarm { right: calc(var(--panel-w) + var(--s4)); }
 
+/* The line along the bottom, which shares that edge with two other things.
+ *
+ * The zoom bar owns the bottom left corner and the item count owns the bottom
+ * right, and this used to be laid out as though neither existed: centred, up
+ * to the full width of the window, and the only one of the three with a
+ * z-index. So on a phone one dropped picture raised a message that sat on top
+ * of the zoom readout, the plus button and the theme toggle, and swallowed the
+ * presses meant for them.
+ *
+ * Two rules fix it. A width it cannot exceed, so a long message stops before
+ * the corners on a wide window; and above the bar rather than beside it on a
+ * narrow one, where there is no width at which all three fit on a line. */
 .toast {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: var(--s3);
-  max-width: calc(100vw - 32px);
+  max-width: min(calc(100vw - 32px), 520px);
   background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: var(--r-md);
   font-size: var(--t-md); z-index: 60; box-shadow: var(--shadow);
+}
+/* Centred on the board, not on the window, so a message does not slide under
+   the panel. The count and the space alarm along this edge already do this. */
+@media (min-width: 901px) {
+  .app[data-panel] .toast { left: calc(50% - var(--panel-w) / 2); }
+}
+/* Below this the panel is an overlay and the two corner controls are close
+   enough together that nothing fits between them. The message goes above. */
+@media (max-width: 900px) {
+  .toast { bottom: 62px; }
 }
 /* The way back out of what the line is reporting. Underlined rather than
    boxed: it is a thing to press, and a button drawn on the dark strip would

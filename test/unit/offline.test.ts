@@ -34,8 +34,19 @@ describe('the service worker template', () => {
      * buffered into uselessness by a handler that tried to cache it; and a
      * picture bought from Google once would be handed back for ever. Both are
      * cross-origin, so the guard that lets them past is the one to keep. */
-    expect(template).toMatch(/url\.origin === self\.location\.origin/)
+    expect(template).toMatch(/if \(url\.origin !== self\.location\.origin\) return/)
     expect(template).toMatch(/if \(req\.method !== 'GET'\) return/)
+  })
+
+  it('has no cross-origin exception left in it', () => {
+    /* There used to be one, for the two Google font hosts, and with it a
+     * second cache to keep them in. The faces are served from this origin now,
+     * so both are gone and the guard above is the whole rule. A font host
+     * named in here again would mean the app had quietly gone back to asking
+     * somebody else for its typography. */
+    const live = template.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(live).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/)
+    expect(live).not.toMatch(/isFont/)
   })
 
   it('asks the network first for the document', () => {

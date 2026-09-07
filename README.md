@@ -646,6 +646,16 @@ means a sandboxed frame, or something that is not a browser at all.
 boundary; it is there for a machine where something else untrusted is already
 running.
 
+Worth being plain about what "loopback origins are allowed by default" means,
+because it is a trade rather than a free win. Any port counts. So while the
+relay is running, a page served from any local development server you happen to
+open in the same browser can read and rewrite every board, not only the one you
+are looking at. On a machine where you wrote or trust everything that listens on
+a port, that is the convenience it is meant to be. If that is not your machine,
+name your real origin with `--origin` and set a `--token`. One caveat on the
+token: an event stream cannot carry a header, so it travels in the query string,
+where it will show up in server logs and in a process list.
+
 `test/mcp.mjs` proves this rather than asserting it: it conjures a second origin
 with Chrome's host resolver and, from inside a real browser, tries to open the
 stream and tries to write to it. Both are refused, the relay records who it

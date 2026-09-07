@@ -127,3 +127,28 @@ export function todoCount(text: string): { done: number; total: number } {
 }
 
 export const hasMarkup = (text: string) => parse(text).some((b) => b.t !== 'p' && b.t !== 'gap')
+
+/* ---------------------------------------------------------------------------
+ * Which links a note is allowed to be.
+ *
+ * The text inside a link's brackets is whatever was written, and what it says
+ * is not always something you wrote. `importTree` reads any board file
+ * somebody hands you, and the relay lets an agent write notes onto the board.
+ * A `javascript:` or `data:` href is not an address, it is code, and the
+ * origin it would run in holds every board in IndexedDB and the picture key in
+ * localStorage. One click in an imported board would have been enough.
+ *
+ * An allowed list rather than a blocked one, so a scheme nobody thought of is
+ * refused by default. It lives here rather than in either renderer because
+ * there are two of them — the card and the exported page — and the export was
+ * the only one checking. Two copies of a rule is one copy and one bug waiting.
+ * ------------------------------------------------------------------------- */
+const FOLLOWABLE = /^https?:\/\//i
+
+export function safeHref(href?: string | null): string | null {
+  /* Trimmed first: a browser ignores leading and trailing space in an href, so
+   * a check that does not would be reading a different string than the one
+   * that gets followed. */
+  const h = (href || '').trim()
+  return FOLLOWABLE.test(h) ? h : null
+}

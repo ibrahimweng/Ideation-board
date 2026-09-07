@@ -797,7 +797,24 @@ export class BoardStore {
   /* ---------- persistence ---------- */
 
   onDirty: (() => void) | null = null
+
+  /* Bumped on every change to anything the board holds.
+   *
+   * Not a substitute for the subscriptions — those say which card changed and
+   * are what keeps a move to one card down to one re-render. This is for the
+   * one caller that needs the opposite question: "has anything at all changed
+   * since I last looked", asked by the board's frame loop so it can do nothing
+   * when the answer is no. A counter rather than a listener, because the
+   * asker is already running once a frame and a listener would only be telling
+   * it something it is about to check anyway.
+   *
+   * `touch()` is on every write path, which is what makes this complete. A
+   * card moved by a drag, by the tidy, by undo or by the relay all come
+   * through here, so none of them can leave a reader holding a stale answer. */
+  rev = 0
+
   private touch() {
+    this.rev++
     this.onDirty?.()
   }
 
@@ -830,6 +847,22 @@ export class BoardStore {
     this.history.set(board.id, this.hist)
     this.hist.used = ++this.clock
     this.trimHistory()
+    /* Everything the board holds has just been replaced, so the revision moves
+     * even though nothing here is an edit.
+     *
+     * Bumped directly rather than through `touch()`, which is the only reason
+     * this line is separate: `touch()` also tells the autosave the board is
+     * dirty, and a board is not dirty for having been read off the disk it is
+     * already on. Writing it back would be work to produce the file we just
+     * loaded, on every board switch.
+     *
+     * Missing this cost the offline suite a board. The frame loop does nothing
+     * when the revision has not moved, and loading is the one write path that
+     * does not go through `touch()` — so the cards arrived in the store and
+     * the board went on drawing the empty one it had already decided about.
+     * `test/unit/store.test.ts` holds the line now. */
+    this.rev++
+
     /* Selection first: ids from the board that has just been left are not ids
      * on this one, and a card cannot be told it is still selected. */
     this.sel.clear()
