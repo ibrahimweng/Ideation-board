@@ -1112,6 +1112,30 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 /* ---------- panel ---------- */
 
+/* Held down to see a card without what has been done to it. Under the tabs
+   rather than inside one, because the question it answers is the same whether
+   you are choosing an effect or moving a slider. */
+.panel-compare { padding: var(--s2) var(--s3) 0; flex: none; }
+.panel-compare button {
+  display: flex; align-items: center; gap: var(--s2); width: 100%;
+  padding: 7px var(--s2); border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface);
+  font-size: var(--t-sm); color: var(--ink-2);
+  /* A hold is a press, and a press that selects the words under it is a press
+     that leaves a blue smear behind when it ends. */
+  user-select: none; -webkit-user-select: none;
+}
+.panel-compare button:hover { border-color: var(--accent-line); color: var(--ink); }
+.panel-compare button[data-on] {
+  background: var(--accent-wash); border-color: var(--accent); color: var(--ink);
+}
+.panel-compare button span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-compare button em {
+  flex: none; font: 500 var(--t-xs)/1 var(--mono); font-style: normal; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 3px; padding: 2px 5px;
+}
+.panel-compare button[data-on] em { color: var(--ink-2); border-color: var(--accent-line); }
+
 .panel {
   width: 320px; flex: none;
   background: var(--surface-2);
@@ -1178,10 +1202,26 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 .fx-controls { display: flex; flex-direction: column; gap: 9px; }
 
-.ctl { display: grid; grid-template-columns: 74px 1fr 44px; align-items: center; gap: 8px; font-size: var(--t-sm); }
-.ctl > span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl { display: grid; grid-template-columns: 74px 1fr 46px; align-items: center; gap: 8px; font-size: var(--t-sm); }
+.ctl > span, .ctl > label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl > label { cursor: default; }
 .ctl > em { font: 400 var(--t-xs)/1.4 var(--sans); color: var(--muted); font-style: normal; text-align: right; }
 .ctl input[type='range'] { width: 100%; accent-color: var(--accent); }
+
+/* The figure beside a slider, which is a field rather than a label now.
+   Drawn as quietly as the label it replaced until it is hovered or focused,
+   so a panel of eight of these does not read as a form. */
+.ctl-num {
+  width: 100%; min-width: 0; padding: 3px 4px; text-align: right;
+  font: 400 var(--t-xs)/1.4 var(--mono); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  background: none; border: 1px solid transparent; border-radius: var(--r-sm);
+}
+.ctl-num:hover { border-color: var(--line); color: var(--ink-2); }
+.ctl-num:focus {
+  outline: none; border-color: var(--accent);
+  background: var(--surface); color: var(--ink);
+}
 .ctl-color { grid-template-columns: 74px 1fr; }
 .ctl-color input { width: 100%; height: 26px; border: 1px solid var(--line); border-radius: var(--r-sm); background: none; padding: 2px; }
 

@@ -37,6 +37,10 @@ export const KEYS = {
   putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
   gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
+  /* Held rather than pressed, which is why it is the only one here whose key
+     is let go of again. Backslash is what every tool that grades a picture
+     uses for this, and it is one of the few keys nothing else wanted. */
+  original: { key: '\\', hint: '\\', label: 'Hold to see it without the effect', short: 'See the original' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },

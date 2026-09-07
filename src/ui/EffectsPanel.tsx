@@ -1,13 +1,15 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useId, useMemo, useRef, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
 import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
-import { isColor, isEnum } from '../engine/types'
+import { ADJUST_0, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
-import { IconEffects, IconSearch } from './icons'
+import { holdOriginal, releaseOriginal, useComparing } from '../board/original'
+import { KEYS, nameFor, titleFor } from './shortcuts'
+import { IconEffects, IconEye, IconSearch } from './icons'
 
 /* Every layer past the first is another full pass over the card, so this is a
  * real cost and not a taste. Four is past what anybody has wanted and still
@@ -49,6 +51,7 @@ interface Props {
 export function EffectsPanel({ tab, onTab, say }: Props) {
   const selection = useSelection()
   const [find, setFind] = useState('')
+  const comparing = useComparing()
   /* Which of a card's effects the grid and the sliders are working on. Held
      here rather than on the card: it is where you are looking, not something
      about the board. */
@@ -183,6 +186,39 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           Looks
         </button>
       </div>
+
+      {/* Held rather than pressed, so it cannot be left switched on: a mode
+          that hides your work is the worst kind of mode to be in by accident.
+          Under the tabs rather than inside one, because the question it
+          answers — is this better than nothing — is the same question whether
+          you are choosing an effect or moving a slider. */}
+      {tab !== 'looks' && (
+        <div className="panel-compare">
+          <button
+            data-on={comparing || undefined}
+            title={titleFor('original')}
+            aria-label={nameFor('original')}
+            aria-pressed={comparing}
+            onPointerDown={(e) => { e.preventDefault(); holdOriginal() }}
+            onPointerUp={releaseOriginal}
+            onPointerLeave={releaseOriginal}
+            onPointerCancel={releaseOriginal}
+            /* A keyboard cannot hold a button down, so for one this is a
+               toggle — and it says which it is doing through aria-pressed. */
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); holdOriginal() }
+            }}
+            onKeyUp={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') releaseOriginal()
+            }}
+            onBlur={releaseOriginal}
+          >
+            <IconEye />
+            <span>{comparing ? 'Showing the original' : 'Hold to see the original'}</span>
+            <em>{KEYS.original.hint}</em>
+          </button>
+        </div>
+      )}
 
       {tab === 'looks' && (
         <LooksTab
@@ -323,20 +359,20 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
           <section className="fx-controls">
             <h4>Tone</h4>
-            <Slider label="Exposure" min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
-            <Slider label="Contrast" min={-100} max={100} step={1} value={fx.con} onChange={(v) => patchFx({ con: v, preset: 'custom' })} />
-            <Slider label="Saturation" min={0} max={200} step={1} value={fx.sat} onChange={(v) => patchFx({ sat: v, preset: 'custom' })} />
-            <Slider label="Warmth" min={-100} max={100} step={1} value={fx.warm} onChange={(v) => patchFx({ warm: v, preset: 'custom' })} />
-            <Slider label="Blur" min={0} max={100} step={1} value={fx.blur} onChange={(v) => patchFx({ blur: v, preset: 'custom' })} />
-            <Slider label="Grain" min={0} max={100} step={1} value={fx.grain} onChange={(v) => patchFx({ grain: v, preset: 'custom' })} />
+            <Slider label="Exposure" def={ADJUST_0.exp} min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
+            <Slider label="Contrast" def={ADJUST_0.con} min={-100} max={100} step={1} value={fx.con} onChange={(v) => patchFx({ con: v, preset: 'custom' })} />
+            <Slider label="Saturation" def={ADJUST_0.sat} min={0} max={200} step={1} value={fx.sat} onChange={(v) => patchFx({ sat: v, preset: 'custom' })} />
+            <Slider label="Warmth" def={ADJUST_0.warm} min={-100} max={100} step={1} value={fx.warm} onChange={(v) => patchFx({ warm: v, preset: 'custom' })} />
+            <Slider label="Blur" def={ADJUST_0.blur} min={0} max={100} step={1} value={fx.blur} onChange={(v) => patchFx({ blur: v, preset: 'custom' })} />
+            <Slider label="Grain" def={ADJUST_0.grain} min={0} max={100} step={1} value={fx.grain} onChange={(v) => patchFx({ grain: v, preset: 'custom' })} />
           </section>
 
           <section className="fx-controls">
             <h4>Frame</h4>
-            <Slider label="Zoom" min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
-            <Slider label="Offset X" min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
-            <Slider label="Offset Y" min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
-            <Slider label="Rotate" min={-180} max={180} step={1} value={fx.rot} onChange={(v) => patchFx({ rot: v })} />
+            <Slider label="Zoom" def={ADJUST_0.zoom} min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
+            <Slider label="Offset X" def={ADJUST_0.ox} min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
+            <Slider label="Offset Y" def={ADJUST_0.oy} min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
+            <Slider label="Rotate" def={ADJUST_0.rot} min={-180} max={180} step={1} value={fx.rot} onChange={(v) => patchFx({ rot: v })} />
             <div className="flip-row">
               <button data-on={fx.fh || undefined} onClick={() => patchFx({ fh: !fx.fh })}>
                 Flip H
@@ -433,14 +469,26 @@ function ControlRow({ control, value, onChange }: { control: Control; value: num
       max={control.max}
       step={control.step}
       unit={control.unit}
+      def={control.def}
       value={typeof value === 'number' ? value : control.def}
       onChange={onChange}
     />
   )
 }
 
+/* A slider whose number can be typed into.
+ *
+ * Every control in this panel was a bare range input with a read-only figure
+ * beside it, which meant a setting could not be entered exactly, could not be
+ * copied, and could not be matched across two cards by hand. A setting you
+ * cannot enter is a setting you cannot repeat, and repeating a treatment is
+ * most of what this panel is for.
+ *
+ * Three ways in now: drag it, type it, or double-click to put it back where it
+ * started. Shift with an arrow key moves in tens, because a range of two
+ * hundred in steps of one is forty presses from end to end otherwise. */
 function Slider({
-  label, min, max, step, value, unit, onChange,
+  label, min, max, step, value, unit, def, onChange,
 }: {
   label: string
   min: number
@@ -448,17 +496,71 @@ function Slider({
   step: number
   value: number
   unit?: string
+  /* What double-clicking puts it back to. */
+  def?: number
   onChange: (v: number) => void
 }) {
+  const id = useId()
+  /* What is in the box while it is being typed in, which is not a number yet:
+     halfway through "-1" is "-", and turning that into a number every
+     keystroke would fight whoever is typing it. */
+  const [typing, setTyping] = useState<string | null>(null)
+  /* Escape blurs the box, and a blur is the other way a figure is committed.
+     Without this the escape would put the box back and then the blur would
+     immediately commit what it was put back from. */
+  const abandoned = useRef(false)
+  const shown = step < 1 ? value.toFixed(2) : String(Math.round(value))
+
+  const commit = (raw: string) => {
+    setTyping(null)
+    const n = parseFloat(raw)
+    if (!Number.isFinite(n)) return
+    const clamped = Math.min(max, Math.max(min, n))
+    if (clamped !== value) onChange(clamped)
+  }
+
+  const nudge = (by: number) => onChange(Math.min(max, Math.max(min, value + by)))
+
   return (
-    <label className="ctl">
-      <span>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} />
-      <em>
-        {step < 1 ? value.toFixed(2) : Math.round(value)}
-        {unit}
-      </em>
-    </label>
+    <div className="ctl">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        onDoubleClick={() => def !== undefined && onChange(def)}
+        onKeyDown={(e) => {
+          if (!e.shiftKey) return
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); nudge(-step * 10) }
+          else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); nudge(step * 10) }
+        }}
+      />
+      <input
+        className="ctl-num"
+        type="text"
+        inputMode="decimal"
+        aria-label={`${label}${unit ? ` in ${unit}` : ''}`}
+        value={typing ?? `${shown}${unit || ''}`}
+        onFocus={(e) => { setTyping(shown); requestAnimationFrame(() => e.target.select()) }}
+        onChange={(e) => setTyping(e.target.value)}
+        onBlur={(e) => {
+          if (abandoned.current) { abandoned.current = false; setTyping(null); return }
+          commit(e.target.value)
+        }}
+        onKeyDown={(e) => {
+          /* The board listens for keys on the window and already stands down
+             for an input, but the panel is inside a sheet on a narrow window
+             and this is cheaper than finding out. */
+          e.stopPropagation()
+          if (e.key === 'Enter') { commit(e.currentTarget.value); e.currentTarget.blur() }
+          else if (e.key === 'Escape') { abandoned.current = true; setTyping(null); e.currentTarget.blur() }
+        }}
+      />
+    </div>
   )
 }
 

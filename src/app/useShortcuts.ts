@@ -6,6 +6,22 @@ import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
 import { KEYS } from '../ui/shortcuts'
 import { keysHeld } from '../ui/modal'
+import { holdOriginal, releaseOriginal } from '../board/original'
+
+/* Input types that words go into. A range, a checkbox or a colour swatch is an
+ * <input> too, but nothing is typed into one, so it has no claim on the keys
+ * the board wants. */
+const TYPED = new Set([
+  'text', 'search', 'url', 'tel', 'email', 'password', 'number',
+  'date', 'time', 'datetime-local', 'month', 'week',
+])
+
+function typingInto(t: HTMLElement | null): boolean {
+  if (!t) return false
+  if (t.tagName === 'TEXTAREA' || t.isContentEditable) return true
+  /* An <input> with no type at all is a text field. */
+  return t.tagName === 'INPUT' && TYPED.has((t as HTMLInputElement).type || 'text')
+}
 
 /* ---------------------------------------------------------------------------
  * The keyboard.
@@ -67,8 +83,20 @@ export function useShortcuts(a: KeyActions) {
       a.togglePalette()
       return
     }
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
     const cmd = e.metaKey || e.ctrlKey
+
+    /* Somewhere words are being written. The keyboard is theirs, including
+       ⌘Z, which in a text field means the field's own undo. */
+    if (typingInto(t)) return
+
+    /* The one key here that is held rather than pressed. A held key repeats,
+       and every repeat arrives as another keydown, so starting the comparison
+       twice has to be the same as starting it once. */
+    if (!cmd && e.key === KEYS.original.key) {
+      e.preventDefault()
+      holdOriginal()
+      return
+    }
 
     if (cmd && e.key.toLowerCase() === 'z') {
       e.preventDefault()
@@ -76,6 +104,14 @@ export function useShortcuts(a: KeyActions) {
       else store.undo()
       return
     }
+
+    /* A slider or a swatch is an <input> with nothing being written into it,
+       so the two above still work while one has the focus — which is the
+       common case, since undo and the compare key are what you reach for
+       straight after moving a slider, and having them do nothing there is
+       baffling. Everything past this point is a bare letter or an arrow, and
+       those the control is entitled to keep. */
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) return
     if (cmd && e.key.toLowerCase() === 'a') {
       e.preventDefault()
       /* With a search running, everything means everything you can see. */
@@ -196,7 +232,26 @@ export function useShortcuts(a: KeyActions) {
       store.moveMany(store.dragSet(sel).ids, dx, dy, false)
     }
   }
+
+  /* Letting go, and every other way a hold can end without one.
+   *
+   * A key held down while the window loses focus never sends its keyup — the
+   * window that takes the focus gets that — so a board left with the
+   * comparison switched on would be a board showing none of your work with no
+   * way to notice why. Blur ends it too, which is half the reason this is a
+   * hold and not a toggle. */
+  const onUp = (e: KeyboardEvent) => {
+    if (e.key === KEYS.original.key) releaseOriginal()
+  }
+  const onBlur = () => releaseOriginal()
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keyup', onUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onUp)
+      window.removeEventListener('blur', onBlur)
+    }
   }, [a])
 }

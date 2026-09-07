@@ -13,6 +13,7 @@ import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
 import { useSourceReady } from './sources'
+import { usePlain } from './original'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
 import { canShade, hasPixels, pixelKey } from '../state/kinds'
@@ -66,6 +67,8 @@ export const Card = memo(function Card({
    * since the app learned to ask; worked out on the spot for everything that
    * was already on a board before it did. */
   const moves = useMoves(it)
+  /* Whether the compare key is being held over this card. */
+  const plain = usePlain(id)
 
   if (!it) return null
 
@@ -80,9 +83,14 @@ export const Card = memo(function Card({
   /* `readable` is only ever false for a remote video whose host refused us
    * cross-origin access. Everything else can be shaded. */
   const shadeable = canShade(it) || !hasPixels(it)
-  const effected = hasEffect(fx) && canShade(it)
-  const filter = adjustCSS(fx)
-  const frame = frameCSS(fx)
+  /* While the compare key is held this card shows what it started as: no
+     shader, no tone, no grain, no framing. All four go together, because half
+     a comparison is not one — the question being asked is what the picture
+     looked like before any of this, not before some of it. */
+  const effected = hasEffect(fx) && canShade(it) && !plain
+  const filter = plain ? '' : adjustCSS(fx)
+  const frame = plain ? '' : frameCSS(fx)
+  const grain = plain ? 0 : fx.grain
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null
   /* A checklist says how far along it is without being opened. */
   const todo = it.kind === 'note' ? todoCount(it.text || '') : { done: 0, total: 0 }
@@ -201,7 +209,7 @@ export const Card = memo(function Card({
           h={it.h}
           filter={filter}
           frame={frame}
-          grain={fx.grain}
+          grain={grain}
         />
       ) : it.kind === 'board' ? (
         <BoardCard boardId={it.board || ''} />
@@ -212,7 +220,7 @@ export const Card = memo(function Card({
           selected={selected}
           filter={filter}
           frame={frame}
-          grain={fx.grain}
+          grain={grain}
         />
       ) : (
       <div className="card-body" style={{ filter: filter || undefined }}>
@@ -373,8 +381,8 @@ export const Card = memo(function Card({
           )}
         </div>
 
-        {fx.grain > 0 && (
-          <div className="grain" style={{ opacity: fx.grain / 100, backgroundImage: GRAIN_URL }} />
+        {grain > 0 && (
+          <div className="grain" style={{ opacity: grain / 100, backgroundImage: GRAIN_URL }} />
         )}
       </div>
       )}

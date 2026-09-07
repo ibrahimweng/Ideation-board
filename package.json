@@ -50,6 +50,7 @@
     "test:pdf": "node test/pdf.mjs",
     "test:audio": "node test/audio.mjs",
     "test:design": "node test/design.mjs",
+    "test:finish": "node test/finish.mjs",
     "test:stacked": "node test/stacked.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",
