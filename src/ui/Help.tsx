@@ -139,6 +139,12 @@ function parts(): Part[] {
             see the selection without any of it — the whole board, if nothing is selected — and let
             go to bring it back.
           </p>
+          <p>
+            A card crops what is on it. Hold <K>Alt</K> and drag a picture to push it around inside
+            its card, or <K>Alt</K> and scroll to scale it — the same two numbers the Frame sliders
+            write, done by hand. Framing belongs to the one photograph, so it is the one thing a
+            saved look never carries.
+          </p>
         </>
       ),
     },

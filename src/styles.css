@@ -592,6 +592,14 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
    stands down for as long as the drag lasts. */
 body[data-dragging] .card-chrome { opacity: 0; }
 
+/* Framing a picture by hand: Alt says a picture can be pushed around inside
+   its card, and the plate gets out of the way for as long as it is being. */
+body[data-framable] .card:is([data-kind='image'], [data-kind='video'], [data-kind='pdf'], [data-kind='design']) {
+  cursor: grab;
+}
+body[data-framing], body[data-framing] .card { cursor: grabbing; }
+body[data-framing] .card-chrome { opacity: 0; }
+
 /* Over a photograph a plate is the wrong instrument: it lays a pale band
    across the picture. A scrim that fades to nothing does the same job — makes
    the words legible — while leaving the picture visible through it, which is
@@ -1145,6 +1153,9 @@ body[data-dragging] .card-chrome { opacity: 0; }
 }
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }
+/* A gesture that has no other way of saying it is there, said once beside the
+   controls it replaces. Quieter than a label, because it is read once. */
+.fx-hint { color: var(--faint); font-size: var(--t-xs); line-height: 1.5; margin: -2px 0 2px; }
 
 /* Open, with nothing selected. Everything the panel would say needs a picture
    to say it about, so it stands down to a rail and hands the width back. */

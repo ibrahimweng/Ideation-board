@@ -18,6 +18,7 @@ import { justLongPressed, noteLongPress, onLongPress } from './longpress'
 import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
+import { canFrame, reframeWheel, startReframe } from './reframe'
 import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
@@ -165,12 +166,38 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     paintTransform()
   }, [paintTransform])
 
+  /* While Alt is down, a picture says it can be pushed around. A cursor is the
+   * only way a modifier gesture ever announces itself; without one it is a
+   * feature you have to be told about. */
+  useEffect(() => {
+    const set = (on: boolean) => {
+      if (on) document.body.setAttribute('data-framable', '')
+      else document.body.removeAttribute('data-framable')
+    }
+    const down = (e: KeyboardEvent) => set(e.altKey)
+    const up = (e: KeyboardEvent) => set(e.altKey)
+    const off = () => set(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    /* A modifier held while the window goes away never sends its keyup. */
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', off)
+      set(false)
+    }
+  }, [])
+
   /* ---------- wheel: pan and zoom ---------- */
   useEffect(() => {
     const el = vpRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      /* Alt over a picture scales it inside its own card rather than moving
+         the board underneath it. */
+      if (reframeWheel(e)) return
       const engine = getEngine()
       engine.touch()
       const v = store.peekView()
@@ -288,6 +315,19 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
     e.stopPropagation()
+
+    /* Alt and drag pushes the picture around inside its card instead of moving
+       the card. It goes first because it is the one gesture here that must not
+       raise, marquee, open a menu or take a long press: it is one card being
+       looked at, and nothing else should happen while it is. */
+    if (e.altKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
+      holdPress()
+      /* The panel follows what you are framing, but a selection you built on
+         purpose is not thrown away to do it. */
+      if (!store.isSelected(id)) store.select([id])
+      startReframe(e, id)
+      return
+    }
     /* Held still, a finger means the same as a right button. Cancelled below
        the moment the press turns into a drag. */
     let menued = false
