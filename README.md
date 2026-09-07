@@ -1239,6 +1239,7 @@ npm run test:offline -- http://localhost:5173
 npm run test:reclaim -- http://localhost:5173
 npm run test:manyboards -- http://localhost:5173
 npm run test:stacked -- http://localhost:5173
+npm run test:big -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1307,6 +1308,13 @@ npm run bench
 - `test:manyboards` makes a second board, checks it is really separate, and then
   does the thing an in-app switcher could never do — opens both at once in two
   browser tabs and checks that working in one does not reach into the other.
+- `test:big` is the only suite that works at scale. Two thousand cards, written
+  straight into IndexedDB because that is how a board that size really arrives,
+  then the questions that only have an answer at that size: does it open, is
+  only what is on screen in the page, does picking a card up block the main
+  thread, does one undo put the whole drag back and leave the other 1,999
+  alone, and does panning across all of it stall. Undo used to keep a copy of
+  the whole board per step, so this is the suite that would have noticed.
 - `test:reclaim` drops four pictures, deletes every card, and checks that the
   files are all still there — the bug, stated as a test — then clears up and
   checks the store is really smaller. Then the half that matters more: a

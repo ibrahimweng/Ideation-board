@@ -240,3 +240,86 @@ npm run test:load -- http://localhost:5173 60
   the same engine runs on the main thread under the same time budget. Where
   OffscreenCanvas is missing entirely, pictures and tone adjustments still work
   and the board reports that effects are unavailable.
+
+## Undo, and what a step costs
+
+The board was fast to draw long before it was cheap to change. Every step of
+undo was the whole item list serialised, which is correct by construction —
+putting a step back replaced everything, so it could not leave a piece behind —
+and meant a step cost what the board weighed rather than what the change
+weighed.
+
+Two things followed from that, and both got worse the more a board had on it.
+
+### Undo got shorter as a board got bigger
+
+The history has a budget shared between all boards. It used to be counted in
+characters of serialised board, so one large board could spend it alone:
+
+| Items on the board | One step | Steps the budget held |
+| --- | --- | --- |
+| 100 | 35 KB | 60, the stated limit |
+| 1,000 | 356 KB | 33 |
+| 2,000 | 715 KB | 16 |
+| 5,000 | 1,792 KB | 6 |
+
+Sixty steps was the promise everywhere in the interface. At five thousand items
+it was six, it failed silently, and the person pressing undo for the seventh
+time was given no reason.
+
+A step now holds the previous value of each item it touched. Moving one card
+remembers one item whatever else is on the board, so the depth follows the size
+of the change rather than the size of the board. The budget is counted in item
+versions and is there for the one case that can still be large: selecting five
+thousand things and moving them all at once.
+
+Measured after the change, with sixty separate one-card edits on a board of five
+thousand: **sixty steps, all of them undoable.**
+
+### Picking a card up read every card first
+
+`beginGesture` opened a step, and opening a step meant serialising the board. So
+the work between the pointer going down and the first frame of the drag was
+proportional to everything you were not dragging.
+
+| Items on the board | Old: serialise the board | New: open a step and move one card |
+| --- | --- | --- |
+| 100 | 0.088 ms | 0.001 ms |
+| 1,000 | 1.440 ms | 0.001 ms |
+| 2,000 | 1.926 ms | 0.001 ms |
+| 5,000 | 4.389 ms | 0.001 ms |
+
+Flat, because the work is now one map entry rather than one board. On a
+different machine the earlier standalone measurement of the old path reached
+8.3ms at five thousand items, which is half a frame spent before anything moved.
+
+### What is checked, and how
+
+The cheap step is not correct by construction the way the copy was: it is
+correct only while every write records what it touched. So the test is a round
+trip rather than a list of cases. `test/unit/history.test.ts` performs forty
+arbitrary commands drawn from every write path — adding, deleting, duplicating,
+cutting, pasting, gathering, aligning, tagging, connecting, dragging — walks all
+the way back through every recorded state, then all the way forward again, and
+insists each one matches exactly. Nine seeds, all fixed, so a failure is one
+anybody can reproduce. A write that reached around the recording would leave a
+piece behind, and leaving a piece behind is exactly what this cannot pass.
+
+`test/big.mjs` asks the same question of a real browser at a real size. Two
+thousand cards, written straight into IndexedDB because that is how a board that
+size arrives:
+
+| Measurement | Result |
+| --- | --- |
+| Time to open the whole board | 1.6 s |
+| Cards put in the page | 80 of 2,000 |
+| Long tasks while dragging a card | 0 |
+| First pointer move answered in | 16 ms |
+| Long tasks while panning across all of it | 0 |
+| One undo after a drag | the card back exactly, 2,000 items intact |
+| Frames while nobody is touching it | 61 in a second |
+
+```bash
+npm run build && npm run test:browser -- big
+N=5000 npm run test:big -- http://localhost:4173
+```

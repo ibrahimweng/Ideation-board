@@ -39,20 +39,55 @@ export interface Viewport {
 
 /* How many steps back one board keeps. */
 const HISTORY_LIMIT = 60
-/* And how much all of them together may hold, counted in characters of
- * serialised board. A snapshot is the whole board, so a big board's history is
- * megabytes and keeping one per board could quietly become hundreds of them.
- * Past this the least recently visited board's history goes first, because the
- * board you are on is the one whose undo you are about to press. */
-const HISTORY_CHARS = 12_000_000
+
+/* And how many remembered item versions all the boards may hold between them.
+ *
+ * A step used to be the whole board serialised, so the budget had to be
+ * counted in characters and a large board ate it alone: at five thousand
+ * items one step was about 1.8MB, so the sixty steps this promises were really
+ * about six. Undo quietly got shorter as a board got more worth undoing on,
+ * and nothing said so.
+ *
+ * A step is now what it changed, so its cost follows the size of the change
+ * rather than the size of the board. Moving one card remembers one item
+ * whatever else is on the board, which is what makes the depth constant. The
+ * budget is still here for the one case that can still be large — selecting
+ * five thousand things and moving them all — and 60,000 item versions is
+ * roughly the two dozen megabytes the old character budget worked out to.
+ *
+ * Only item versions are counted. A step that changes the order also keeps a
+ * copy of it, and those are bounded by the step limit above rather than by
+ * this: sixty orders of even a very large board is a few megabytes, and every
+ * id in them is a string already held by the item it names. */
+const HISTORY_ITEMS = 60_000
+
+/* One step of undo, held as what changed rather than as the whole board.
+ *
+ * `items` maps an id to what that item was before this step first touched it,
+ * with null meaning it did not exist yet — so a step describes an addition, a
+ * deletion and an edit in the same shape. `order` is the order as it was
+ * before, and only when the step actually changed it.
+ *
+ * A step is opened before a change and filled in as the change happens, which
+ * works because every write replaces the item object rather than editing it:
+ * the value read at the moment of first touch is the value the step opened on.
+ */
+interface Step {
+  items: Map<string, Item | null>
+  order: string[] | null
+  /* Whether it is in the history yet. A step is opened before a command runs
+   * and kept only once something has really been recorded into it, so a
+   * command that turns out to change nothing does not cost an undo press. */
+  kept: boolean
+}
 
 /* What one board remembers. */
 interface History {
-  past: string[]
-  future: string[]
-  /* Total characters in both, kept as it goes rather than measured: adding up
-   * sixty strings on every keystroke to decide whether to trim is more work
-   * than the trimming. */
+  past: Step[]
+  future: Step[]
+  /* Item versions remembered across both, kept as it goes rather than
+   * measured: adding up sixty steps on every keystroke to decide whether to
+   * trim is more work than the trimming. */
   size: number
   /* The `updated` stamp this history sits on top of.
    *
@@ -222,7 +257,7 @@ export class BoardStore {
       if (!isThing(it)) continue
       const parent = this.sectionAt(it.x + it.w / 2, it.y + it.h / 2)
       if ((it.parent || null) === parent) continue
-      this.items.set(id, { ...it, parent })
+      this.put(id, { ...it, parent })
       this.pingItem(id)
     }
     this.touch()
@@ -236,7 +271,7 @@ export class BoardStore {
     const cur = this.items.get(id)
     if (!cur) return
     if (record) this.snapshot()
-    this.items.set(id, { ...cur, ...patch })
+    this.put(id, { ...cur, ...patch })
     this.pingItem(id)
     this.touch()
   }
@@ -247,7 +282,7 @@ export class BoardStore {
     for (const id of ids) {
       const cur = this.items.get(id)
       if (!cur) continue
-      this.items.set(id, { ...cur, x: cur.x + dx, y: cur.y + dy })
+      this.put(id, { ...cur, x: cur.x + dx, y: cur.y + dy })
       this.pingItem(id)
     }
     this.touch()
@@ -279,7 +314,8 @@ export class BoardStore {
   add(item: Omit<Item, 'z'> & { z?: number }) {
     this.snapshot()
     const it: Item = { ...item, z: ++this.topZ, fx: item.fx || { ...FX_0 } }
-    this.items.set(it.id, it)
+    this.put(it.id, it)
+    this.noteOrder()
     this.order.push(it.id)
     this.pingOrder()
     this.touch()
@@ -290,7 +326,8 @@ export class BoardStore {
     this.snapshot()
     for (const item of list) {
       const it: Item = { ...item, z: ++this.topZ, fx: item.fx || { ...FX_0 } }
-      this.items.set(it.id, it)
+      this.put(it.id, it)
+      this.noteOrder()
       this.order.push(it.id)
     }
     this.pingOrder()
@@ -322,9 +359,10 @@ export class BoardStore {
     }
     ids = [...all]
     for (const id of ids) {
-      this.items.delete(id)
+      this.drop(id)
       this.sel.delete(id)
     }
+    this.noteOrder()
     this.order = this.order.filter((id) => !ids.includes(id))
     this.pingOrder()
     this.pingSel()
@@ -367,7 +405,8 @@ export class BoardStore {
         copy.from = remap.get(ends[0])!
         copy.to = remap.get(ends[1])!
       }
-      this.items.set(nid, copy)
+      this.put(nid, copy)
+      this.noteOrder()
       this.order.push(nid)
       made.push(nid)
       /* A copy of a board card has to open a copy of the board, or editing
@@ -390,7 +429,7 @@ export class BoardStore {
   raise(id: string) {
     const cur = this.items.get(id)
     if (!cur) return
-    this.items.set(id, { ...cur, z: ++this.topZ })
+    this.put(id, { ...cur, z: ++this.topZ })
     this.pingItem(id)
   }
 
@@ -402,7 +441,7 @@ export class BoardStore {
     for (const id of ids) {
       const cur = this.items.get(id)
       if (!cur || isSection(cur)) continue
-      this.items.set(id, { ...cur, z: ++this.topZ })
+      this.put(id, { ...cur, z: ++this.topZ })
       this.pingItem(id)
     }
     this.touch()
@@ -421,7 +460,7 @@ export class BoardStore {
     for (const id of ids) {
       const cur = this.items.get(id)
       if (!cur || isSection(cur)) continue
-      this.items.set(id, { ...cur, z: z++ })
+      this.put(id, { ...cur, z: z++ })
       this.pingItem(id)
     }
     this.touch()
@@ -434,7 +473,7 @@ export class BoardStore {
     this.snapshot()
     for (const id of inSection) {
       const cur = this.items.get(id)!
-      this.items.set(id, { ...cur, parent: null })
+      this.put(id, { ...cur, parent: null })
       this.pingItem(id)
     }
     this.touch()
@@ -461,7 +500,7 @@ export class BoardStore {
     for (const [id, at] of moves) {
       const cur = this.items.get(id)
       if (!cur) continue
-      this.items.set(id, { ...cur, x: at.x, y: at.y })
+      this.put(id, { ...cur, x: at.x, y: at.y })
       this.pingItem(id)
     }
     this.touch()
@@ -540,7 +579,8 @@ export class BoardStore {
       }
       if (src.from) copy.from = remap.get(src.from) || src.from
       if (src.to) copy.to = remap.get(src.to) || src.to
-      this.items.set(id, copy)
+      this.put(id, copy)
+      this.noteOrder()
       this.order.push(id)
       made.push(id)
     }
@@ -581,12 +621,13 @@ export class BoardStore {
       x: plan.frame.x, y: plan.frame.y, w: plan.frame.w, h: plan.frame.h,
       fx: { ...FX_0 }, tag: null,
     }
-    this.items.set(section.id, section)
+    this.put(section.id, section)
+    this.noteOrder()
     this.order.push(section.id)
     for (const [id, at2] of plan.moves) {
       const cur = this.items.get(id)
       if (!cur) continue
-      this.items.set(id, { ...cur, x: at2.x, y: at2.y, parent: section.id })
+      this.put(id, { ...cur, x: at2.x, y: at2.y, parent: section.id })
       this.pingItem(id)
     }
     this.pingOrder()
@@ -605,7 +646,7 @@ export class BoardStore {
     const next = targets.every((t) => t.pick === pick) ? null : pick
     this.snapshot()
     for (const it of targets) {
-      this.items.set(it.id, { ...it, pick: next })
+      this.put(it.id, { ...it, pick: next })
       this.pingItem(it.id)
     }
     this.touch()
@@ -621,7 +662,7 @@ export class BoardStore {
     if (!targets.length) return 0
     this.snapshot()
     for (const it of targets) {
-      this.items.set(it.id, { ...it, fx: { ...it.fx, ...look, ep: look.ep ? { ...look.ep } : null } })
+      this.put(it.id, { ...it, fx: { ...it.fx, ...look, ep: look.ep ? { ...look.ep } : null } })
       this.pingItem(it.id)
     }
     this.touch()
@@ -634,7 +675,7 @@ export class BoardStore {
     for (const id of ids) {
       const cur = this.items.get(id)
       if (!cur) continue
-      this.items.set(id, { ...cur, tag })
+      this.put(id, { ...cur, tag })
       this.pingItem(id)
     }
     this.touch()
@@ -709,49 +750,133 @@ export class BoardStore {
 
   /* ---------- history ---------- */
 
-  private serialize(): string {
-    return JSON.stringify(this.order.map((id) => this.items.get(id)))
+  /* The step being filled in, when a command is running. Null between them,
+   * and null straight after an undo, because applying a step is not part of
+   * one. */
+  private open: Step | null = null
+
+  /* Remembers what an item was before this step touched it, the first time it
+   * does. Every write goes through `put` or `drop`, which is what makes the
+   * step complete without each of the twenty write paths having to remember. */
+  private note(id: string) {
+    const step = this.open
+    if (!step || step.items.has(id)) return
+    this.keep()
+    step.items.set(id, this.items.get(id) ?? null)
+    this.hist.size++
   }
-  private restore(json: string) {
-    const list: Item[] = JSON.parse(json)
-    this.items = new Map(list.map((i) => [i.id, i]))
-    this.order = list.map((i) => i.id)
-    for (const id of this.order) this.pingItem(id)
-    this.pingOrder()
-    this.touch()
+
+  /* The same for the order, which only some commands touch. */
+  private noteOrder() {
+    const step = this.open
+    if (!step || step.order) return
+    this.keep()
+    step.order = this.order.slice()
   }
+
+  /* Puts the open step in the history, the first time it has anything in it. */
+  private keep() {
+    const step = this.open
+    if (!step || step.kept) return
+    step.kept = true
+    const h = this.hist
+    h.past.push(step)
+    while (h.past.length > HISTORY_LIMIT) h.size -= h.past.shift()!.items.size
+    this.trimHistory()
+  }
+
+  /* The two ways an item is written. Nothing else may reach `this.items`, or
+   * the step it belongs to would be missing a piece and undo would leave that
+   * piece behind. */
+  private put(id: string, it: Item) {
+    /* Writing back the very object already there is not a change, and letting
+     * it open a step would put a press in the history that visibly does
+     * nothing when you spend it. Reference equality only: every write builds a
+     * fresh object, so a deep comparison would cost something on every write
+     * to catch a case that barely happens. */
+    if (this.items.get(id) === it) return
+    this.note(id)
+    this.items.set(id, it)
+  }
+  private drop(id: string) {
+    /* Removing what is not there is likewise nothing. `remove` widens its list
+     * to take in a section's contents and the wires that end on them, and the
+     * same id can arrive twice by both routes. */
+    if (!this.items.has(id)) return
+    this.note(id)
+    this.items.delete(id)
+  }
+
+  /* Opens a step. Called before a command changes anything, which is what lets
+   * the writes underneath it record their own before-values as they go.
+   *
+   * A gesture opens one step and then writes with recording off, and those
+   * writes still land here, because the step stays open until the next command
+   * opens another. That is what keeps a whole drag to one undo press. */
   private snapshot() {
     const h = this.hist
     h.used = ++this.clock
-    const shot = this.serialize()
-    h.past.push(shot)
-    h.size += shot.length
-    while (h.past.length > HISTORY_LIMIT) h.size -= h.past.shift()!.length
-    for (const s of h.future) h.size -= s.length
+    for (const s of h.future) h.size -= s.items.size
     h.future.length = 0
-    this.trimHistory()
+    this.open = { items: new Map(), order: null, kept: false }
   }
+
+  /* Puts a step into effect and hands back the step that would put it back,
+   * which is the same shape read off the board before changing it. Undo and
+   * redo are therefore the same operation in opposite directions. */
+  private apply(step: Step): Step {
+    const inverse: Step = { items: new Map(), order: null, kept: true }
+    for (const [id, was] of step.items) {
+      inverse.items.set(id, this.items.get(id) ?? null)
+      if (was === null) this.items.delete(id)
+      else this.items.set(id, was)
+    }
+    if (step.order) {
+      inverse.order = this.order.slice()
+      this.order = step.order.slice()
+    }
+    for (const id of step.items.keys()) this.pingItem(id)
+    if (step.order) this.pingOrder()
+    /* A card that has just been undone out of existence cannot still be
+     * selected. Nothing crashed on a selected id with no item behind it, but
+     * the count along the bottom went on claiming it. */
+    let lost = false
+    for (const id of this.sel) {
+      if (!this.items.has(id)) {
+        this.sel.delete(id)
+        lost = true
+      }
+    }
+    if (lost) this.pingSel()
+    this.touch()
+    return inverse
+  }
+
   undo() {
     const h = this.hist
-    const prev = h.past.pop()
-    if (prev === undefined) return
-    h.size -= prev.length
-    const now = this.serialize()
-    h.future.push(now)
-    h.size += now.length
+    const step = h.past.pop()
+    if (!step) return
+    h.size -= step.items.size
+    /* Whatever was being recorded is finished with: the next command opens its
+     * own step, and writing an undo into the step it just undid would make the
+     * pair impossible to tell apart. */
+    this.open = null
+    const inverse = this.apply(step)
+    h.future.push(inverse)
+    h.size += inverse.items.size
     h.used = ++this.clock
-    this.restore(prev)
   }
+
   redo() {
     const h = this.hist
-    const next = h.future.pop()
-    if (next === undefined) return
-    h.size -= next.length
-    const now = this.serialize()
-    h.past.push(now)
-    h.size += now.length
+    const step = h.future.pop()
+    if (!step) return
+    h.size -= step.items.size
+    this.open = null
+    const inverse = this.apply(step)
+    h.past.push(inverse)
+    h.size += inverse.items.size
     h.used = ++this.clock
-    this.restore(next)
   }
   get canUndo() {
     return this.hist.past.length > 0
@@ -769,21 +894,22 @@ export class BoardStore {
   private trimHistory() {
     let total = 0
     for (const h of this.history.values()) total += h.size
-    if (total <= HISTORY_CHARS) return
+    if (total <= HISTORY_ITEMS) return
     const others = [...this.history.entries()]
       .filter(([, h]) => h !== this.hist)
       .sort((a, b) => a[1].used - b[1].used)
     for (const [id, h] of others) {
-      if (total <= HISTORY_CHARS) break
+      if (total <= HISTORY_ITEMS) break
       total -= h.size
       this.history.delete(id)
     }
-    /* One board over the budget on its own. Its oldest steps go, which is what
-     * the step limit above does anyway — this is the case where sixty steps of
-     * an enormous board is itself too much. */
+    /* One board over the budget on its own, which now takes a command that
+     * really did change tens of thousands of items rather than merely a large
+     * board. Its oldest steps go, and never the newest, because the step being
+     * recorded right now is the one about to be undone. */
     const h = this.hist
-    while (total > HISTORY_CHARS && h.past.length > 1) {
-      const gone = h.past.shift()!.length
+    while (total > HISTORY_ITEMS && h.past.length > 1) {
+      const gone = h.past.shift()!.items.size
       h.size -= gone
       total -= gone
     }
@@ -862,6 +988,12 @@ export class BoardStore {
      * the board went on drawing the empty one it had already decided about.
      * `test/unit/store.test.ts` holds the line now. */
     this.rev++
+
+    /* And whatever step was still being recorded belongs to the board that
+     * has just been left. Left open, the next write on this board would file
+     * its before-value into the other board's history, and undoing there would
+     * try to put a card back onto a board it was never on. */
+    this.open = null
 
     /* Selection first: ids from the board that has just been left are not ids
      * on this one, and a card cannot be told it is still selected. */
