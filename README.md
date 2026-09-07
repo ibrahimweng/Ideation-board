@@ -1242,6 +1242,7 @@ npm run test:stacked -- http://localhost:5173
 npm run test:big -- http://localhost:5173
 npm run test:pdf -- http://localhost:5173
 npm run test:audio -- http://localhost:5173
+npm run test:design -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1327,6 +1328,17 @@ npm run bench
   three quarters along the waveform goes three quarters into the track, that an
   arrow key moves through it, and that it all comes back after a reload without
   decoding again.
+- `test:design` drops a Photoshop document, a Sketch file, an Illustrator file
+  and a file only named like one, all written by hand in `test/fixtures`. Each
+  fixture has a shape chosen to catch the two ways this goes wrong quietly: the
+  Photoshop one is orange on the left and blue on the right with a dark band
+  along the bottom, so a red and blue channel swap is obvious rather than nearly
+  right and a picture read upside down is obvious rather than symmetrical. Both
+  Photoshop compressions are checked, because real documents are almost always
+  the packed one and the packing is where the arithmetic is. The Illustrator
+  file has to come out as a document with three pages, because it really is a
+  PDF; the file that is only named `.psd` has to come out as a plain file card
+  rather than as an empty one pretending to be artwork.
 - `test:big` is the only suite that works at scale. Two thousand cards, written
   straight into IndexedDB because that is how a board that size really arrives,
   then the questions that only have an answer at that size: does it open, is

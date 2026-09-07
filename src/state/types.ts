@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'pdf' | 'edge'
+  | 'pdf' | 'design' | 'edge'
 
 export interface Item {
   id: string
@@ -94,7 +94,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  pdf: 'PDF', edge: 'ARR',
+  pdf: 'PDF', design: 'ART', edge: 'ARR',
 }
 
 export const TAGS = [

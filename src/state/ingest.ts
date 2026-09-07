@@ -5,6 +5,7 @@ import { putBlob } from '../store/idb'
 import { isAnimated, mightMove } from '../store/anim'
 import { isPdf, renderPdfPage } from '../store/pdf'
 import { readSound } from '../store/audio'
+import { designPreview, isDesign, isPdfInside } from '../store/design'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -36,6 +37,10 @@ export function kindOf(mime: string, name: string): Kind {
      with three letters on it — the wrong answer for the format most of a
      brand direction actually arrives in. */
   if (isPdf(mime, name)) return 'pdf'
+  /* Photoshop, Sketch, and Illustrator — which is really a PDF inside, but
+     that cannot be told from the name alone, so it is settled by looking at
+     the bytes when the file is read rather than guessed at here. */
+  if (isDesign(name) || /\.ai$/i.test(name)) return 'design'
   if (/^text\/|\.(md|txt)$/i.test(mime + name)) return 'note'
   return 'file'
 }
@@ -97,7 +102,10 @@ export async function* ingest(
       continue
     }
 
-    const key = newKey(kind === 'image' ? 'img' : kind === 'video' ? 'vid' : kind === 'pdf' ? 'pdf' : 'med')
+    const key = newKey(
+      kind === 'image' ? 'img' : kind === 'video' ? 'vid'
+        : kind === 'pdf' ? 'pdf' : kind === 'design' ? 'dsn' : 'med'
+    )
     await saveMedia(key, file)
 
     if (kind === 'image') {
@@ -168,6 +176,49 @@ export async function* ingest(
         ...base, kind: 'pdf', media: key, poster: pageKey,
         pages: first?.pages || 1, page: 1, nw, nh, ...box,
       }
+      continue
+    }
+
+    if (kind === 'design') {
+      /* Illustrator writes a PDF inside every file it saves with the
+       * compatibility option on, which has been the default for twenty years.
+       * So an .ai file goes through the reader that already exists and gets
+       * its artboards as pages for nothing. An older one is PostScript, which
+       * is what the check on the bytes is for. */
+      if (await isPdfInside(file)) {
+        const first = await renderPdfPage(key, file, 1)
+        if (first) {
+          const pageKey = newKey('pg')
+          await putBlob(pageKey, first.blob)
+          void ensureSource(pageKey, first.blob)
+          const box = fitBox(first.w, first.h)
+          yield {
+            ...base, kind: 'pdf', media: key, poster: pageKey,
+            pages: first.pages, page: 1, nw: first.w, nh: first.h, ...box,
+          }
+          continue
+        }
+      }
+
+      const art = await designPreview(file, file.name || '')
+      if (art) {
+        const artKey = newKey('pv')
+        await putBlob(artKey, art.blob)
+        void ensureSource(artKey, art.blob)
+        const box = fitBox(art.w, art.h)
+        yield {
+          ...base, kind: 'design', media: key, poster: artKey,
+          nw: art.w, nh: art.h, ...box,
+        }
+        continue
+      }
+
+      /* A design file with no picture in it: an older Illustrator file, a
+       * Photoshop document in a colour mode this does not read and saved
+       * without its thumbnail, something only named like one. It is a file,
+       * which is what all of these were before, rather than an empty card
+       * pretending to be artwork. */
+      yield { ...base, kind: 'file', media: key, w: 260, h: 120 }
       continue
     }
 

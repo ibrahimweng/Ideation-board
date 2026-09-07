@@ -55,13 +55,13 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
   const fx = item.fx
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
-  const effected = hasEffect(fx) && (item.kind === 'image' || item.kind === 'pdf') && canShade(item)
+  const effected = hasEffect(fx) && (item.kind === 'image' || item.kind === 'pdf' || item.kind === 'design') && canShade(item)
 
   return (
     <div className="present-stage" style={{ width: box.w, height: box.h }}>
       <div className="present-body" style={{ filter: filter || undefined }}>
         <div className="present-frame" style={{ transform: frame || undefined }}>
-          {(item.kind === 'image' || item.kind === 'pdf') &&
+          {(item.kind === 'image' || item.kind === 'pdf' || item.kind === 'design') &&
             (effected && ready && pixelKey(item) ? (
               <FxCanvas
                 id={`${tag}:${item.id}`}

@@ -6,7 +6,7 @@ import { FX_0 } from '../../src/engine/types'
 /* The table is the one place a new kind of card is described. These check that
  * it stays a description rather than drifting into a list of exceptions. */
 
-const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'edge']
+const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'edge']
 const of = (kind: Kind, extra: Partial<Item> = {}): Item =>
   ({ id: 'i', kind, x: 0, y: 0, z: 0, w: 10, h: 10, fx: { ...FX_0 }, tag: null, ...extra } as Item)
 
@@ -120,9 +120,10 @@ describe('pixelKey', () => {
     expect(pixelKey(of('image', { media: 'm1' }))).toBe('m1')
   })
 
-  it('is the still beside it for the two whose file is not a picture', () => {
+  it('is the still beside it for the ones whose file is not a picture', () => {
     expect(pixelKey(of('video', { media: 'v1', poster: 'p1' }))).toBe('p1')
     expect(pixelKey(of('pdf', { media: 'd1', poster: 'p2' }))).toBe('p2')
+    expect(pixelKey(of('design', { media: 'd2', poster: 'p3' }))).toBe('p3')
   })
 
   it('is nothing when there is nothing', () => {
@@ -158,5 +159,20 @@ describe('a document', () => {
     /* The words are inside the document, not typed onto the card. Saying it
        has them would have the search looking in a field that is always empty. */
     expect(TRAITS.pdf.words).toBe(false)
+  })
+})
+
+describe('a design file', () => {
+  it('is the same shape as a document: a card with pixels that can wear a look', () => {
+    expect(TRAITS.design.thing).toBe(true)
+    expect(TRAITS.design.pixels).toBe(true)
+    expect(TRAITS.design.graded).toBe(true)
+    expect(TRAITS.design.media).toBe(true)
+  })
+
+  it('has no words of its own', () => {
+    /* Whatever type is set inside a Photoshop document is inside the picture,
+       not typed onto the card. */
+    expect(TRAITS.design.words).toBe(false)
   })
 })

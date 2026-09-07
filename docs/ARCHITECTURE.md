@@ -227,13 +227,22 @@ card as a couple of hundred whole numbers rather than as a picture of a
 waveform, which is a few hundred bytes, draws crisply at any size, and costs
 nothing to redraw while the track plays.
 
+`design.ts` gets the picture out of a Photoshop, Sketch or Illustrator file.
+All three carry one and none of them needs a library for it: a `.sketch` is a
+zip with `previews/preview.png` inside and this app already has an unzip, a
+`.psd` keeps a flattened copy of the whole document at the end of the file, and
+a `.ai` is a PDF, so it goes through the reader that already exists and gets its
+artboards as pages for nothing. Whether a `.ai` really is one is settled by
+looking at the first five bytes, because an older Illustrator file is
+PostScript and the name cannot tell you.
+
 `pdf.ts` draws a page of a document. pdf.js is loaded through a dynamic import
 the first time a PDF is dropped, so a board that never holds one never fetches
 it, and the legacy build is the one asked for: the modern one calls a Map
 method new enough that a browser from last year does not have it, and the
 failure arrives as a document that will not open for no stated reason.
 
-## Documents
+## Documents and design files
 
 A PDF card is a picture of a page with the file kept beside it, which is the
 same split a video card has: `media` is the document, `poster` is what you
@@ -242,9 +251,15 @@ the page goes to the graphics card, wears the effects, exports, and gives up
 its colours to the palette — because as far as all of that is concerned it is
 an image.
 
+A design card is the same shape with one picture instead of a run of pages, so
+it shares the card, the traits row pattern and every path a document takes.
+What it does not share is the reading: a Photoshop document is parsed here
+rather than by a library, which is worth it because the flattened copy inside
+is the full size picture rather than the 256 pixel thumbnail beside it.
+
 Three places used to ask "is this a video, and therefore is its picture under
 poster?" with the same ternary written out by hand. `pixelKey` in `kinds.ts`
-is that question asked once, and adding a third kind whose file is not a
+is that question asked once, and adding two more kinds whose file is not a
 picture meant changing one line rather than finding all three.
 
 Turning a page renders the new one, writes it under a fresh key and points the

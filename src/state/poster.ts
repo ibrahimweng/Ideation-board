@@ -514,7 +514,8 @@ function drawCaption(cx: Ctx, it: Item, t: Tokens) {
   if (it.kind === 'note' || it.kind === 'label') return
 
   const overPicture =
-    it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf' || it.kind === 'embed' || it.kind === 'board'
+    it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf' || it.kind === 'design' ||
+    it.kind === 'embed' || it.kind === 'board'
   const h = overPicture ? 34 : 26
   const y = it.y + it.h - h
 
@@ -596,8 +597,10 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
   switch (it.kind) {
     case 'image':
     case 'video':
-    /* A page is a picture, and it is drawn as one. */
-    case 'pdf': {
+    /* A page, and the artwork inside a design file, are both pictures and are
+       both drawn as one. */
+    case 'pdf':
+    case 'design': {
       const w = Math.max(2, Math.round(it.w * scale))
       const h = Math.max(2, Math.round(it.h * scale))
       const picture = await renderCardPicture(it, w, h, await sourceFor(it))

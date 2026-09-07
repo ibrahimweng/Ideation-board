@@ -54,7 +54,7 @@ function describe(it: Item) {
   /* Whether there is a picture, not what it is. An agent cannot see it, and
    * saying so plainly is better than it inferring from a media key. */
   if (it.media || it.url) {
-    out.hasPicture = it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf'
+    out.hasPicture = it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf' || it.kind === 'design'
   }
   /* A document says how long it is and where in it the card is looking, which
      is the difference between "a PDF" and something an agent can reason about. */

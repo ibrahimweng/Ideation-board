@@ -51,6 +51,10 @@ export const TRAITS: Record<Kind, Traits> = {
      `media` is the document, and what is looked at is under `poster` — the
      same split a video has, for the same reason. */
   pdf: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* Photoshop, Illustrator and Sketch. The same shape as a document: the file
+     under `media`, the picture inside it under `poster`. What is different is
+     only that there is one picture rather than a run of pages. */
+  design: { thing: true, pixels: true, graded: true, media: true, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -114,8 +118,9 @@ export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readab
  * still kept beside it under `poster`. Three places were asking this with the
  * same ternary written out by hand, and the third kind was the one that would
  * have been missed. */
+const BESIDE = new Set<string>(['video', 'pdf', 'design'])
 export const pixelKey = (i?: Item | null): string | undefined =>
-  !i ? undefined : i.kind === 'video' || i.kind === 'pdf' ? i.poster : i.media
+  !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
 
 /* Both ends of a wire, or nothing. */
 export const endsOf = (i?: Item | null): [string, string] | null =>

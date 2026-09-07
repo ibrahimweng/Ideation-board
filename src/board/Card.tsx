@@ -49,11 +49,11 @@ export const Card = memo(function Card({
   const objectUrl = useObjectURL(it?.media)
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
-  const pageUrl = useObjectURL(it?.kind === 'pdf' ? it?.poster : undefined)
+  const pageUrl = useObjectURL(it?.kind === 'pdf' || it?.kind === 'design' ? it?.poster : undefined)
   /* The cover out of a sound file, where it had one. */
   const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
   const ready = useSourceReady(
-    it?.kind === 'image' || it?.kind === 'pdf' ? pixelKey(it) : undefined
+    it?.kind === 'image' || it?.kind === 'pdf' || it?.kind === 'design' ? pixelKey(it) : undefined
   )
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
@@ -267,10 +267,12 @@ export const Card = memo(function Card({
               </div>
             ))}
 
-          {it.kind === 'pdf' && (
-            /* A page is a picture, so this is the image branch with a document
-               around it: the same effects, the same canvas, the same fall back
-               to the plain picture when nothing is applied. */
+          {(it.kind === 'pdf' || it.kind === 'design') && (
+            /* A page of a document, and the artwork inside a design file, are
+               both pictures — so this is the image branch with a file around
+               it: the same effects, the same canvas, the same fall back to the
+               plain picture when nothing is applied. The pager below is the
+               only part that belongs to one of them and not the other. */
             <>
               {effected && ready && it.poster ? (
                 <FxCanvas
@@ -286,16 +288,21 @@ export const Card = memo(function Card({
                   className="media"
                 />
               ) : pageUrl ? (
-                <img className="media" src={pageUrl} alt={`Page ${it.page || 1} of ${it.name || 'document'}`} draggable={false} />
+                <img
+                  className="media"
+                  src={pageUrl}
+                  alt={it.kind === 'pdf' ? `Page ${it.page || 1} of ${it.name || 'document'}` : it.name || 'Artwork'}
+                  draggable={false}
+                />
               ) : (
                 /* A document this browser could not read. The card keeps the
                    shape of a page and says so, rather than showing an empty
                    square that looks like a picture which failed to load. */
                 <div className="media placeholder pdf-unread">
-                  <span>{(it.name || 'Document').split('.').pop()?.toUpperCase() || 'PDF'}</span>
+                  <span>{(it.name || 'Document').split('.').pop()?.toUpperCase() || 'FILE'}</span>
                 </div>
               )}
-              {(it.pages || 1) > 1 && (
+              {it.kind === 'pdf' && (it.pages || 1) > 1 && (
                 /* Only on the card that is selected, like the video controls:
                    a board of documents should read as pages, not as a wall of
                    pagers. */
