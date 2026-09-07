@@ -285,8 +285,13 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 /* A card the search excluded. It stays where it is, because where something
    sits on the board is part of how you recognise it, but it steps back and
    stops taking the pointer so only results can be picked up. */
+/* Three things fade a card, and they multiply rather than fight: what it was
+   given in the panel, whether it matches the search, and whether it has been
+   cut. Only the first is written on the card, as a number the rest multiply
+   into — an inline `opacity` would beat every rule here. */
+.card { opacity: var(--op, 1); }
 .card[data-dim] {
-  opacity: 0.16;
+  opacity: calc(var(--op, 1) * 0.16);
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -672,8 +677,8 @@ body[data-framing] .card-chrome { opacity: 0; }
 /* A card that has been cut steps back but stays where it is: where something
    sits on a board is part of how you recognise it, and a decision you cannot
    see the consequences of is not much of a decision. */
-.card[data-pick='out'] { opacity: 0.4; }
-.card[data-pick='out']:hover, .card[data-pick='out'][data-sel] { opacity: 0.85; }
+.card[data-pick='out'] { opacity: calc(var(--op, 1) * 0.4); }
+.card[data-pick='out']:hover, .card[data-pick='out'][data-sel] { opacity: calc(var(--op, 1) * 0.85); }
 
 .card-body { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--well); }
 .card-frame { position: absolute; inset: 0; }
@@ -1241,12 +1246,12 @@ body[data-framing] .card-chrome { opacity: 0; }
 .seg button { flex: 1; padding: 5px 4px; border-radius: var(--r-sm); font-size: var(--t-xs); color: var(--muted); }
 .seg button[data-on] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--sh-1); }
 
-.preset-row, .flip-row { display: flex; flex-wrap: wrap; gap: 5px; }
-.preset-row button, .flip-row button {
+.preset-row, .flip-row, .blend-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.preset-row button, .flip-row button, .blend-row button {
   padding: 5px 10px; border-radius: var(--r-sm); font-size: var(--t-sm);
   border: 1px solid var(--line); color: var(--muted); background: var(--surface);
 }
-.preset-row button[data-on], .flip-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.preset-row button[data-on], .flip-row button[data-on], .blend-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 
 .ghost {
   padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--line);

@@ -8,6 +8,7 @@ import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
 import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
+import { blendOf } from '../engine/types'
 import { useObjectURL } from '../store/media'
 import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
@@ -91,6 +92,12 @@ export const Card = memo(function Card({
   const filter = plain ? '' : adjustCSS(fx)
   const frame = plain ? '' : frameCSS(fx)
   const grain = plain ? 0 : fx.grain
+  /* How this card sits with the ones under it. Held back by the compare key
+     along with everything else: a card at a quarter strength over another is
+     something that was done to it, and the question the key asks is what it
+     looked like before any of that. */
+  const op = plain ? 100 : (fx.op ?? 100)
+  const mix = plain ? 'normal' : blendOf(fx.mix)
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null
   /* A checklist says how far along it is without being opened. */
   const todo = it.kind === 'note' ? todoCount(it.text || '') : { done: 0, total: 0 }
@@ -100,6 +107,11 @@ export const Card = memo(function Card({
     width: it.w,
     height: it.h,
     zIndex: it.z,
+    /* Written as a custom property rather than as `opacity`, because a card is
+       already faded when it does not match a search and when it has been cut,
+       and an inline opacity would win over both. The stylesheet multiplies. */
+    ...(op !== 100 ? ({ '--op': op / 100 } as React.CSSProperties) : null),
+    ...(mix !== 'normal' ? { mixBlendMode: mix as React.CSSProperties['mixBlendMode'] } : null),
   }
 
   /* Sections are backdrops: they sit behind everything and never capture the

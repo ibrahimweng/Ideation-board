@@ -14,6 +14,7 @@ import { portPoint, sideFacing, wirePath } from '../board/wire'
 import { safeName } from '../store/fs'
 import { hostOf } from './urls'
 import { clock } from '../store/audio'
+import { blendOf } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
  * The whole board, as one picture.
@@ -576,8 +577,15 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
 
   cx.save()
   /* A cut card steps back on the sheet exactly as far as it does on the
-   * board, so the decision survives the export. */
-  if (it.pick === 'out') cx.globalAlpha = 0.4
+   * board, so the decision survives the export. It multiplies with whatever
+   * the card was given in the panel rather than replacing it. */
+  const op = (it.fx?.op ?? 100) / 100
+  cx.globalAlpha = it.pick === 'out' ? op * 0.4 : op
+  /* And how it mixes with what is under it. The canvas names these the same
+   * way CSS does, which is the reason the list is the one it is: every mode
+   * the panel offers is a mode both sides already agree on. */
+  const mix = blendOf(it.fx?.mix)
+  if (mix !== 'normal') cx.globalCompositeOperation = mix as GlobalCompositeOperation
 
   /* The shell: surface, hairline, soft corners, and a shadow the CSS draws
    * with two layers and this draws with one. */

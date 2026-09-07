@@ -30,6 +30,11 @@ export interface PageItem {
   tag: string | null
   pick: 'in' | 'out' | null
   color: string
+  /* How the card sat with the ones under it. The effect and the tone are
+     baked into the picture, but these two are about a card and its
+     neighbours, so they cannot be — they are carried and re-applied. */
+  op?: number
+  mix?: string
   /* A baked picture, as data. */
   img?: string
   alt?: string
@@ -96,7 +101,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   background-image:radial-gradient(var(--dot) 1px,transparent 1px);background-size:24px 24px}
 #stage[data-drag]{cursor:grabbing}
 #world{position:absolute;transform-origin:0 0;will-change:transform}
-.c{position:absolute;border-radius:10px}
+.c{position:absolute;border-radius:10px;opacity:var(--op,1)}
 .thing{background:var(--surface);box-shadow:var(--sh);overflow:hidden}
 .thing img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .note{padding:12px 14px;overflow:hidden;font-size:13px;line-height:1.55;
@@ -126,7 +131,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .tag{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px var(--surface)}
 .pick{position:absolute;top:6px;right:8px;font-size:12px;line-height:1;padding:2px 5px;border-radius:5px;
   background:var(--surface);box-shadow:var(--sh);color:var(--muted)}
-.c[data-pick="out"]{opacity:.45}
+.c[data-pick="out"]{opacity:calc(var(--op,1)*.45)}
 #wires{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
 #wires path{fill:none;stroke:var(--muted);stroke-width:2;opacity:.7}
 #big{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:var(--scrim);cursor:zoom-out}
@@ -220,6 +225,10 @@ function show(id, keepView) {
     }
     const n = el('div', 'c', world)
     n.style.cssText = 'left:' + it.x + 'px;top:' + it.y + 'px;width:' + it.w + 'px;height:' + it.h + 'px'
+    /* Before the kinds, so the link branch carries them across with the rest
+       of the inline style. */
+    if (it.op != null && it.op < 100) n.style.setProperty('--op', String(it.op / 100))
+    if (it.mix && it.mix !== 'normal') n.style.mixBlendMode = it.mix
     if (it.pick) n.dataset.pick = it.pick
 
     if (it.img) {

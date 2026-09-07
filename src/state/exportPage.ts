@@ -6,6 +6,7 @@ import { TRAITS } from './kinds'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
+import { blendOf } from '../engine/types'
 import { pageHtml } from './pageHtml'
 import type { PageBoard, PageItem } from './pageHtml'
 
@@ -174,6 +175,11 @@ async function toPageItem(item: Item, onPicture: () => void): Promise<PageItem |
     tag: item.tag || null,
     pick: item.pick || null,
     color: item.color || '',
+    /* The effect and the tone are baked into the picture on the way out.
+       These two are about how a card sits with the ones under it, so there is
+       nothing to bake them into and they are carried instead. */
+    op: item.fx?.op ?? 100,
+    mix: blendOf(item.fx?.mix),
   }
 
   /* Compared by kind rather than through the trait guards, which narrow an

@@ -145,6 +145,13 @@ function parts(): Part[] {
             write, done by hand. Framing belongs to the one photograph, so it is the one thing a
             saved look never carries.
           </p>
+          <p>
+            <strong>Layer</strong> is about two cards rather than one: an opacity, and how a card
+            mixes with whatever it is sitting on. Lay a texture over a photograph on multiply, hold
+            a scan at a quarter strength over the thing you are comparing it with, knock a wordmark
+            out of a colour field. A card over the empty board is untouched by it, so a mode set
+            once goes on meaning the same thing wherever you move the card to.
+          </p>
         </>
       ),
     },

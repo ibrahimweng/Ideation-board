@@ -1,7 +1,7 @@
 import { memo, useId, useMemo, useRef, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
 import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
-import { ADJUST_0, isColor, isEnum } from '../engine/types'
+import { ADJUST_0, BLENDS, blendOf, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
@@ -110,9 +110,14 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
    * its thumbnails stay blank. */
   const previewKey = pixelKey(primary)
 
-  const patchFx = (patch: Partial<FxState>) => {
+  /* `discrete` for a control that is pressed rather than swept. The window
+   * below is right for a slider, which has no beginning, and wrong for a
+   * button: without it, choosing a blend mode half a second after typing an
+   * opacity made the two of them one step, and undoing the mode took the
+   * opacity with it. */
+  const patchFx = (patch: Partial<FxState>, discrete = false) => {
     /* A slider sweep is one undo step rather than none. */
-    store.beginGesture(600)
+    store.beginGesture(discrete ? 0 : 600)
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
@@ -388,6 +393,31 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
             </div>
           </section>
 
+          {/* How this card sits with the ones under it, which is the one part
+              of the panel that is about two pictures rather than one — and
+              most of what a moodboard is for. A texture over a photograph, a
+              wordmark knocked out of a colour field, a scan held at a quarter
+              strength over the thing it is being compared with. */}
+          <section className="fx-controls">
+            <h4>Layer</h4>
+            <p className="fx-hint">How this card mixes with whatever is underneath it.</p>
+            <Slider label="Opacity" def={ADJUST_0.op} min={0} max={100} step={1} unit="%" value={fx.op ?? 100} onChange={(v) => patchFx({ op: v })} />
+            {/* Drawn like the presets above and named apart from them: a
+                preset is a starting point you move on from, and a blend mode
+                is a choice that stays chosen. */}
+            <div className="blend-row">
+              {BLENDS.map((b) => (
+                <button
+                  key={b.id}
+                  data-on={blendOf(fx.mix) === b.id || undefined}
+                  onClick={() => patchFx({ mix: b.id }, true)}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <button className="ghost" onClick={() => patchFx({ ...resetTone(), preset: 'none' })}>
             Reset adjustments
           </button>
@@ -397,10 +427,10 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   )
 }
 
-const resetTone = () => ({
-  exp: 0, con: 0, sat: 100, warm: 0, blur: 0, grain: 0,
-  zoom: 1, ox: 0, oy: 0, rot: 0, fh: false, fv: false,
-})
+/* Everything the Adjust tab writes, back to nothing. Spread from the defaults
+ * rather than typed out again, since a copy of a list is a copy that gets left
+ * behind: this one had already lost the two the panel learned last. */
+const resetTone = () => ({ ...ADJUST_0 })
 
 /* A preview is a real render of the selected image through that effect, at
  * thumbnail size, scheduled behind the visible cards. */
@@ -550,7 +580,11 @@ function Slider({
         inputMode="decimal"
         aria-label={`${label}${unit ? ` in ${unit}` : ''}`}
         value={typing ?? `${shown}${unit || ''}`}
-        onFocus={(e) => { setTyping(shown); requestAnimationFrame(() => e.target.select()) }}
+        /* Selected, so typing replaces it, but not copied into state: a write
+           on focus is a write racing whatever put the focus there, and the
+           value on show is already the right thing to be editing. The unit
+           comes with it and parses away again. */
+        onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setTyping(e.target.value)}
         onBlur={(e) => {
           if (abandoned.current) { abandoned.current = false; setTyping(null); return }
