@@ -14,7 +14,8 @@ import { holdPress } from './press'
 import { useSourceReady } from './sources'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
-import { canShade, hasPixels } from '../state/kinds'
+import { canShade, hasPixels, pixelKey } from '../state/kinds'
+import { nextPage, prevPage } from '../state/pages'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
@@ -45,7 +46,12 @@ export const Card = memo(function Card({
 }: Props) {
   const it = useItem(id)
   const objectUrl = useObjectURL(it?.media)
-  const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
+  /* A document's pixels are the page rendered beside it, not the file itself,
+     so the picture it draws comes from a second address. */
+  const pageUrl = useObjectURL(it?.kind === 'pdf' ? it?.poster : undefined)
+  const ready = useSourceReady(
+    it?.kind === 'image' || it?.kind === 'pdf' ? pixelKey(it) : undefined
+  )
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
   /* Marked as moving, but this browser could not decode its frames. Set once
@@ -257,6 +263,63 @@ export const Card = memo(function Card({
                 {drawing && <span className="drawing" aria-label="Drawing" />}
               </div>
             ))}
+
+          {it.kind === 'pdf' && (
+            /* A page is a picture, so this is the image branch with a document
+               around it: the same effects, the same canvas, the same fall back
+               to the plain picture when nothing is applied. */
+            <>
+              {effected && ready && it.poster ? (
+                <FxCanvas
+                  id={id}
+                  mediaKey={it.poster}
+                  effectId={fx.fxid}
+                  params={fx.ep}
+                  more={fx.more}
+                  seed={hashSeed(id)}
+                  w={it.w}
+                  h={it.h}
+                  distance={distance}
+                  className="media"
+                />
+              ) : pageUrl ? (
+                <img className="media" src={pageUrl} alt={`Page ${it.page || 1} of ${it.name || 'document'}`} draggable={false} />
+              ) : (
+                /* A document this browser could not read. The card keeps the
+                   shape of a page and says so, rather than showing an empty
+                   square that looks like a picture which failed to load. */
+                <div className="media placeholder pdf-unread">
+                  <span>{(it.name || 'Document').split('.').pop()?.toUpperCase() || 'PDF'}</span>
+                </div>
+              )}
+              {(it.pages || 1) > 1 && (
+                /* Only on the card that is selected, like the video controls:
+                   a board of documents should read as pages, not as a wall of
+                   pagers. */
+                <div className="pager" data-on={selected || undefined}>
+                  <button
+                    aria-label="Previous page"
+                    disabled={(it.page || 1) <= 1}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); void prevPage(id) }}
+                  >
+                    ‹
+                  </button>
+                  <span>
+                    {it.page || 1} / {it.pages}
+                  </span>
+                  <button
+                    aria-label="Next page"
+                    disabled={(it.page || 1) >= (it.pages || 1)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); void nextPage(id) }}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </>
+          )}
 
           {it.kind === 'audio' &&
             (url ? (

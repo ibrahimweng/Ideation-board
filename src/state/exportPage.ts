@@ -82,6 +82,9 @@ async function dataUri(blob: Blob): Promise<string> {
  * Without that, every video on every nested board would come out blank. */
 async function sourceFor(item: Item): Promise<ImageBitmap | null> {
   const keys = [item.media, item.poster].filter(Boolean) as string[]
+  /* A document's file is a PDF, which is not something createImageBitmap can
+     read. Its page is under poster, so that is the one to try. */
+  if (item.kind === 'pdf') keys.reverse()
   if (item.kind === 'video') {
     const el = document.querySelector(`.card[data-id="${item.id}"] video`) as HTMLVideoElement | null
     if (el && el.videoWidth) {

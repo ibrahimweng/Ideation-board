@@ -1,6 +1,6 @@
 import type { Item } from './types'
 import { TAGS } from './types'
-import { isSection, isWire } from './kinds'
+import { isSection, isWire, pixelKey } from './kinds'
 import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
 import type { PaperName } from './posterPage'
 import { parse } from './rich'
@@ -192,8 +192,10 @@ async function sourceFor(item: Item): Promise<ImageBitmap | null> {
       const still = await getBlob(item.poster)
       return still ? await createImageBitmap(still) : null
     }
-    if (item.media) {
-      const blob = await getBlob(item.media)
+    /* A document keeps its picture beside the file rather than in it. */
+    const key = pixelKey(item)
+    if (key) {
+      const blob = await getBlob(key)
       if (blob) return await createImageBitmap(blob)
       return null
     }
@@ -475,7 +477,8 @@ function drawCaption(cx: Ctx, it: Item, t: Tokens) {
   /* A note already has its words on it. */
   if (it.kind === 'note' || it.kind === 'label') return
 
-  const overPicture = it.kind === 'image' || it.kind === 'video' || it.kind === 'embed' || it.kind === 'board'
+  const overPicture =
+    it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf' || it.kind === 'embed' || it.kind === 'board'
   const h = overPicture ? 34 : 26
   const y = it.y + it.h - h
 
@@ -556,7 +559,9 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
 
   switch (it.kind) {
     case 'image':
-    case 'video': {
+    case 'video':
+    /* A page is a picture, and it is drawn as one. */
+    case 'pdf': {
       const w = Math.max(2, Math.round(it.w * scale))
       const h = Math.max(2, Math.round(it.h * scale))
       const picture = await renderCardPicture(it, w, h, await sourceFor(it))

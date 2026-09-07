@@ -3,6 +3,7 @@ import { FX_0 } from '../engine/types'
 import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped } from '../store/media'
 import { putBlob } from '../store/idb'
 import { isAnimated, mightMove } from '../store/anim'
+import { isPdf, renderPdfPage } from '../store/pdf'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -29,6 +30,11 @@ export function kindOf(mime: string, name: string): Kind {
   if (isImage(mime)) return 'image'
   if (isVideo(mime)) return 'video'
   if (isAudio(mime)) return 'audio'
+  /* Before the text check and before the fallback, because a PDF is neither.
+     It used to fall all the way through to `file`, which is a grey rectangle
+     with three letters on it — the wrong answer for the format most of a
+     brand direction actually arrives in. */
+  if (isPdf(mime, name)) return 'pdf'
   if (/^text\/|\.(md|txt)$/i.test(mime + name)) return 'note'
   return 'file'
 }
@@ -90,7 +96,7 @@ export async function* ingest(
       continue
     }
 
-    const key = newKey(kind === 'image' ? 'img' : kind === 'video' ? 'vid' : 'med')
+    const key = newKey(kind === 'image' ? 'img' : kind === 'video' ? 'vid' : kind === 'pdf' ? 'pdf' : 'med')
     await saveMedia(key, file)
 
     if (kind === 'image') {
@@ -132,6 +138,35 @@ export async function* ingest(
       }
       const box = fitBox(nw, nh)
       yield { ...base, kind: 'video', media: key, poster: posterKey, nw, nh, ...box }
+      continue
+    }
+
+    if (kind === 'pdf') {
+      /* The same split a video has: the document under `media`, and what you
+       * actually look at rendered beside it under `poster`. Everything
+       * downstream then treats the page as the picture it is.
+       *
+       * The page gets a key of its own rather than the video's `${key}:poster`
+       * convention, because unlike a first frame this one changes: turning to
+       * page two writes a new picture and lets the old one be swept, and two
+       * cards made from one document by duplicating it do not end up sharing
+       * a page number. */
+      const first = await renderPdfPage(key, file, 1)
+      const pageKey = first ? newKey('pg') : undefined
+      if (first && pageKey) {
+        await putBlob(pageKey, first.blob)
+        void ensureSource(pageKey, first.blob)
+      }
+      /* A4 in points, for a document that would not open at all: the card is
+       * then the shape of a page rather than a square, which reads as a
+       * document that failed rather than as something of no known kind. */
+      const nw = first?.w || 595
+      const nh = first?.h || 842
+      const box = fitBox(nw, nh)
+      yield {
+        ...base, kind: 'pdf', media: key, poster: pageKey,
+        pages: first?.pages || 1, page: 1, nw, nh, ...box,
+      }
       continue
     }
 

@@ -6,7 +6,7 @@ import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { LooksTab } from './LooksTab'
-import { canShade, isGradeable } from '../state/kinds'
+import { canShade, isGradeable, pixelKey } from '../state/kinds'
 import { IconEffects, IconSearch } from './icons'
 
 /* Every layer past the first is another full pass over the card, so this is a
@@ -102,9 +102,10 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
       ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`
       : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
 
-  /* A video card previews its effects on the still it was opened with; a
-   * remote one has no still to use, so its thumbnails stay blank. */
-  const previewKey = primary.kind === 'video' ? primary.poster : primary.media
+  /* A video card previews its effects on the still it was opened with, and a
+   * document on the page it is showing; a remote video has no still to use, so
+   * its thumbnails stay blank. */
+  const previewKey = pixelKey(primary)
 
   const patchFx = (patch: Partial<FxState>) => {
     /* A slider sweep is one undo step rather than none. */

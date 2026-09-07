@@ -79,6 +79,10 @@
 
   --bar-h: 52px;
   --panel-w: 320px;
+  /* The plate along the bottom of a card that carries its name. A token
+     because two things sit on that edge now: the plate itself, and the pager
+     on a document, which has to clear it. */
+  --chrome-h: 26px;
 }
 
 /* Dark is not the light theme upside down. The canvas falls further from the
@@ -573,7 +577,7 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
 .card-chrome {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
   display: flex; align-items: center; gap: var(--s2);
-  height: 26px; padding: 0 var(--s2);
+  height: var(--chrome-h); padding: 0 var(--s2);
   border-radius: 0 0 var(--r-md) var(--r-md);
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   backdrop-filter: blur(10px) saturate(1.2);
@@ -695,6 +699,52 @@ body[data-dragging] .card-chrome { opacity: 0; }
 /* The noise itself is set inline from src/board/grain.ts, so the card and an
    export of the card lay down the same one. */
 .grain { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; }
+
+/* ---------- documents ---------- */
+
+/* A page of a document is a picture, so it needs no styling of its own. What
+   does is the pager, and the card for a document this browser could not read.
+
+   The pager sits inside the card rather than over the board, so it moves and
+   scales with the page it belongs to, and it appears on the selected card the
+   way the video controls do: a board of reference decks should read as pages,
+   not as a wall of pagers. */
+.pager {
+  /* Above the name plate rather than behind it. Both appear on the same card
+     under the same conditions — hovered, or selected — so there is no width at
+     which one of them is not there to be cleared. */
+  position: absolute; left: 50%; bottom: calc(var(--chrome-h) + var(--s2)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-2);
+  opacity: 0; transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.card:hover .pager, .pager[data-on] { opacity: 1; pointer-events: auto; }
+.pager button {
+  width: 24px; height: 22px; border-radius: var(--r-sm);
+  font-size: var(--t-lg); line-height: 1; color: var(--ink-2);
+}
+.pager button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.pager button:disabled { color: var(--disabled); cursor: default; }
+.pager span {
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--muted);
+  padding: 0 var(--s1); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+@media (pointer: coarse) {
+  /* No hover to reveal it with, so it stands on the selected card and is big
+     enough to hit. */
+  .pager { opacity: 1; pointer-events: auto; }
+  .pager button { width: 34px; height: 30px; }
+}
+
+/* A document that could not be read: encrypted, damaged, or not really a PDF.
+   The card keeps the shape of a page and says what it is, which reads as a
+   document that failed rather than as a picture that never arrived. */
+.pdf-unread { display: grid; place-items: center; }
+.pdf-unread span {
+  font: 500 var(--t-sm)/1 var(--mono); letter-spacing: 0.08em; color: var(--muted);
+}
 
 /* ---------- video ---------- */
 

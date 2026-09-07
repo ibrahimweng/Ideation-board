@@ -1,7 +1,7 @@
 import type { Item } from './types'
 import { getBlob } from '../store/idb'
 import { newId } from './ingest'
-import { hasPixels } from './kinds'
+import { hasPixels, pixelKey } from './kinds'
 import { FX_0 } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -139,8 +139,11 @@ async function samplesFor(item: Item): Promise<Uint8ClampedArray | null> {
       sw = el.videoWidth
       sh = el.videoHeight
     } else {
-      if (!item.media) return null
-      const blob = await getBlob(item.media)
+      /* pixelKey rather than media, so a document is sampled from the page it
+         is showing rather than from the PDF file, which is not a picture. */
+      const key = pixelKey(item)
+      if (!key) return null
+      const blob = await getBlob(key)
       if (!blob) return null
       const bmp = await createImageBitmap(blob)
       source = bmp

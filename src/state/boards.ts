@@ -1,7 +1,7 @@
 import type { Item } from './types'
 import { delBoard, getBoard, putBoard } from '../store/idb'
 import type { StoredBoard } from '../store/idb'
-import { hasPixels } from './kinds'
+import { hasPixels, pixelKey } from './kinds'
 
 /* ---------------------------------------------------------------------------
  * Boards inside boards.
@@ -128,9 +128,9 @@ export function loadSummary(id: string): Promise<Summary> {
       name: rec?.name || 'Board',
       count: items.length,
       thumbs: items
-        .filter((i) => hasPixels(i) && (i.poster || i.media))
+        .filter((i) => hasPixels(i) && !!pixelKey(i))
         .slice(0, 4)
-        .map((i) => (i.kind === 'video' ? i.poster! : i.media!))
+        .map((i) => pixelKey(i)!)
         .filter(Boolean),
     }
     cache.set(id, s)

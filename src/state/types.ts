@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'edge'
+  | 'pdf' | 'edge'
 
 export interface Item {
   id: string
@@ -59,6 +59,16 @@ export interface Item {
    * and the answer never changes. An effected card reads it to decide whether
    * to feed the renderer one still or a reel of frames. */
   anim?: boolean
+  /* A document with more than one page in it, and which of them the card is
+   * showing. Both are one-based and both are written down rather than worked
+   * out, because counting the pages means parsing the file and a card has to
+   * be able to say "2 of 12" the moment it is drawn.
+   *
+   * The page itself is not here. It is a picture, kept under `poster` the way
+   * a video's still is, which is what lets a page take effects, be exported
+   * and give up its colours without any of that code knowing what a PDF is. */
+  pages?: number
+  page?: number
 }
 
 export interface Board {
@@ -72,7 +82,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  edge: 'ARR',
+  pdf: 'PDF', edge: 'ARR',
 }
 
 export const TAGS = [

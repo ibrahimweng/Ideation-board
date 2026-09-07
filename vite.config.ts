@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import fs from 'node:fs'
+import path from 'node:path'
 
 /* ---------------------------------------------------------------------------
  * The address the site is served from.
@@ -40,8 +42,51 @@ function siteMeta(): Plugin {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * The fonts pdf.js falls back on.
+ *
+ * A PDF that names Helvetica rather than embedding it needs the real outlines
+ * from somewhere, and without them its text renders as nothing at all — a page
+ * of shapes with the words missing, which is a worse answer than not showing
+ * the page. pdfjs-dist ships sixteen files for exactly this.
+ *
+ * Copied out of the package rather than committed, because they belong to that
+ * package and would go stale the moment it was updated. Served from this
+ * origin rather than from a CDN, because the one thing this app promises is
+ * that nothing it holds goes anywhere else.
+ * ------------------------------------------------------------------------- */
+function pdfFonts(): Plugin {
+  const from = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'standard_fonts')
+  const at = '/pdf-fonts/'
+  return {
+    name: 'ideation-pdf-fonts',
+    /* In development there is no dist to copy into, so they are served
+       straight out of the package. */
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = (req.url || '').split('?')[0]
+        if (!url.startsWith(at)) return next()
+        /* Only ever a bare file name from that one directory. */
+        const name = path.basename(decodeURIComponent(url.slice(at.length)))
+        const file = path.join(from, name)
+        if (!name || !fs.existsSync(file)) return next()
+        res.setHeader('Content-Type', 'font/otf')
+        fs.createReadStream(file).pipe(res)
+      })
+    },
+    writeBundle(options) {
+      const out = path.join(options.dir || 'dist', 'pdf-fonts')
+      if (!fs.existsSync(from)) return
+      fs.mkdirSync(out, { recursive: true })
+      for (const name of fs.readdirSync(from)) {
+        fs.copyFileSync(path.join(from, name), path.join(out, name))
+      }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), siteMeta()],
+  plugins: [react(), siteMeta(), pdfFonts()],
   worker: { format: 'es' },
   build: {
     target: 'es2022',

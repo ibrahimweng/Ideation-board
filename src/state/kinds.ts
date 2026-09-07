@@ -46,6 +46,11 @@ export const TRAITS: Record<Kind, Traits> = {
   /* The player's pixels are the provider's. Tone still applies, because tone
      is applied to the box the player is painted into. */
   embed: { thing: true, pixels: false, graded: true, media: false, words: false },
+  /* A page of it is a picture like any other, so everything that works on
+     pixels works here: the effects, the export, the palette. What is under
+     `media` is the document, and what is looked at is under `poster` — the
+     same split a video has, for the same reason. */
+  pdf: { thing: true, pixels: true, graded: true, media: true, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -101,6 +106,16 @@ export const isWire = (i?: Item | null): boolean => i?.kind === 'edge'
  * cross-origin reads has pixels in principle and none in practice, and the
  * difference is only knowable after asking. */
 export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readable !== false
+
+/* Which stored file holds the pixels of a card.
+ *
+ * For most cards that is `media`, because the file is the picture. For the two
+ * whose file is not itself an image — a video, and a document — it is the
+ * still kept beside it under `poster`. Three places were asking this with the
+ * same ternary written out by hand, and the third kind was the one that would
+ * have been missed. */
+export const pixelKey = (i?: Item | null): string | undefined =>
+  !i ? undefined : i.kind === 'video' || i.kind === 'pdf' ? i.poster : i.media
 
 /* Both ends of a wire, or nothing. */
 export const endsOf = (i?: Item | null): [string, string] | null =>

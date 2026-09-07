@@ -1240,6 +1240,7 @@ npm run test:reclaim -- http://localhost:5173
 npm run test:manyboards -- http://localhost:5173
 npm run test:stacked -- http://localhost:5173
 npm run test:big -- http://localhost:5173
+npm run test:pdf -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1308,6 +1309,14 @@ npm run bench
 - `test:manyboards` makes a second board, checks it is really separate, and then
   does the thing an in-app switcher could never do — opens both at once in two
   browser tabs and checks that working in one does not reach into the other.
+- `test:pdf` drops a document written by hand in `test/fixtures/pdf.mjs`, three
+  pages each a different colour with its own number on it, and checks the whole
+  path: that the page really renders rather than the card falling back to a
+  filename, that it is page one by its colour rather than by a counter, that
+  turning to page two changes the picture, that one undo goes back a page, that
+  an effect runs on a page the way it does on any picture, that the document
+  itself is still in storage afterwards with `%PDF` at the front of it, and that
+  all of it comes back after a reload on the page it was left on.
 - `test:big` is the only suite that works at scale. Two thousand cards, written
   straight into IndexedDB because that is how a board that size really arrives,
   then the questions that only have an answer at that size: does it open, is

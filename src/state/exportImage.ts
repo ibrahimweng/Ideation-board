@@ -5,7 +5,7 @@ import { coverUv } from '../engine/gl'
 import { adjustCSS, hasEffect } from '../board/adjust'
 import { GRAIN_SVG, GRAIN_TILE } from '../board/grain'
 import { safeName } from '../store/fs'
-import { hasPixels } from './kinds'
+import { hasPixels, pixelKey } from './kinds'
 
 /* ---------------------------------------------------------------------------
  * A card, as a picture you can hand to someone.
@@ -78,8 +78,9 @@ async function sourceFor(item: Item): Promise<ImageBitmap | null> {
       if (!el || !el.videoWidth) return null
       return await createImageBitmap(el)
     }
-    if (!item.media) return null
-    const blob = await getBlob(item.media)
+    const key = pixelKey(item)
+    if (!key) return null
+    const blob = await getBlob(key)
     if (!blob) return null
     return await createImageBitmap(blob)
   } catch {

@@ -221,6 +221,34 @@ on disk, with the media written next to a `board.json`.
 `media.ts` decodes pictures, pulls a still frame out of a video and manages
 object URLs.
 
+`pdf.ts` draws a page of a document. pdf.js is loaded through a dynamic import
+the first time a PDF is dropped, so a board that never holds one never fetches
+it, and the legacy build is the one asked for: the modern one calls a Map
+method new enough that a browser from last year does not have it, and the
+failure arrives as a document that will not open for no stated reason.
+
+## Documents
+
+A PDF card is a picture of a page with the file kept beside it, which is the
+same split a video card has: `media` is the document, `poster` is what you
+look at. That is what lets everything downstream work with no special case —
+the page goes to the graphics card, wears the effects, exports, and gives up
+its colours to the palette — because as far as all of that is concerned it is
+an image.
+
+Three places used to ask "is this a video, and therefore is its picture under
+poster?" with the same ternary written out by hand. `pixelKey` in `kinds.ts`
+is that question asked once, and adding a third kind whose file is not a
+picture meant changing one line rather than finding all three.
+
+Turning a page renders the new one, writes it under a fresh key and points the
+card at it, in one step of undo. The old page is left unreferenced, which is
+what the sweep in `store/reclaim.ts` collects, so paging through a long
+document does not fill the browser with pictures of pages nobody is looking
+at. The card keeps its size while the page changes, because the pages of a
+document are the same shape as each other and a card that resized itself on
+every turn would walk around the board.
+
 ## Adding an effect
 
 Add one entry to the `EFFECTS` array in `src/engine/effects.ts`. It needs:
