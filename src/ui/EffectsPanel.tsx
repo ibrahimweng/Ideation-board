@@ -8,7 +8,7 @@ import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
-import { DIST, PITCH, stageOf, takeOffSkin, turnTo, wearSkin } from '../state/staging'
+import { DIST, PITCH, stageOf, takeOffSkin, treatSkin, turnTo, wearSkin } from '../state/staging'
 import {
   addSoundLayer, chainOf, clearSound, dropSoundLayer, isSound, setSoundEffect, setSoundParam, treating,
 } from '../state/sounds'
@@ -17,6 +17,7 @@ import { STAGE_0 } from '../store/model'
 import type { Part, Stage } from '../store/model'
 import type { Item } from '../state/types'
 import { holdOriginal, releaseOriginal, useComparing } from '../board/original'
+import { hasEffect } from '../board/adjust'
 import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 
@@ -399,7 +400,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           {/* First, on a card that has one, because it is the thing the card
               is: everything below adjusts a picture, and this decides which
               picture there is to adjust. */}
-          {primary.kind === 'model' && <ModelSection it={primary} fed={fed} />}
+          {primary.kind === 'model' && <ModelSection it={primary} fed={fed} say={say} />}
 
           <section className="fx-controls">
             <h4>Presets</h4>
@@ -638,8 +639,11 @@ const partWhat = (p: Part): string => {
   return `${maps} \u00b7 ${uv}`
 }
 
-function ModelSection({ it, fed }: { it: Item; fed?: string }) {
+function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: string) => void }) {
   const stage = stageOf(it)
+  /* Which effect Treat would run, and whether there is one at all. */
+  const spec = BY_ID[it.fx.fxid] || BY_ID.none
+  const effected = hasEffect(it.fx)
   /* A sweep of the slider is one step of undo, like every other sweep in this
      panel — and unlike them it is one card, because where a camera stands is
      about the particular thing it is pointed at. */
@@ -666,6 +670,13 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
               ? 'Hand the card wired into this one to a material and the model wears it \u2014 as it looks now, effects and all. Press Wear again after changing it.'
               : 'Drag a wire from another card to this one, and you can hand its picture to any of these.'}
           </p>
+          {/* Treat is the half that works on what the model already had, and
+              the sequence is not obvious from the button alone. */}
+          <p className="fx-hint">
+            <b>Treat</b> runs the effect this card is set to over the texture a material came with.
+            Set the card back to Original afterwards to see the model with one material treated
+            rather than a treated picture of it.
+          </p>
           <ul className="part-list">
             {parts.map((p) => {
               const worn = it.skins?.[p.name]
@@ -681,6 +692,24 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
                       it again is how a material catches up with a card that
                       has been worked on since. */}
                   <span className="part-do">
+                    {/* The other half of the sentence: a material that came
+                        with a picture of its own can have the effect this card
+                        is set to run over that picture, rather than only
+                        having a different picture put on top of it. */}
+                    {p.maps.includes('colour') && (
+                      <button
+                        className="ghost"
+                        disabled={!effected || !unwrapped}
+                        title={
+                          !effected
+                            ? 'Choose an effect on the Effect tab first, then put it on a material.'
+                            : `Run ${spec.name} over the texture ${p.name} came with`
+                        }
+                        onClick={() => void treatSkin(it.id, p.name).then((why) => why && say(why))}
+                      >
+                        Treat
+                      </button>
+                    )}
                     <button
                       className="ghost"
                       disabled={!fed || !unwrapped}

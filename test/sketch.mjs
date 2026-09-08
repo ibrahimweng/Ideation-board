@@ -366,6 +366,60 @@ check('with the code that drew it', !!back && /drawImage/.test(back.code || ''),
 check('and the throw of the dice it was drawn on', typeof back?.roll === 'number', String(back?.roll))
 check('and the picture beside it', back?.poster === true)
 
+/* ---------- twelve of it ---------- */
+
+/* Roll again already gave another drawing, and comparing a dozen throws meant
+   pressing it a dozen times. V used to give twelve copies of the same drawing
+   with twelve different effects on it, because a sketch has pixels and pixels
+   get the picture dice — an answer to a different question. */
+const drawings = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open('ideation.board.db')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const r = t.objectStore('boards').getAll()
+      r.onsuccess = () => res(r.result || [])
+      r.onerror = () => res([])
+    })
+    return all.flatMap((b) => b.items || []).filter((i) => i.kind === 'sketch')
+      .map((i) => ({ id: i.id, roll: i.roll, poster: i.poster, fx: i.fx?.fxid, code: (i.code || '').length }))
+  })
+
+await page.keyboard.press('1')
+await page.waitForTimeout(1200)
+const oneSketch = await drawings()
+await page.locator('.card[data-kind="sketch"]').first().click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(600)
+await page.keyboard.press('v')
+await page.waitForTimeout(24000)
+
+const twelve = await drawings()
+const kids = twelve.filter((k) => !oneSketch.some((w) => w.id === k.id))
+check('one press makes twelve of a sketch', kids.length === 12, `${kids.length} made`)
+/* The throw is the thing that varies. Twelve different throws is twelve
+   different drawings; twelve effects on one throw is one drawing. */
+check('each on a throw of its own', new Set(kids.map((k) => k.roll)).size === 12,
+  `${new Set(kids.map((k) => k.roll)).size} distinct throws`)
+check('and every one of them was drawn', kids.every((k) => !!k.poster),
+  `${kids.filter((k) => k.poster).length} of 12 drawn`)
+check('from the same code, because that is what is being varied',
+  new Set(kids.map((k) => k.code)).size === 1, `${new Set(kids.map((k) => k.code)).size} distinct programs`)
+/* And not by putting effects on one drawing, which is what it used to do. */
+check('rather than by putting twelve effects on one drawing',
+  new Set(kids.map((k) => k.fx)).size === 1, kids.map((k) => k.fx).join(' '))
+
+fs.writeFileSync(path.join(OUT, 'sketch-twelve.png'), await page.screenshot())
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(2500)
+check('and the whole round is one press of undo', (await drawings()).length === 1,
+  `${(await drawings()).length} sketches left`)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

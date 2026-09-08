@@ -2,8 +2,10 @@ import { store } from './store'
 import { getBlob, putBlob } from '../store/idb'
 import { ensureSource } from '../board/sources'
 import { decodeCapped, newKey } from '../store/media'
-import { STAGE_0, renderModel } from '../store/model'
+import { STAGE_0, renderModel, textureOf } from '../store/model'
 import { exportSize, renderCardPicture } from './exportImage'
+import { getEngine } from '../engine/client'
+import { hasEffect } from '../board/adjust'
 import { feederCard, refreshFeeds } from './feeds'
 import type { Stage } from '../store/model'
 import type { Item } from './types'
@@ -216,6 +218,72 @@ export async function wearSkin(id: string, material: string): Promise<string | n
   const key = newKey('skn')
   await putBlob(key, blob)
 
+  const still = store.getItem(id)
+  if (!isStaged(still)) return null
+  store.beginGesture(0)
+  store.update(id, { skins: { ...(still.skins || {}), [material]: key } }, false)
+  await turnTo(id, stageOf(store.getItem(id)))
+  return null
+}
+
+/* ---------------------------------------------------------------------------
+ * Treating the texture a model came with.
+ *
+ * Wearing puts another card on a material. This is the other half of the same
+ * sentence and the half that was missing: a model that arrives with a colour
+ * map on it has a picture inside it, and until now the only thing that could
+ * be done to that picture was to throw it away and put a different one there.
+ *
+ * The treatment is the one the card is already set to. That is deliberate and
+ * it is what keeps this to a single button: you choose the effect in the
+ * Effect tab and tune its sliders watching the whole view, exactly as on any
+ * other card, and then say "that, on this material". No second effect picker,
+ * no second set of sliders, and the thing you were looking at while you tuned
+ * it is the thing that gets baked.
+ *
+ * Afterwards the card's own effect is usually worth setting back to Original,
+ * so that what you see is a model with one treated material rather than a
+ * treated picture of a model with one treated material. The panel says so.
+ * ------------------------------------------------------------------------- */
+
+export async function treatSkin(id: string, material: string): Promise<string | null> {
+  const it = store.getItem(id)
+  if (!isStaged(it)) return 'that card is not a model'
+  if (!hasEffect(it.fx)) return 'choose an effect first, then put it on a material'
+
+  const file = await getBlob(it.media!)
+  if (!file) return 'that model could not be read'
+  const src = await textureOf(it.media!, file, material)
+  if (!src) return `${material} has no texture of its own to treat`
+
+  /* The bitmap belongs to the parsed model, so the engine is handed a copy:
+   * renderOnce closes what it is given, and closing this one would take the
+   * texture off the model for the rest of the session. */
+  const mine = await createImageBitmap(src)
+  const out = await getEngine().renderOnce(mine, {
+    effectId: it.fx.fxid,
+    params: it.fx.ep,
+    stack: it.fx.more?.length ? it.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep, n: l.n })) : undefined,
+    n: it.fx.n,
+    seed: 11,
+    /* Square and generous. A texture is not a card and has no aspect to
+     * preserve; what it has is UVs, and stretching it would move the picture
+     * about on the model. */
+    width: Math.min(SKIN, src.width),
+    height: Math.min(SKIN, src.height),
+  })
+  if (!out) return 'that effect could not be run on the texture'
+
+  const canvas = document.createElement('canvas')
+  canvas.width = out.width
+  canvas.height = out.height
+  canvas.getContext('2d')?.drawImage(out, 0, 0)
+  out.close()
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, SKIN_TYPE, SKIN_Q))
+  if (!blob) return 'that texture could not be saved'
+
+  const key = newKey('skn')
+  await putBlob(key, blob)
   const still = store.getItem(id)
   if (!isStaged(still)) return null
   store.beginGesture(0)

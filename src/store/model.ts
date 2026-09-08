@@ -261,6 +261,66 @@ function dress(three: typeof THREE, scene: THREE.Group, look: Look): (() => void
   return undo
 }
 
+/* ---------------------------------------------------------------------------
+ * The texture a material already has.
+ *
+ * A model that arrives with a colour map on it has a picture inside it, and
+ * until now the only thing that could be done to that picture was to replace
+ * it. Reading it back out is what makes "add an effect to the texture" a thing
+ * this board can do at all — the effect engine wants an ImageBitmap and the
+ * loader has already made one, so this is a lookup rather than a decode.
+ *
+ * The bitmap belongs to the parsed model and is handed out rather than copied,
+ * so it must not be closed by whoever asked: closing it would take the texture
+ * off the model for the rest of the session. Everything that draws from it
+ * copies first.
+ * ------------------------------------------------------------------------- */
+
+export async function textureOf(key: string, file: Blob, material: string): Promise<ImageBitmap | null> {
+  const loaded = await load(key, file)
+  if (!loaded) return null
+  let found: ImageBitmap | null = null
+  loaded.got.scene.traverse((o) => {
+    if (found) return
+    const mesh = o as THREE.Mesh
+    if (!(mesh as unknown as { isMesh?: boolean }).isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const m of mats) {
+      const std = m as THREE.MeshStandardMaterial
+      if ((std.name || 'Unnamed') !== material) continue
+      const img = std.map?.image as ImageBitmap | HTMLImageElement | HTMLCanvasElement | undefined
+      if (!img) continue
+      /* glTF images arrive as ImageBitmap where the browser can make one and
+       * as an <img> where it cannot. Either draws. */
+      if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) found = img
+      else found = null
+    }
+  })
+  if (found) return found
+  /* An <img> or a canvas rather than a bitmap: made into one, which costs a
+   * copy and happens on the browsers that could not give us one to begin
+   * with. */
+  let other: HTMLImageElement | HTMLCanvasElement | null = null
+  loaded.got.scene.traverse((o) => {
+    if (other) return
+    const mesh = o as THREE.Mesh
+    if (!(mesh as unknown as { isMesh?: boolean }).isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const m of mats) {
+      const std = m as THREE.MeshStandardMaterial
+      if ((std.name || 'Unnamed') !== material) continue
+      const img = std.map?.image as HTMLImageElement | HTMLCanvasElement | undefined
+      if (img) other = img
+    }
+  })
+  if (!other) return null
+  try {
+    return await createImageBitmap(other)
+  } catch {
+    return null
+  }
+}
+
 /* Renders one view and hands back a PNG. Returns null for anything that is not
  * a model this can read, which the caller turns into an ordinary file card. */
 export async function renderModel(

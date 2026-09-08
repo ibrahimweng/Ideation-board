@@ -6,6 +6,8 @@ import { TRAITS, pixelKey } from './kinds'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
+import { forListening, roomForSound } from '../store/sound'
+import { wavePath } from '../store/audio'
 import { blendOf } from '../engine/types'
 import { pageHtml } from './pageHtml'
 import type { PageBoard, PageItem } from './pageHtml'
@@ -40,6 +42,7 @@ export interface PageResult {
   boards: number
   cards: number
   pictures: number
+  sounds: number
   bytes: number
 }
 
@@ -106,6 +109,33 @@ async function sourceFor(item: Item): Promise<ImageBitmap | null> {
   return null
 }
 
+/* The sound a card plays, small enough to live inside a page — or the reason
+ * it is not here.
+ *
+ * The treated render where there is one, exactly as Save the sound and the zip
+ * both answer it: what comes out is what the card plays. Then whichever is
+ * smaller, the file as it stands or a copy made for listening rather than for
+ * editing — an mp3 that arrived at 128 kbps is already smaller than anything
+ * this could encode, and a render out of the sound engine is four times bigger
+ * than a page needs. */
+async function soundFor(item: Item, spent: { sound: number }): Promise<{ snd: string } | { why: string }> {
+  const key = item.heard || item.media
+  if (!key) return { why: 'no sound file' }
+  const raw = await getBlob(key).catch(() => null)
+  if (!raw) return { why: 'not in this file' }
+  const small = await forListening(raw)
+  const use = small && small.size < raw.size ? small : raw
+  /* A board of sound design that arrives silent is a board of names in boxes,
+     so the sounds go in — but a sound is orders of magnitude heavier than a
+     picture of one, and the whole argument for this file is that it can be
+     sent. What that costs, and what a card says when it is over, is decided in
+     one place beside the encoder. */
+  const why = roomForSound(use.size, spent.sound, item.secs || 0)
+  if (why) return { why }
+  spent.sound += use.size
+  return { snd: await dataUri(use) }
+}
+
 /* A note's own little bit of formatting, as HTML rather than as marks.
  *
  * Done here rather than in the page, because the parser is a hundred lines and
@@ -164,7 +194,7 @@ export function noteHtml(text: string): string {
 /* One card, ready for the page. Pictures are baked; everything else is
  * described and drawn by the page itself, so a note stays selectable text and
  * costs a few hundred bytes rather than a photograph. */
-async function toPageItem(item: Item, onPicture: () => void): Promise<PageItem | null> {
+async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
   const base = {
     id: item.id,
     kind: item.kind,
@@ -198,7 +228,7 @@ async function toPageItem(item: Item, onPicture: () => void): Promise<PageItem |
       if (cv) {
         const blob = await encode(cv)
         if (blob) {
-          onPicture()
+          spent.pictures++
           return { ...base, img: await dataUri(blob), alt: item.name || item.kind }
         }
       }
@@ -218,9 +248,34 @@ async function toPageItem(item: Item, onPicture: () => void): Promise<PageItem |
   if (item.kind === 'section') return { ...base, text: item.text || '' }
   if (item.kind === 'link') return { ...base, url: item.url || '', text: item.text || '' }
   if (item.kind === 'board') return { ...base, board: item.board || '' }
-  /* Audio and files: named, placed, and not playable from a page that has no
-   * copy of them. Said plainly rather than pretended. */
+
+  /* A sound goes in with what it is playing and what it looks like — the same
+   * peaks the card on the board draws from, so a gate that chopped a track to
+   * pieces still looks like a track in pieces. The waveform is turned into a
+   * path here rather than in the page, because the page is meant to be the
+   * board rather than a copy of the app. */
+  if (item.kind === 'audio') {
+    const peaks = item.peaks || []
+    const wave = { bars: peaks.length, wave: wavePath(peaks), secs: item.secs || 0 }
+    const got = await soundFor(item, spent)
+    if ('snd' in got) {
+      spent.sounds++
+      return { ...base, ...wave, snd: got.snd }
+    }
+    return { ...base, ...wave, text: item.text || '', why: got.why }
+  }
+
+  /* Files: named, placed, and not openable from a page that has no copy of
+   * them. Said plainly rather than pretended. */
   return { ...base, text: item.text || '' }
+}
+
+/* What the page has cost so far. The picture count is for the sentence at the
+ * end; the sound total is a limit being kept to. */
+interface Spend {
+  pictures: number
+  sounds: number
+  sound: number
 }
 
 export interface PageOptions {
@@ -231,14 +286,14 @@ export interface PageOptions {
 export async function exportPage(rootId: string, opts: PageOptions = {}): Promise<PageResult> {
   const boards = await boardTree(rootId)
   const out: PageBoard[] = []
+  const spent: Spend = { pictures: 0, sounds: 0, sound: 0 }
   let cards = 0
-  let pictures = 0
 
   for (let i = 0; i < boards.length; i++) {
     const b = boards[i]
     const items: PageItem[] = []
     for (const raw of (b.items || []) as Item[]) {
-      const made = await toPageItem(raw, () => pictures++)
+      const made = await toPageItem(raw, spent)
       if (made) items.push(made)
     }
     cards += items.filter((it) => it.kind !== 'edge').length
@@ -254,7 +309,8 @@ export async function exportPage(rootId: string, opts: PageOptions = {}): Promis
     name: `${safeName(root?.name || 'board') || 'board'}.html`,
     boards: out.length,
     cards,
-    pictures,
+    pictures: spent.pictures,
+    sounds: spent.sounds,
     bytes: blob.size,
   }
 }

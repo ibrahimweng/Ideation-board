@@ -71,7 +71,7 @@ const dropFile = (bytes, name, type, at = { x: 620, y: 430 }) =>
     { data: [...bytes], name, type, at }
   )
 
-await dropFile(makeGltf(), 'lockup.gltf', 'model/gltf+json')
+await dropFile(makeGltf({ textured: true }), 'lockup.gltf', 'model/gltf+json')
 await page.waitForSelector('.card[data-kind="model"]', { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(2500)
 
@@ -178,8 +178,11 @@ check('the materials the file declares are read off it, in order',
 check('with the UV set each one reads, because the file says so',
   (read0?.parts || []).every((p) => JSON.stringify(p.uv) === '[0]'),
   JSON.stringify((read0?.parts || []).map((p) => p.uv)))
-check('and neither is textured yet, which is not the same as having no UVs',
-  (read0?.parts || []).every((p) => p.maps.length === 0))
+/* The fixture gives Shell a real colour map and leaves Trim flat, so "what is
+   this material textured with" has two different right answers to find. */
+check('and what each is textured with, where it is textured at all',
+  JSON.stringify((read0?.parts || []).map((p) => p.maps)) === '[["colour"],[]]',
+  JSON.stringify((read0?.parts || []).map((p) => p.maps)))
 check('the model file itself is kept, not thrown away once the picture was made',
   (read0?.fileSize || 0) > 400, `${read0?.fileSize} bytes`)
 check('with the view stored beside it', read0?.hasPoster === true)
@@ -250,10 +253,16 @@ check('the panel lists the materials', (await page.locator('.part').count()) ===
   `${await page.locator('.part').count()} rows`)
 const rowText = await page.locator('.part').first().innerText()
 check('by name', /Shell/.test(rowText), rowText.replace(/\n/g, ' / '))
+const trimText = await page.locator('.part').nth(1).innerText()
 check('and says what each is textured with and which UVs it reads',
-  /no textures/.test(rowText) && /UV 0/.test(rowText), rowText.replace(/\n/g, ' / '))
+  /colour/.test(rowText) && /UV 0/.test(rowText) && /no textures/.test(trimText),
+  `${rowText.replace(/\n/g, ' / ')}  |  ${trimText.replace(/\n/g, ' / ')}`)
 check('there is nothing to wear until a card is wired in',
-  await page.locator('.part button').first().isDisabled())
+  await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).isDisabled())
+/* And nothing to treat until an effect is chosen, which is the other half of
+   the same row and a different reason to be disabled. */
+check('and nothing to treat until an effect is chosen',
+  await page.locator('.part').first().locator('button', { hasText: 'Treat' }).isDisabled())
 
 /* ---------- wearing a card ---------- */
 
@@ -305,10 +314,10 @@ if (!(await page.locator('.part').count())) {
   await page.waitForTimeout(500)
 }
 check('and now the materials can be handed it',
-  !(await page.locator('.part button').first().isDisabled()))
+  !(await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).isDisabled()))
 
 const worn0 = await halves()
-await page.locator('.part').first().locator('button').click()
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
 await page.waitForTimeout(4000)
 
 const worn1 = await halves()
@@ -465,6 +474,63 @@ check('a card taken to greyscale is worn in greyscale',
 check('which is a different picture from the one before it',
   !!treated && !!plain && treated.key !== plain.key, `${plain?.key} then ${treated?.key}`)
 
+/* ---------- the texture it came with, treated ---------- */
+
+/* The other half of "add effects to those": a model that arrives with a colour
+   map has a picture inside it, and until this the only thing that could be
+   done to that picture was to throw it away and put another one there.
+
+   This is also the check the old fixture could not have made. It had no
+   textures at all, so every check about materials passed for want of anything
+   to fail on. */
+await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
+await page.waitForTimeout(3500)
+check('starting again from the texture the model came with', !(await saved())?.skins)
+
+const beforeTreat = await skin()
+check('with nothing worn, there is no skin file at all', beforeTreat === null)
+
+/* Choose an effect on the card, exactly as on any other card, then say "that,
+   on this material". */
+await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
+await page.waitForTimeout(700)
+await page.locator('.fx-thumb', { hasText: 'Threshold' }).first().click()
+await page.waitForTimeout(2200)
+await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.waitForTimeout(700)
+
+check('and now there is something to treat it with',
+  !(await page.locator('.part').first().locator('button', { hasText: 'Treat' }).isDisabled()))
+await page.locator('.part').first().locator('button', { hasText: 'Treat' }).click()
+await page.waitForTimeout(4500)
+
+const treatedSkin = await skin()
+check('the texture the model came with can be run through an effect',
+  !!treatedSkin && treatedSkin.key.startsWith('skn'), JSON.stringify(treatedSkin))
+/* The fixture texture is four flat colours. Threshold turns it to black and
+   white, so what comes back has to have lost its colour. */
+check('and what comes back is the effect, not the texture',
+  !!treatedSkin &&
+    Math.abs(treatedSkin.r - treatedSkin.g) < 30 && Math.abs(treatedSkin.g - treatedSkin.b) < 30,
+  JSON.stringify(treatedSkin))
+
+fs.writeFileSync(path.join(OUT, 'model-treated.png'), await page.screenshot())
+
+/* A material with no texture has nothing to treat, and says so rather than
+   offering a button that would do nothing. */
+check('a material with no texture of its own is not offered it',
+  (await page.locator('.part').nth(1).locator('button', { hasText: 'Treat' }).count()) === 0)
+
+/* Back to a worn card for the trip out of the browser below. */
+await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
+await page.waitForTimeout(600)
+await page.locator('.fx-thumb', { hasText: 'Original' }).first().click()
+await page.waitForTimeout(1500)
+await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.waitForTimeout(700)
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
+await page.waitForTimeout(4000)
+
 /* ---------- and taken off again ---------- */
 
 await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
@@ -527,7 +593,7 @@ await page.evaluate(() => {
 })
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1600)
-await dropFile(makeGltf(), 'lockup.gltf', 'model/gltf+json')
+await dropFile(makeGltf({ textured: true }), 'lockup.gltf', 'model/gltf+json')
 await page.waitForSelector('.card[data-kind="model"]', { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(2500)
 
@@ -542,6 +608,110 @@ const nowStage = (await saved())?.stage
 check('showing what it was left showing',
   !!nowStage && Math.abs(nowStage.yaw - wasStage.yaw) < 1 && Math.abs(nowStage.dist - wasStage.dist) < 0.01,
   `${JSON.stringify(wasStage)} then ${JSON.stringify(nowStage)}`)
+
+/* ---------- twelve of it ---------- */
+
+/* Pressing V on a model gave twelve treatments of one camera angle, because a
+   model card has pixels and pixels get the picture dice. The thing worth
+   having twelve of is the model, seen from twelve places — so the dice it gets
+   now are the camera's.
+
+   Three things make that true rather than merely different: twelve real
+   renders, twelve angles that go round the object instead of landing wherever
+   randomness put them, and twelve pictures that are not the same picture. */
+
+const models = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res) => {
+      const r = indexedDB.open('ideation.board.db')
+      r.onsuccess = () => res(r.result)
+    })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const r = t.objectStore('boards').getAll()
+      r.onsuccess = () => res(r.result || [])
+      r.onerror = () => res([])
+    })
+    return all
+      .flatMap((b) => b.items || [])
+      .filter((i) => i.kind === 'model')
+      .map((i) => ({ id: i.id, stage: i.stage, poster: i.poster }))
+  })
+
+const [SOURCE] = await models()
+await page.locator(`.card[data-id="${SOURCE.id}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await page.keyboard.press('v')
+
+/* Twelve three.js renders on a software rasteriser take as long as they take,
+   so this waits for the work rather than for a number of seconds. */
+let shot = []
+for (let i = 0; i < 60; i++) {
+  await page.waitForTimeout(2000)
+  shot = (await models()).filter((m) => m.id !== SOURCE.id)
+  if (shot.length === 12 && shot.every((m) => m.poster && m.poster !== SOURCE.poster)) break
+}
+check('twelve of the model, each photographed for itself',
+  shot.length === 12 && shot.every((m) => m.poster && m.poster !== SOURCE.poster),
+  `${shot.length} cards, ${shot.filter((m) => m.poster && m.poster !== SOURCE.poster).length} rendered`)
+
+/* Sorted round the circle, the distance from each angle to the next. Twelve
+   even shares of the turn, nudged, cannot leave a gap much wider than one
+   share; twelve random angles almost always do, and that gap is the half of
+   the object nobody got a look at. */
+const round = shot
+  .map((m) => ((((m.stage.yaw - SOURCE.stage.yaw) % 360) + 360) % 360))
+  .sort((a, b) => a - b)
+const gaps = round.map((a, i) => (i ? a - round[i - 1] : a + 360 - round[round.length - 1]))
+check('and they go round it, a share of the turn each, not wherever chance put them',
+  gaps.length === 12 && gaps.every((g) => g > 8 && g < 52),
+  `${Math.round(Math.min(...gaps))}° to ${Math.round(Math.max(...gaps))}° apart`)
+
+/* Angles differing is a fact about numbers. Pictures differing is the fact
+   worth having, so the renders themselves are read back and compared. */
+const looks = await page.evaluate(async (keys) => {
+  const db = await new Promise((res) => {
+    const r = indexedDB.open('ideation.board.db')
+    r.onsuccess = () => res(r.result)
+  })
+  const get = (key) =>
+    new Promise((res) => {
+      const t = db.transaction('blobs', 'readonly')
+      const r = t.objectStore('blobs').get(key)
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => res(null)
+    })
+  const out = []
+  for (const key of keys) {
+    const blob = await get(key)
+    if (!blob) { out.push('missing'); continue }
+    const bmp = await createImageBitmap(blob)
+    const c = document.createElement('canvas')
+    c.width = 16
+    c.height = 16
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.clearRect(0, 0, 16, 16)
+    cx.drawImage(bmp, 0, 0, 16, 16)
+    bmp.close()
+    const d = cx.getImageData(0, 0, 16, 16).data
+    let sig = ''
+    for (let i = 0; i < d.length; i += 4) {
+      sig += d[i + 3] < 128 ? '.' : String.fromCharCode(97 + ((d[i] + d[i + 1] * 2 + d[i + 2] * 3) % 26))
+    }
+    out.push(sig)
+  }
+  return out
+}, shot.map((m) => m.poster))
+check('and twelve different pictures, not one picture twelve times',
+  new Set(looks).size === 12, `${new Set(looks).size} distinct`)
+
+fs.writeFileSync(path.join(OUT, 'model-twelve.png'), await page.screenshot())
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(2500)
+check('and the whole round is one press of undo',
+  (await models()).length === 1, `${(await models()).length} models left`)
 
 /* ---------- something only named like one ---------- */
 

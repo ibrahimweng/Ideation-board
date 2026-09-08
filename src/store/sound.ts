@@ -537,3 +537,71 @@ export function toWav(buf: AudioBuffer): Blob {
   }
   return new Blob([bytes], { type: 'audio/wav' })
 }
+
+/* ---------------------------------------------------------------------------
+ * Out, as part of a page.
+ *
+ * A WAV is a hundred and seventy kilobytes a second, and an exported page
+ * carries its contents inside itself as text — which adds a third again. A
+ * twenty-second treatment would be seven megabytes of one HTML file, and the
+ * point of that file is that it can be sent.
+ *
+ * Pictures already make this trade on the way out: the page carries a copy at
+ * the size it is being looked at rather than the file it was made from. This
+ * is the same trade for the ear. One channel at 22 kHz is a quarter of the
+ * bytes, and it is what a laptop speaker was going to give you anyway.
+ *
+ * A file that arrived compressed is left alone by the caller, because nothing
+ * here can encode an mp3 and an mp3 is already smaller than this.
+ * ------------------------------------------------------------------------- */
+
+export const PAGE_RATE = 22050
+
+/* How much of a page may be sound.
+ *
+ * Two limits rather than one. The first is per sound: past about a minute a
+ * single card would be most of the page, and a minute is long enough for
+ * anything made by treating a moment. The second is the page: once that much
+ * has gone in, the rest are named and placed and say why they are not
+ * playable, which is the answer this had for every sound before.
+ *
+ * Both are measured before the text encoding, which adds a third on top. Six
+ * megabytes of sound is an eight megabyte page — about what a dozen
+ * photographs already cost. */
+export const SOUND_MAX = 3 * 1024 * 1024
+export const SOUND_BUDGET = 6 * 1024 * 1024
+
+/* Seconds as a clock, for saying how long the one that would not fit was. */
+export const clock = (secs: number): string => {
+  const s = Math.max(0, Math.round(secs || 0))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+/* Whether this one fits, and if not, what the card should say instead. The
+ * reason is written for the person reading the page rather than for the person
+ * who made it: they cannot do anything about it, so it says what is true about
+ * the card rather than what went wrong. */
+export function roomForSound(bytes: number, spent: number, secs: number): string | null {
+  if (bytes > SOUND_MAX) return `${clock(secs)} is too long to carry in a page`
+  if (spent + bytes > SOUND_BUDGET) return 'left out to keep the page small'
+  return null
+}
+
+export async function forListening(blob: Blob, rate = PAGE_RATE): Promise<Blob | null> {
+  try {
+    /* Decoding resamples to the context it is decoded into, so the rate is
+       chosen once, here, and the render below only has to fold the channels
+       down. A length of one frame: this context is opened to decode, not to
+       play. */
+    const buf = await offline(1, 1, rate).decodeAudioData(await blob.arrayBuffer())
+    const frames = Math.max(1, Math.round(buf.duration * rate))
+    const ctx = offline(1, frames, rate)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(ctx.destination)
+    src.start()
+    return toWav(await ctx.startRendering())
+  } catch {
+    return null
+  }
+}

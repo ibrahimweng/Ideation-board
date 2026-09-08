@@ -40,12 +40,21 @@ export interface PageItem {
   alt?: string
   /* A note, already turned into markup. */
   html?: string
+  /* A sound, as data, with the shape of it: the same peaks the card on the
+     board draws from, already turned into a path. */
+  snd?: string
+  wave?: string
+  bars?: number
+  secs?: number
   text?: string
   url?: string
   board?: string
   from?: string
   to?: string
   missing?: boolean
+  /* Why a card is only a name here — a sound too long to carry, a file that
+     was never in the page. Better than a box that says nothing. */
+  why?: string
 }
 
 export interface PageBoard {
@@ -128,6 +137,17 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .kindmark{font:11px var(--mono);letter-spacing:.08em;color:var(--muted)}
 .cname{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .curl{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.audio{gap:7px;padding:12px 13px}
+.audio audio{display:none}
+.sndhead{display:flex;align-items:center;gap:8px;min-width:0}
+.sndplay{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  background:var(--bg);border:1px solid var(--line);font-size:10px;line-height:1}
+.sndplay:hover{border-color:var(--accent);color:var(--accent)}
+.sndwave{flex:1;min-height:20px;cursor:pointer}
+.sndwave svg{display:block;width:100%;height:100%}
+.wrest{fill:var(--dot)}
+.wdone{fill:var(--accent)}
+.sndtime{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--muted)}
 .tag{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 2px var(--surface)}
 .pick{position:absolute;top:6px;right:8px;font-size:12px;line-height:1;padding:2px 5px;border-radius:5px;
   background:var(--surface);box-shadow:var(--sh);color:var(--muted)}
@@ -178,6 +198,48 @@ function wirePath(a, b) {
   const o1 = out(sa, d), o2 = out(sb, d)
   return 'M ' + p1.x + ' ' + p1.y + ' C ' + (p1.x + o1.x) + ' ' + (p1.y + o1.y) + ', ' +
          (p2.x + o2.x) + ' ' + (p2.y + o2.y) + ', ' + p2.x + ' ' + p2.y
+}
+
+/* Seconds as a clock. */
+function clock(secs) {
+  const s = Math.max(0, Math.floor(secs || 0))
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')
+}
+
+/* The waveform, drawn twice: the whole track, and the part of it that has
+   played, clipped to how far in you are. Built rather than written as markup,
+   because a card's own id goes into the clip path's name.
+
+   preserveAspectRatio="none" on purpose: the path is one unit tall and one per
+   bar wide, and the card stretches it to whatever shape the card is. */
+function wave(into, it) {
+  if (!it.wave) return null
+  const NS = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(NS, 'svg')
+  svg.setAttribute('viewBox', '0 0 ' + (it.bars || 1) + ' 1')
+  svg.setAttribute('preserveAspectRatio', 'none')
+  svg.setAttribute('aria-hidden', 'true')
+  const rest = document.createElementNS(NS, 'path')
+  rest.setAttribute('d', it.wave)
+  rest.setAttribute('class', 'wrest')
+  const clip = document.createElementNS(NS, 'clipPath')
+  clip.setAttribute('id', 'cp-' + it.id)
+  clip.setAttribute('clipPathUnits', 'userSpaceOnUse')
+  const rect = document.createElementNS(NS, 'rect')
+  rect.setAttribute('x', '0')
+  rect.setAttribute('y', '0')
+  rect.setAttribute('width', '0')
+  rect.setAttribute('height', '1')
+  clip.appendChild(rect)
+  const done = document.createElementNS(NS, 'path')
+  done.setAttribute('d', it.wave)
+  done.setAttribute('class', 'wdone')
+  done.setAttribute('clip-path', 'url(#cp-' + it.id + ')')
+  svg.appendChild(rest)
+  svg.appendChild(clip)
+  svg.appendChild(done)
+  into.appendChild(svg)
+  return rect
 }
 
 function apply() {
@@ -238,6 +300,59 @@ function show(id, keepView) {
       img.alt = it.alt || ''
       img.loading = 'lazy'
       img.addEventListener('click', (e) => { e.stopPropagation(); open(it) })
+    } else if (it.snd) {
+      /* A sound is the one card here that does something. Everything else on
+         this page is a picture of what was on the board; a sound that cannot
+         be played is a name in a box, and a board of sound design made of
+         names in boxes is not the board. */
+      n.classList.add('thing', 'audio')
+      const a = el('audio', null, n)
+      a.src = it.snd
+      a.preload = 'metadata'
+      const head = el('div', 'sndhead', n)
+      const play = el('button', 'sndplay', head)
+      play.type = 'button'
+      play.textContent = '\u25B6'
+      play.setAttribute('aria-label', 'Play')
+      el('span', 'cname', head).textContent = it.name || 'Sound'
+      const wrap = el('div', 'sndwave', n)
+      const rect = wave(wrap, it)
+      const line = el('div', 'sndtime', n)
+      const at = el('span', null, line)
+      const len = el('span', null, line)
+      at.textContent = clock(0)
+      len.textContent = clock(it.secs)
+      const draw = () => {
+        const secs = a.duration || it.secs || 0
+        if (rect) rect.setAttribute('width', String(secs ? (a.currentTime / secs) * (it.bars || 1) : 0))
+        at.textContent = clock(a.currentTime)
+      }
+      a.addEventListener('timeupdate', draw)
+      a.addEventListener('loadedmetadata', () => { len.textContent = clock(a.duration || it.secs) })
+      a.addEventListener('play', () => { play.textContent = '\u275A\u275A'; play.setAttribute('aria-label', 'Pause') })
+      a.addEventListener('pause', () => { play.textContent = '\u25B6'; play.setAttribute('aria-label', 'Play') })
+      a.addEventListener('ended', () => { a.currentTime = 0; draw() })
+      /* Both halves of the press. The click is the button's; the pointerdown
+         would otherwise reach the stage and start a drag of the whole board. */
+      play.addEventListener('pointerdown', (e) => e.stopPropagation())
+      play.addEventListener('click', (e) => {
+        e.stopPropagation()
+        /* One at a time. A board of twelve variations of a sound, all playing
+           at once, tells you nothing about any of them. */
+        if (a.paused) {
+          for (const other of world.querySelectorAll('audio')) if (other !== a) other.pause()
+          a.play().catch(() => {})
+        } else a.pause()
+      })
+      /* The waveform is the scrub bar, exactly as it is on the board. */
+      wrap.addEventListener('pointerdown', (e) => {
+        e.stopPropagation()
+        const box = wrap.getBoundingClientRect()
+        const secs = a.duration || it.secs || 0
+        if (!box.width || !secs) return
+        a.currentTime = Math.min(secs, Math.max(0, (e.clientX - box.left) / box.width) * secs)
+        draw()
+      })
     } else if (it.kind === 'note') {
       n.classList.add('thing', 'note')
       if (it.color) n.style.background = it.color
@@ -273,7 +388,8 @@ function show(id, keepView) {
       n.classList.add('thing', it.missing ? 'missing' : 'file')
       el('span', 'kindmark', n).textContent = (it.kind || 'card').toUpperCase()
       el('span', 'cname', n).textContent = it.name || it.text || it.kind
-      if (it.missing) el('span', 'curl', n).textContent = 'not in this file'
+      const said = it.why || (it.missing ? 'not in this file' : '')
+      if (said) el('span', 'curl', n).textContent = said
     }
 
     if (it.tag) {
