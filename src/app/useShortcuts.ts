@@ -66,6 +66,7 @@ export interface KeyActions {
   takeAway: () => void
   gather: () => void
   compare: () => void
+  vary: () => void
 }
 
 export function useShortcuts(a: KeyActions) {
@@ -187,6 +188,9 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.gather.key) { e.preventDefault(); a.gather(); return }
       /* And the deciding itself, which is nearly always between two things. */
       if (k === KEYS.compare.key) { e.preventDefault(); a.compare(); return }
+      /* Twelve versions of the picture, to decide between. Pressed again on
+         the batch it made, it breeds from whichever of them were kept. */
+      if (k === KEYS.vary.key) { e.preventDefault(); a.vary(); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {

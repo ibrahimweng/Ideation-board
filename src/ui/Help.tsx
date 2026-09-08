@@ -146,6 +146,14 @@ function parts(): Part[] {
             saved look never carries.
           </p>
           <p>
+            <K>{KEYS.vary.hint}</K> on a picture puts twelve versions of it underneath — a different
+            effect on each, and a tone to go with it. Mark the ones worth keeping with{' '}
+            <K>{KEYS.keep.hint}</K> and press <K>{KEYS.vary.hint}</K> again: the ones you did not mark
+            are replaced by twelve bred from the ones you did. Press it on a single version to go
+            further into that one. The whole round is one press of undo, and{' '}
+            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
+          </p>
+          <p>
             <strong>Layer</strong> is about two cards rather than one: an opacity, and how a card
             mixes with whatever it is sitting on. Lay a texture over a photograph on multiply, hold
             a scan at a quarter strength over the thing you are comparing it with, knock a wordmark

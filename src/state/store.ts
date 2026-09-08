@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
+import type { FxState } from '../engine/types'
 import { cloneBoard } from './boards'
 import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
 import { alignTo, clearGround, distributeAlong, gatherInto, tidyOnto } from './arrange'
@@ -420,6 +421,35 @@ export class BoardStore {
           if (cur && cur.kind === 'board') this.update(nid, { board: into }, false)
         })
       }
+    }
+    this.pingOrder()
+    this.touch()
+    return made
+  }
+
+  /* A batch of variations on one card.
+   *
+   * The ones being replaced go, the new ones arrive already placed, and the
+   * whole exchange is one press of undo — which is what makes a grid of twelve
+   * safe to play with. The looks and the places are worked out by the caller,
+   * because which twelve treatments are worth looking at is a question of
+   * taste; what belongs here is only that the exchange is atomic and that the
+   * copies point at the same picture rather than at twelve copies of it.
+   *
+   * `pick` is deliberately cleared. A variation inherits everything else from
+   * the card it came from, but not a decision that was made about that card. */
+  variantsOf(sourceId: string, drop: string[], place: { fx: FxState; x: number; y: number }[]): string[] {
+    const src = this.items.get(sourceId)
+    if (!src || (!drop.length && !place.length)) return []
+    this.snapshot()
+    if (drop.length) this.remove(drop, false)
+    const made: string[] = []
+    for (const p of place) {
+      const id = freshId()
+      this.put(id, { ...src, id, x: p.x, y: p.y, z: ++this.topZ, pick: null, fx: p.fx })
+      this.noteOrder()
+      this.order.push(id)
+      made.push(id)
     }
     this.pingOrder()
     this.touch()

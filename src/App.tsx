@@ -31,6 +31,7 @@ import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
+import { vary } from './state/variations'
 import { describeSweep, sweep } from './store/reclaim'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
@@ -99,7 +100,7 @@ export default function App() {
   const [spoken, setSpoken] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   /* The line along the bottom. */
-  const [busy, setBusy] = useState<{ text: string } | null>(null)
+  const [busy, setBusy] = useState<{ text: string; n?: number } | null>(null)
   /* And a way back out of something that has just been done, which outlives
    * the sentence announcing it.
    *
@@ -362,10 +363,17 @@ export default function App() {
     }
   }, [])
 
-  /* A line along the bottom that takes itself away again. */
+  /* A line along the bottom that takes itself away again.
+   *
+   * Each one carries a token rather than being recognised by its words. The
+   * same sentence said twice — which happens the moment any message answers a
+   * key you can press repeatedly — used to have the first timer clear the
+   * second one, so the second showing lasted whatever was left of the first. */
+  const sayId = useRef(0)
   const say = useCallback((msg: string, ms = 2200) => {
-    setBusy({ text: msg })
-    window.setTimeout(() => setBusy((b) => (b?.text === msg ? null : b)), ms)
+    const n = ++sayId.current
+    setBusy({ text: msg, n })
+    window.setTimeout(() => setBusy((b) => (b?.n === n ? null : b)), ms)
   }, [])
 
   /* Something done, and a few seconds in which to take it back. */
@@ -475,6 +483,21 @@ export default function App() {
       return
     }
     setComparing(true)
+  }, [say])
+
+  /* Twelve versions of the picture at once, and the view moved to them.
+   *
+   * The batch is left selected, so pressing the key again is another round on
+   * the same twelve rather than twelve more somewhere else — which is the loop
+   * the whole thing is for. */
+  const varyNow = useCallback(() => {
+    const r = vary()
+    say(r.say, r.made ? 3600 : 2200)
+    /* And into the live region as well. Twelve cards appearing is the single
+       largest thing any key on this board does, and a reader that is told
+       nothing about it is told nothing about the feature. */
+    setSpoken(r.say)
+    if (r.made) fitToBoard(true)
   }, [say])
 
   /* Curating ends in gathering: what survived, in a place of its own with a
@@ -1023,6 +1046,7 @@ export default function App() {
         exportPoster: (as) => void exportSheet(as),
         gather,
         compare,
+        vary: varyNow,
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
@@ -1036,7 +1060,7 @@ export default function App() {
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
-      gather, compare, takeAway, putHere, clippedCount, reclaim, deleteBoard,
+      gather, compare, varyNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
   )
@@ -1066,6 +1090,7 @@ export default function App() {
     takeAway,
     gather,
     compare,
+    vary: varyNow,
   })
 
   /* ---------- paste ---------- */

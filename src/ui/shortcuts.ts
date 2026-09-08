@@ -37,6 +37,9 @@ export const KEYS = {
   putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
   gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
+  /* The same letter as Put here, without the modifier — which is the pattern
+     already set by Draw and ⌘D, Export pictures and ⌘E, Add files and ⌘F. */
+  vary: { key: 'v', hint: 'V', label: 'Make twelve versions of the picture', short: 'Vary' },
   /* Held rather than pressed, which is why it is the only one here whose key
      is let go of again. Backslash is what every tool that grades a picture
      uses for this, and it is one of the few keys nothing else wanted. */

@@ -55,6 +55,7 @@
     "test:dialogs": "node test/dialogs.mjs",
     "test:framing": "node test/framing.mjs",
     "test:layer": "node test/layer.mjs",
+    "test:vary": "node test/vary.mjs",
     "test:stacked": "node test/stacked.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",

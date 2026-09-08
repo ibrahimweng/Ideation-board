@@ -1,4 +1,4 @@
-import type { EffectSpec } from './types'
+import type { EffectSpec, FxState } from './types'
 
 /* Control constructors. N = numeric slider, C = colour, E = enum/segmented. */
 const N = (k: string, label: string, min: number, max: number, step: number, def: number, unit?: string) =>
@@ -524,6 +524,22 @@ export const GROUPS: { name: string; items: EffectSpec[] }[] = (() => {
 })()
 
 /* Default parameter block for an effect. */
+/* The tone presets: a starting point rather than a destination, which is why
+ * the panel keeps every slider live after one is pressed. Kept here with the
+ * effects rather than in the panel because they are settings the app knows
+ * about, and two things now read them — the buttons, and the roller that makes
+ * a batch of variations. */
+export const PRESETS: { id: string; name: string; vals: Partial<FxState> }[] = [
+  { id: 'none', name: 'Original', vals: {} },
+  { id: 'bw', name: 'B&W', vals: { sat: 0, con: 12 } },
+  { id: 'noir', name: 'Noir', vals: { sat: 0, con: 36, exp: -8 } },
+  { id: 'faded', name: 'Faded', vals: { sat: 74, con: -18, exp: 10, warm: 12 } },
+  { id: 'warm', name: 'Warm', vals: { warm: 28, sat: 112, exp: 4 } },
+  { id: 'cool', name: 'Cool', vals: { warm: -26, sat: 106, con: 8 } },
+  { id: 'punch', name: 'Punch', vals: { con: 28, sat: 134 } },
+  { id: 'print', name: 'Print', vals: { sat: 86, con: 12, grain: 30, warm: 8 } },
+]
+
 export function defaults(id: string): Record<string, number | string> {
   const spec = BY_ID[id] || BY_ID.none
   const out: Record<string, number | string> = {}

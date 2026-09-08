@@ -1,6 +1,6 @@
 import { memo, useId, useMemo, useRef, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
-import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
+import { EFFECTS, GROUPS, BY_ID, PRESETS, defaults } from '../engine/effects'
 import { ADJUST_0, BLENDS, blendOf, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
@@ -28,17 +28,6 @@ const MAX_LAYERS = 4
  * same worker, the same resident texture and the same zero-copy delivery as a
  * full card, so the strip costs a handful of small draw calls and no encoding.
  * ------------------------------------------------------------------------- */
-
-const PRESETS: { id: string; name: string; vals: Partial<FxState> }[] = [
-  { id: 'none', name: 'Original', vals: {} },
-  { id: 'bw', name: 'B&W', vals: { sat: 0, con: 12 } },
-  { id: 'noir', name: 'Noir', vals: { sat: 0, con: 36, exp: -8 } },
-  { id: 'faded', name: 'Faded', vals: { sat: 74, con: -18, exp: 10, warm: 12 } },
-  { id: 'warm', name: 'Warm', vals: { warm: 28, sat: 112, exp: 4 } },
-  { id: 'cool', name: 'Cool', vals: { warm: -26, sat: 106, con: 8 } },
-  { id: 'punch', name: 'Punch', vals: { con: 28, sat: 134 } },
-  { id: 'print', name: 'Print', vals: { sat: 86, con: 12, grain: 30, warm: 8 } },
-]
 
 export type PanelTab = 'effect' | 'adjust' | 'looks'
 
