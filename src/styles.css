@@ -1257,6 +1257,20 @@ body[data-turning] .card-chrome { opacity: 0; }
 }
 .preset-row button[data-on], .flip-row button[data-on], .blend-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 
+/* A sound's effects, listed by name with what they do. There is no thumbnail
+   for a sound — you have to hear it — so the list has to say something. */
+.snd-grid { display: flex; flex-direction: column; gap: 4px; }
+.snd-pick {
+  display: flex; flex-direction: column; gap: 1px; text-align: left;
+  padding: 7px 9px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--muted);
+}
+.snd-pick b { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
+.snd-pick em { font-style: normal; font-size: var(--t-xs); color: var(--faint); }
+.snd-pick[data-on] { border-color: var(--ink); background: var(--sunk); }
+.snd-pick:hover { border-color: var(--ink); }
+.snd-pick:disabled { opacity: 0.5; }
+
 /* The materials a model declares. A row is a fact read off the file — its
    name, what it is textured with, whether it was ever unwrapped — with the one
    thing you can do about it on the end. */

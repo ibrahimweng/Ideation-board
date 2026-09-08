@@ -59,6 +59,9 @@ function keysOf(item: Item, into: Set<string>) {
     into.add(item.media + ':poster')
   }
   if (item.poster) into.add(item.poster)
+  /* What a treated sound plays. The file it was made from is under `media`
+     above; this is the render, and it is the only thing pointing at it. */
+  if (item.heard) into.add(item.heard)
   /* A picture a model is wearing is held by address rather than by card, so it
      survives the card it came from being deleted — and it has to survive this
      sweep too, or the model would lose its skin the next time it turned. */

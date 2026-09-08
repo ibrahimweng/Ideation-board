@@ -13,6 +13,8 @@ import { download, safeName } from './store/fs'
 import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
 import { exportCards } from './state/exportImage'
 import { exportModels } from './state/exportModel'
+import { exportSounds } from './state/exportSound'
+import { isSound } from './state/sounds'
 import { sketchItem, runSketch } from './state/sketches'
 import { isStaged } from './state/staging'
 import { zip } from './store/zip'
@@ -707,6 +709,37 @@ export default function App() {
     }
   }, [])
 
+  /* And a sound goes out as the sound it has become. */
+  const exportHeard = useCallback(async (ids: string[]) => {
+    const items = ids.map((id) => store.getItem(id)).filter(isSound)
+    if (!items.length) {
+      setBusy({ text: 'Select a sound to export' })
+      window.setTimeout(() => setBusy(null), 2200)
+      return
+    }
+    setBusy({ text: items.length > 1 ? `Writing ${items.length} sounds\u2026` : 'Writing the sound\u2026' })
+    try {
+      const made = await exportSounds(items)
+      if (!made.length) {
+        setBusy({ text: 'That sound could not be written' })
+        window.setTimeout(() => setBusy(null), 2600)
+        return
+      }
+      if (made.length === 1) {
+        download(made[0].blob, made[0].name)
+        setBusy({ text: `Exported ${made[0].name}` })
+      } else {
+        const bundle = await zip(made.map((m) => ({ name: m.name, blob: m.blob })))
+        download(bundle, `${safeName(store.name || 'board')}-sounds.zip`)
+        setBusy({ text: `Exported ${made.length} sounds` })
+      }
+      window.setTimeout(() => setBusy(null), 2600)
+    } catch (err) {
+      setBusy({ text: err instanceof Error ? err.message : 'That could not be exported' })
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
   /* The board itself, flat, in one file that opens anywhere. What counts as
    * "the board" is one question answered in one place — see state/subject.ts —
    * so this and Present and the command names never disagree about it. */
@@ -1096,6 +1129,7 @@ export default function App() {
         exportBoard: () => void exportBoard(),
         exportPictures: (ids) => void exportPictures(ids),
         exportModels: (ids) => void exportSolids(ids),
+        exportSounds: (ids) => void exportHeard(ids),
         pullColours: (ids) => void pullColours(ids),
         keepInFolder: () => void keepInFolder(),
         copyToFolder: () => void copyToFolder(),
@@ -1125,7 +1159,7 @@ export default function App() {
       }),
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
-      exportBoard, exportPictures, exportSolids, exportSheet, pullColours, keepInFolder, copyToFolder,
+      exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, keepInFolder, copyToFolder,
       gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]

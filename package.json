@@ -52,6 +52,7 @@
     "test:design": "node test/design.mjs",
     "test:model": "node test/model.mjs",
     "test:sketch": "node test/sketch.mjs",
+    "test:sound": "node test/sound.mjs",
     "test:finish": "node test/finish.mjs",
     "test:plate": "node test/plate.mjs",
     "test:dialogs": "node test/dialogs.mjs",

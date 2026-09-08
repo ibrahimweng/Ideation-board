@@ -178,6 +178,28 @@ function parts(): Part[] {
       ),
     },
     {
+      id: 'sound',
+      title: 'Sound',
+      body: (
+        <>
+          <p>
+            A sound card draws its own waveform and plays. Select one and the panel becomes a{' '}
+            <strong>Sound</strong> panel: thirteen effects in a chain of up to four — speed, reverse,
+            trim, wow and flutter, filter, drive, bit crush, ring mod, delay, reverb, chorus, tremolo
+            and a gate. It is rendered rather than played through, so the card keeps the treatment
+            when you come back to it, the waveform on the card is the treated sound, and you can
+            take it out of the board.
+          </p>
+          <p>
+            The file you dropped is never written over. <strong>Back to the original</strong> puts
+            the card back on it, because it was there the whole time.{' '}
+            <strong>Export the selected sound</strong> in the command list hands you what the card
+            plays, as a WAV.
+          </p>
+        </>
+      ),
+    },
+    {
       id: 'sketches',
       title: 'Cards you write',
       body: (
