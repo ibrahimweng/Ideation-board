@@ -259,7 +259,15 @@ function parts(): Part[] {
             thing you are designing. It takes the card <em>as it looks</em> — the effect on it, the
             tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
             picture taken at the moment you press it rather than a live link, so press{' '}
-            <strong>Again</strong> after working on the card. <strong>Export the selected model as a .glb</strong> in the
+            <strong>Again</strong> after working on the card.
+          </p>
+          <p>
+            And a material that came with a texture of its own can keep it and be treated instead.
+            Choose an effect on the card as you would on any picture, tuning it while you watch the
+            whole model, then press <strong>Treat</strong> on that material: the effect is run over
+            the texture the model arrived with and the model wears the result. Set the card back to{' '}
+            <strong>Original</strong> afterwards and what is left is a model with one material
+            treated, rather than a treated picture of a model. <strong>Export the selected model as a .glb</strong> in the
             command list hands it back as a model rather than a picture of one, carrying whatever
             you put on it, so it opens in the program it came from.
           </p>

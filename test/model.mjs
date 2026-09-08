@@ -71,7 +71,7 @@ const dropFile = (bytes, name, type, at = { x: 620, y: 430 }) =>
     { data: [...bytes], name, type, at }
   )
 
-await dropFile(makeGltf(), 'lockup.gltf', 'model/gltf+json')
+await dropFile(makeGltf({ textured: true }), 'lockup.gltf', 'model/gltf+json')
 await page.waitForSelector('.card[data-kind="model"]', { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(2500)
 
@@ -178,8 +178,11 @@ check('the materials the file declares are read off it, in order',
 check('with the UV set each one reads, because the file says so',
   (read0?.parts || []).every((p) => JSON.stringify(p.uv) === '[0]'),
   JSON.stringify((read0?.parts || []).map((p) => p.uv)))
-check('and neither is textured yet, which is not the same as having no UVs',
-  (read0?.parts || []).every((p) => p.maps.length === 0))
+/* The fixture gives Shell a real colour map and leaves Trim flat, so "what is
+   this material textured with" has two different right answers to find. */
+check('and what each is textured with, where it is textured at all',
+  JSON.stringify((read0?.parts || []).map((p) => p.maps)) === '[["colour"],[]]',
+  JSON.stringify((read0?.parts || []).map((p) => p.maps)))
 check('the model file itself is kept, not thrown away once the picture was made',
   (read0?.fileSize || 0) > 400, `${read0?.fileSize} bytes`)
 check('with the view stored beside it', read0?.hasPoster === true)
@@ -250,10 +253,16 @@ check('the panel lists the materials', (await page.locator('.part').count()) ===
   `${await page.locator('.part').count()} rows`)
 const rowText = await page.locator('.part').first().innerText()
 check('by name', /Shell/.test(rowText), rowText.replace(/\n/g, ' / '))
+const trimText = await page.locator('.part').nth(1).innerText()
 check('and says what each is textured with and which UVs it reads',
-  /no textures/.test(rowText) && /UV 0/.test(rowText), rowText.replace(/\n/g, ' / '))
+  /colour/.test(rowText) && /UV 0/.test(rowText) && /no textures/.test(trimText),
+  `${rowText.replace(/\n/g, ' / ')}  |  ${trimText.replace(/\n/g, ' / ')}`)
 check('there is nothing to wear until a card is wired in',
-  await page.locator('.part button').first().isDisabled())
+  await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).isDisabled())
+/* And nothing to treat until an effect is chosen, which is the other half of
+   the same row and a different reason to be disabled. */
+check('and nothing to treat until an effect is chosen',
+  await page.locator('.part').first().locator('button', { hasText: 'Treat' }).isDisabled())
 
 /* ---------- wearing a card ---------- */
 
@@ -305,10 +314,10 @@ if (!(await page.locator('.part').count())) {
   await page.waitForTimeout(500)
 }
 check('and now the materials can be handed it',
-  !(await page.locator('.part button').first().isDisabled()))
+  !(await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).isDisabled()))
 
 const worn0 = await halves()
-await page.locator('.part').first().locator('button').click()
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
 await page.waitForTimeout(4000)
 
 const worn1 = await halves()
@@ -465,6 +474,63 @@ check('a card taken to greyscale is worn in greyscale',
 check('which is a different picture from the one before it',
   !!treated && !!plain && treated.key !== plain.key, `${plain?.key} then ${treated?.key}`)
 
+/* ---------- the texture it came with, treated ---------- */
+
+/* The other half of "add effects to those": a model that arrives with a colour
+   map has a picture inside it, and until this the only thing that could be
+   done to that picture was to throw it away and put another one there.
+
+   This is also the check the old fixture could not have made. It had no
+   textures at all, so every check about materials passed for want of anything
+   to fail on. */
+await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
+await page.waitForTimeout(3500)
+check('starting again from the texture the model came with', !(await saved())?.skins)
+
+const beforeTreat = await skin()
+check('with nothing worn, there is no skin file at all', beforeTreat === null)
+
+/* Choose an effect on the card, exactly as on any other card, then say "that,
+   on this material". */
+await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
+await page.waitForTimeout(700)
+await page.locator('.fx-thumb', { hasText: 'Threshold' }).first().click()
+await page.waitForTimeout(2200)
+await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.waitForTimeout(700)
+
+check('and now there is something to treat it with',
+  !(await page.locator('.part').first().locator('button', { hasText: 'Treat' }).isDisabled()))
+await page.locator('.part').first().locator('button', { hasText: 'Treat' }).click()
+await page.waitForTimeout(4500)
+
+const treatedSkin = await skin()
+check('the texture the model came with can be run through an effect',
+  !!treatedSkin && treatedSkin.key.startsWith('skn'), JSON.stringify(treatedSkin))
+/* The fixture texture is four flat colours. Threshold turns it to black and
+   white, so what comes back has to have lost its colour. */
+check('and what comes back is the effect, not the texture',
+  !!treatedSkin &&
+    Math.abs(treatedSkin.r - treatedSkin.g) < 30 && Math.abs(treatedSkin.g - treatedSkin.b) < 30,
+  JSON.stringify(treatedSkin))
+
+fs.writeFileSync(path.join(OUT, 'model-treated.png'), await page.screenshot())
+
+/* A material with no texture has nothing to treat, and says so rather than
+   offering a button that would do nothing. */
+check('a material with no texture of its own is not offered it',
+  (await page.locator('.part').nth(1).locator('button', { hasText: 'Treat' }).count()) === 0)
+
+/* Back to a worn card for the trip out of the browser below. */
+await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
+await page.waitForTimeout(600)
+await page.locator('.fx-thumb', { hasText: 'Original' }).first().click()
+await page.waitForTimeout(1500)
+await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.waitForTimeout(700)
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
+await page.waitForTimeout(4000)
+
 /* ---------- and taken off again ---------- */
 
 await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
@@ -527,7 +593,7 @@ await page.evaluate(() => {
 })
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1600)
-await dropFile(makeGltf(), 'lockup.gltf', 'model/gltf+json')
+await dropFile(makeGltf({ textured: true }), 'lockup.gltf', 'model/gltf+json')
 await page.waitForSelector('.card[data-kind="model"]', { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(2500)
 
