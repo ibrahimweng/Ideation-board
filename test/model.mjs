@@ -157,10 +157,15 @@ const saved = () =>
     const it = items.find((i) => i.kind === 'model')
     if (!it) return null
     const file = await read('blobs', it.media)
+    const wornKey = it.skins ? Object.values(it.skins)[0] : null
+    const worn = wornKey ? await read('blobs', wornKey) : null
     return {
       parts: it.parts,
       stage: it.stage,
       skins: it.skins || null,
+      /* Whether the picture a material is wearing is really there, which is a
+         different question from whether the card remembers its name. */
+      wornBytes: worn?.size || 0,
       hasPoster: !!it.poster,
       fileSize: file?.size || 0,
     }
@@ -381,13 +386,75 @@ check('and it shows full screen like any other picture',
 await page.keyboard.press('Escape')
 await page.waitForTimeout(600)
 
-/* ---------- taking it off, and coming back ---------- */
+/* ---------- and taken off again ---------- */
 
 await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
 await page.waitForTimeout(600)
 await page.locator('.part').first().locator('button').click()
 await page.waitForTimeout(3500)
 check('and it can be taken off again', !(await saved())?.skins, JSON.stringify((await saved())?.skins))
+
+/* Back on, for the trip out of the browser below. */
+await page.locator('.part').first().locator('button').click()
+await page.waitForTimeout(3500)
+
+/* ---------- out of this browser and back into it ---------- */
+
+/* The picture a material is wearing is held by address rather than by card, so
+   a board that leaves has to take that file with it and rename it on the way
+   back in — or the model returns undressed the first time it is turned. */
+const [zipped] = await Promise.all([
+  page.waitForEvent('download', { timeout: 30000 }),
+  page.keyboard.press('Control+s'),
+])
+const zipFile = path.join(OUT, `model-${zipped.suggestedFilename()}`)
+await zipped.saveAs(zipFile)
+await page.waitForTimeout(800)
+const worn = await saved()
+check('a board with a dressed model exports', fs.statSync(zipFile).size > 2000,
+  `${fs.statSync(zipFile).size} bytes`)
+
+await page.evaluate(() => {
+  indexedDB.deleteDatabase('ideation.board.db')
+  localStorage.clear()
+})
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1600)
+await page.evaluate(
+  ({ data, name }) => {
+    const bin = atob(data)
+    const arr = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+    const dt = new DataTransfer()
+    dt.items.add(new File([arr], name, { type: 'application/zip' }))
+    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, clientX: 500, clientY: 400 })
+    Object.defineProperty(ev, 'dataTransfer', { value: dt })
+    document.querySelector('.viewport').dispatchEvent(ev)
+  },
+  { data: fs.readFileSync(zipFile).toString('base64'), name: path.basename(zipFile) }
+)
+await page.waitForSelector('.card[data-kind="board"]', { timeout: 20000 })
+await page.waitForTimeout(2500)
+
+const came = await saved()
+check('and comes back still wearing what it was given',
+  !!came?.skins && Object.keys(came.skins).length === 1, JSON.stringify(came?.skins))
+check('with the picture itself, renamed like everything else in the file',
+  (came?.wornBytes || 0) > 0 && came.skins.Shell !== worn?.skins?.Shell,
+  `${came?.wornBytes} bytes, ${worn?.skins?.Shell} then ${came?.skins?.Shell}`)
+
+/* Back to the board that was made here, for the last of the checks. */
+await page.evaluate(() => {
+  indexedDB.deleteDatabase('ideation.board.db')
+  localStorage.clear()
+})
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1600)
+await dropFile(makeGltf(), 'lockup.gltf', 'model/gltf+json')
+await page.waitForSelector('.card[data-kind="model"]', { timeout: 30000 }).catch(() => {})
+await page.waitForTimeout(2500)
+
+/* ---------- coming back ---------- */
 
 const wasStage = (await saved())?.stage
 await page.reload({ waitUntil: 'domcontentloaded' })
