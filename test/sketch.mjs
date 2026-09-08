@@ -210,19 +210,128 @@ check('and it says a card is wired in',
   /a card is wired in/.test(await page.locator('.sketch-hint').innerText()),
   await page.locator('.sketch-hint').innerText())
 
+/* The dice are in this one as well as the picture, so that rolling it later
+   shows whether it ran at all — drawing the same card again on its own would
+   produce the same picture whether the dice moved or not. */
 await write(`if (!img) throw new Error('nothing was wired in')
-ctx.drawImage(img, 0, 0, w, h)`)
+ctx.drawImage(img, 0, 0, w, h)
+ctx.fillStyle = 'rgb(0, ' + Math.round(rand(80, 250)) + ', 0)'
+ctx.fillRect(0, 0, w, h * 0.2)`)
 const read = await look()
 check('a sketch can read the card wired into it',
-  !!read && read.r > read.g + 80 && read.r > read.b + 80, JSON.stringify(read))
+  !!read && read.r > read.g + 40 && read.r > read.b + 60, JSON.stringify(read))
 
 fs.writeFileSync(path.join(OUT, 'sketch-wired.png'), await page.screenshot())
 
-/* ---------- a picture like any other ---------- */
-
 await page.locator('.sketch-sheet button', { hasText: 'Done' }).click()
 await page.waitForTimeout(700)
-await page.locator(`.card[data-id="${sketch}"]`).click()
+
+/* A narrow window, so that the reload below comes up with the panel closed.
+   What follows is about a board nothing has looked at yet, and the panel looks
+   at things — it asks which card feeds which, which is the one thing the roll
+   below must not depend on somebody having asked first. */
+await page.setViewportSize({ width: 860, height: 900 })
+await page.waitForTimeout(400)
+
+/* ---------- and it comes back ---------- */
+
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForSelector('.card[data-kind="sketch"]', { timeout: 20000 })
+await page.waitForTimeout(2500)
+check('a sketch comes back after a reload', (await page.locator('.card[data-kind="sketch"]').count()) === 1)
+
+/* ---------- rolled without opening it, on a board just opened ---------- */
+
+/* Which card feeds which is worked out when something on screen asks for it,
+   and none of this asks: the board has only just opened and the menu is not
+   React reading a card. If the wire were missed the sketch would throw rather
+   than draw, and the picture would not move at all — which is exactly what
+   this can tell apart, because the code uses the dice as well as the card. */
+check('and it comes up with nothing having asked about the wires',
+  (await page.locator('.panel').count()) === 0)
+
+/* What the board has actually written down, which is where the throw of the
+   dice lives: the picture alone cannot tell one press of undo from two,
+   because the first press puts the picture back either way. */
+const stored = async () => {
+  const read = () =>
+    page.evaluate(async () => {
+      const db = await new Promise((res, rej) => {
+        const r = indexedDB.open('ideation.board.db')
+        r.onsuccess = () => res(r.result)
+        r.onerror = () => rej(r.error)
+      })
+      const all = await new Promise((res) => {
+        const t = db.transaction('boards', 'readonly')
+        const r = t.objectStore('boards').getAll()
+        r.onsuccess = () => res(r.result || [])
+        r.onerror = () => res([])
+      })
+      const it = all.flatMap((b) => b.items || []).find((i) => i.kind === 'sketch')
+      return it ? it.roll : null
+    })
+  return read()
+}
+const settle = async (was, ms = 6000) => {
+  const until = Date.now() + ms
+  let now = await stored()
+  while (now === was && Date.now() < until) {
+    await page.waitForTimeout(200)
+    now = await stored()
+  }
+  return now
+}
+
+const beforeRoll = await look()
+const rollBefore = await stored()
+/* The board comes back where it was left, which by now is panned so that the
+   card is off the left of the window — and a card nobody can see is a card
+   nobody can right click. */
+await page.keyboard.press('1')
+await page.waitForTimeout(1400)
+const solid = page.locator('.card[data-kind="sketch"]').first()
+await solid.click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(300)
+await solid.click({ button: 'right', position: { x: 30, y: 8 } })
+await page.waitForTimeout(500)
+const entries = await page.locator('.menu > button').allInnerTexts()
+check('a sketch card offers to roll again without opening it',
+  entries.some((l) => l.includes('Roll again')), entries.map((l) => l.split('\n')[0]).join(' | '))
+await page.locator('.menu > button', { hasText: 'Roll again' }).click()
+await page.waitForTimeout(4000)
+
+const afterRoll = await look()
+check('and rolling it there really runs it',
+  !!afterRoll && !!beforeRoll && afterRoll.hash !== beforeRoll.hash,
+  `${beforeRoll?.hash} then ${afterRoll?.hash}`)
+check('with the wired card still read, on a board nothing had looked at yet',
+  /* Both halves, deliberately. A sketch handed nothing throws rather than
+     draws, and the card then goes on showing the picture from before — which
+     is red, and would pass a check that only asked about the colour. */
+  !!afterRoll && !!beforeRoll && afterRoll.hash !== beforeRoll.hash &&
+  afterRoll.r > afterRoll.g + 40 && afterRoll.r > afterRoll.b + 60,
+  JSON.stringify(afterRoll))
+
+const rollAfter = await settle(rollBefore)
+check('on a new throw of the dice', rollAfter !== rollBefore, `${rollBefore} then ${rollAfter}`)
+
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(1800)
+const undone = await look()
+check('and one press of undo puts the picture back',
+  !!undone && undone.hash === beforeRoll.hash, `${undone?.hash} want ${beforeRoll?.hash}`)
+/* The whole throw, not half of it. A roll that wrote the dice and the picture
+   as two steps looks undone after one press and is not: the next press would
+   take the picture back further while this one is still on the board. */
+check('and the dice with it, because a throw is one thing that happened',
+  (await settle(rollAfter)) === rollBefore, `${await stored()} want ${rollBefore}`)
+
+/* ---------- a picture like any other ---------- */
+
+await page.setViewportSize({ width: 1500, height: 950 })
+await page.waitForTimeout(700)
+const sketchId = await page.evaluate(() => document.querySelector('.card[data-kind="sketch"]')?.dataset.id)
+await page.locator(`.card[data-id="${sketchId}"]`).click()
 await page.waitForTimeout(400)
 if (!(await page.locator('.panel').count())) {
   await page.locator('.tool-mode').click()
@@ -233,17 +342,10 @@ await page.waitForTimeout(800)
 const thumb = page.locator('.fx-thumb', { hasText: 'Halftone' }).first()
 if (await thumb.count()) {
   await thumb.click()
-  await page.waitForTimeout(2200)
+  await page.waitForTimeout(2500)
 }
 check('every effect works on it, because it is a picture',
-  (await page.locator(`.card[data-id="${sketch}"] canvas.media`).count()) === 1)
-
-/* ---------- and it comes back ---------- */
-
-await page.reload({ waitUntil: 'domcontentloaded' })
-await page.waitForSelector('.card[data-kind="sketch"]', { timeout: 20000 })
-await page.waitForTimeout(2000)
-check('a sketch comes back after a reload', (await page.locator('.card[data-kind="sketch"]').count()) === 1)
+  (await page.locator(`.card[data-id="${sketchId}"] canvas.media`).count()) === 1)
 
 const back = await page.evaluate(async () => {
   const db = await new Promise((res, rej) => {

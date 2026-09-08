@@ -383,17 +383,47 @@ check('shuffle puts something on the card it was pressed on',
 check('and makes nothing new, because it is not a grid',
   (await settles(held)) === held, `${await onBoard()} of ${held}`)
 
-const first = treatment(rolled)
-await page.keyboard.press('r')
-await page.waitForTimeout(2500)
-check('pressing it again gives something else', treatment(await one(source)) !== first,
-  `${first} -> ${treatment(await one(source))}`)
+/* What the card is actually showing, rather than the CSS around it.
+ *
+ * This used to compare the tone and the framing, which is not what a shuffle
+ * mostly changes: a throw rolls a tone that does nothing about as often as it
+ * rolls any other, so two throws could leave the same empty filter behind and
+ * the check would call that a failure while the picture in front of it was
+ * plainly different. The picture is the claim, so the picture is what is
+ * read. */
+const shown = () =>
+  page.evaluate((cid) => {
+    const el = document.querySelector(`.card[data-id="${cid}"] .card-body canvas`)
+    if (!el) return null
+    const c = document.createElement('canvas')
+    c.width = 32
+    c.height = 32
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(el, 0, 0, 32, 32)
+    const d = cx.getImageData(0, 0, 32, 32).data
+    let h = 0
+    for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) | 0
+    return h
+  }, source)
+
+/* Five throws rather than one. A shuffle picks from forty-one effects and can
+   land on the one it just landed on — that is a fair throw rather than a bug —
+   so the claim worth checking is that pressing it again keeps giving you
+   something else, not that any single press is guaranteed to. */
+const seen = [await shown()]
+for (let i = 0; i < 4; i++) {
+  await page.keyboard.press('r')
+  await page.waitForTimeout(2400)
+  seen.push(await shown())
+}
+check('pressing it again gives something else', new Set(seen).size >= 4, JSON.stringify(seen))
+check('and every throw drew something', seen.every((h) => h !== null && h !== 0), JSON.stringify(seen))
 
 await page.evaluate(() => document.activeElement?.blur())
 await page.keyboard.press('Control+z')
-await page.waitForTimeout(900)
-check('and each throw is one press of undo', treatment(await one(source)) === first,
-  treatment(await one(source)))
+await page.waitForTimeout(2400)
+check('and each throw is one press of undo', (await shown()) === seen[seen.length - 2],
+  `${await shown()} want ${seen[seen.length - 2]}`)
 
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
