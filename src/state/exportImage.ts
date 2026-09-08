@@ -10,7 +10,7 @@ import { hasPixels, pixelKey } from './kinds'
 /* ---------------------------------------------------------------------------
  * A card, as a picture you can hand to someone.
  *
- * The board could put thirty-one shaders on a photograph and there was no way
+ * The board could put forty-one shaders on a photograph and there was no way
  * to get the result out of it. Everything the engine draws is sized for the
  * screen; this is the one path that is not. It decodes the original file at
  * its own resolution rather than the capped copy the board keeps on the GPU,

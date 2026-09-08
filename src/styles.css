@@ -604,6 +604,10 @@ body[data-framable] .card:is([data-kind='image'], [data-kind='video'], [data-kin
 }
 body[data-framing], body[data-framing] .card { cursor: grabbing; }
 body[data-framing] .card-chrome { opacity: 0; }
+/* Turning a model is the same gesture on a different kind of thing, so it
+   looks the same and gets out of the way the same. */
+body[data-turning], body[data-turning] .card { cursor: grabbing; }
+body[data-turning] .card-chrome { opacity: 0; }
 
 /* Over a photograph a plate is the wrong instrument: it lays a pale band
    across the picture. A scrim that fades to nothing does the same job — makes
@@ -1252,6 +1256,22 @@ body[data-framing] .card-chrome { opacity: 0; }
   border: 1px solid var(--line); color: var(--muted); background: var(--surface);
 }
 .preset-row button[data-on], .flip-row button[data-on], .blend-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+/* The materials a model declares. A row is a fact read off the file — its
+   name, what it is textured with, whether it was ever unwrapped — with the one
+   thing you can do about it on the end. */
+.part-list { display: flex; flex-direction: column; gap: 4px; }
+.part {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+}
+.part[data-worn] { border-color: var(--ink); }
+.part-tint { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); }
+.part-of { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.part-of b { font-size: var(--t-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.part-of em { font-style: normal; font-size: var(--t-xs); color: var(--faint); }
+.part button { padding: 4px 9px; font-size: var(--t-xs); white-space: nowrap; }
+.part button:disabled { opacity: 0.45; cursor: default; }
 
 .ghost {
   padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--line);

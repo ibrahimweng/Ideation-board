@@ -59,6 +59,10 @@ function keysOf(item: Item, into: Set<string>) {
     into.add(item.media + ':poster')
   }
   if (item.poster) into.add(item.poster)
+  /* A picture a model is wearing is held by address rather than by card, so it
+     survives the card it came from being deleted — and it has to survive this
+     sweep too, or the model would lose its skin the next time it turned. */
+  for (const key of Object.values(item.skins || {})) if (key) into.add(key)
 }
 
 /* Every file name anything still points at. Exported so a test can ask the

@@ -102,8 +102,8 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Drag pictures, video, audio or files from your computer onto the board — a folder at a
-            time is fine. Paste a link and it becomes a card; paste a YouTube or Vimeo link and it
+            Drag pictures, video, audio, PDFs, Photoshop or Illustrator files, 3D models or
+            anything else from your computer onto the board — a folder at a time is fine. Paste a link and it becomes a card; paste a YouTube or Vimeo link and it
             becomes something you can play. <K>{KEYS.note.hint}</K> writes a note,{' '}
             <K>{KEYS.label.hint}</K> a label, <K>{KEYS.section.hint}</K> a section to group things
             in. Drag from one card to another to draw a line between them.
@@ -123,7 +123,7 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Select a card and press <K>{KEYS.effects.hint}</K>. Thirty one effects, applied on the
+            Select a card and press <K>{KEYS.effects.hint}</K>. Forty one effects, applied on the
             graphics card, on as many pictures as you like at once — and on video and animated GIFs
             while they are still playing.
           </p>
@@ -173,6 +173,32 @@ function parts(): Part[] {
             a scan at a quarter strength over the thing you are comparing it with, knock a wordmark
             out of a colour field. A card over the empty board is untouched by it, so a mode set
             once goes on meaning the same thing wherever you move the card to.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: 'models',
+      title: 'Models',
+      body: (
+        <>
+          <p>
+            Drop a <strong>.glb</strong> or <strong>.gltf</strong> and you get a card showing the
+            model, not a grey rectangle with three letters on it. Hold <K>Alt</K> and drag it to
+            turn it round, <K>Alt</K> and scroll to move in and out; where you leave it is where it
+            is next time you open the board. From there it is a picture like any other — every
+            effect works on it, it exports, it gives up its colours to the palette, and{' '}
+            <K>{KEYS.vary.hint}</K> gives you twelve of it.
+          </p>
+          <p>
+            <strong>Adjust</strong> lists the materials the file declares, what each one is
+            textured with and whether it was ever unwrapped. None of that is guessed — a glTF says
+            so about itself, and this reads it. Draw a line from another card to the model and you
+            can hand that card to a material: press <strong>Wear</strong> and the model comes back
+            with your picture on it, which is the shortest route there is from a reference to the
+            thing you are designing. <strong>Export the selected model as a .glb</strong> in the
+            command list hands it back as a model rather than a picture of one, carrying whatever
+            you put on it, so it opens in the program it came from.
           </p>
         </>
       ),

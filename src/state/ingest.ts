@@ -6,6 +6,7 @@ import { isAnimated, mightMove } from '../store/anim'
 import { isPdf, renderPdfPage } from '../store/pdf'
 import { readSound } from '../store/audio'
 import { designPreview, isDesign, isPdfInside } from '../store/design'
+import { STAGE_0, VIEW, isModel, renderModel } from '../store/model'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -41,6 +42,9 @@ export function kindOf(mime: string, name: string): Kind {
      that cannot be told from the name alone, so it is settled by looking at
      the bytes when the file is read rather than guessed at here. */
   if (isDesign(name) || /\.ai$/i.test(name)) return 'design'
+  /* A .glb is what a product designer works in all day, and it used to land as
+     a grey rectangle with three letters on it. */
+  if (isModel(name, mime)) return 'model'
   if (/^text\/|\.(md|txt)$/i.test(mime + name)) return 'note'
   return 'file'
 }
@@ -218,6 +222,29 @@ export async function* ingest(
        * without its thumbnail, something only named like one. It is a file,
        * which is what all of these were before, rather than an empty card
        * pretending to be artwork. */
+      yield { ...base, kind: 'file', media: key, w: 260, h: 120 }
+      continue
+    }
+
+    if (kind === 'model') {
+      const shot = await renderModel(key, file, STAGE_0)
+      if (shot) {
+        const viewKey = newKey('pv')
+        await putBlob(viewKey, shot.blob)
+        void ensureSource(viewKey, shot.blob)
+        /* The view is square, and fitBox reads the picture's own size rather
+           than a ratio. */
+        const box = fitBox(VIEW, VIEW)
+        yield {
+          ...base, kind: 'model', media: key, poster: viewKey,
+          stage: { ...STAGE_0 }, parts: shot.parts,
+          nw: VIEW, nh: VIEW, ...box,
+        }
+        continue
+      }
+      /* Something only named like a model, or one this cannot read. It is a
+         file, which is what it was before, rather than an empty card
+         pretending to be a model. */
       yield { ...base, kind: 'file', media: key, w: 260, h: 120 }
       continue
     }

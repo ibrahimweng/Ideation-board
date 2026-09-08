@@ -50,6 +50,7 @@
     "test:pdf": "node test/pdf.mjs",
     "test:audio": "node test/audio.mjs",
     "test:design": "node test/design.mjs",
+    "test:model": "node test/model.mjs",
     "test:finish": "node test/finish.mjs",
     "test:plate": "node test/plate.mjs",
     "test:dialogs": "node test/dialogs.mjs",
@@ -71,12 +72,14 @@
   "dependencies": {
     "pdfjs-dist": "^6.3.289",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
     "@vitejs/plugin-react": "^4.3.4",
     "playwright": "^1.62.1",
     "typescript": "^5.6.3",

@@ -51,11 +51,15 @@ export const Card = memo(function Card({
   const objectUrl = useObjectURL(it?.media)
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
-  const pageUrl = useObjectURL(it?.kind === 'pdf' || it?.kind === 'design' ? it?.poster : undefined)
+  const pageUrl = useObjectURL(
+    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' ? it?.poster : undefined
+  )
   /* The cover out of a sound file, where it had one. */
   const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
   const ready = useSourceReady(
-    it?.kind === 'image' || it?.kind === 'pdf' || it?.kind === 'design' ? pixelKey(it) : undefined
+    it?.kind === 'image' || it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model'
+      ? pixelKey(it)
+      : undefined
   )
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
@@ -290,7 +294,7 @@ export const Card = memo(function Card({
               </div>
             ))}
 
-          {(it.kind === 'pdf' || it.kind === 'design') && (
+          {(it.kind === 'pdf' || it.kind === 'design' || it.kind === 'model') && (
             /* A page of a document, and the artwork inside a design file, are
                both pictures — so this is the image branch with a file around
                it: the same effects, the same canvas, the same fall back to the
@@ -315,7 +319,13 @@ export const Card = memo(function Card({
                 <img
                   className="media"
                   src={pageUrl}
-                  alt={it.kind === 'pdf' ? `Page ${it.page || 1} of ${it.name || 'document'}` : it.name || 'Artwork'}
+                  alt={
+                    it.kind === 'pdf'
+                      ? `Page ${it.page || 1} of ${it.name || 'document'}`
+                      : it.kind === 'model'
+                        ? `${it.name || 'Model'}, turned to ${Math.round(it.stage?.yaw ?? 0)} degrees`
+                        : it.name || 'Artwork'
+                  }
                   draggable={false}
                 />
               ) : (

@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'pdf' | 'design' | 'edge'
+  | 'pdf' | 'design' | 'model' | 'edge'
 
 export interface Item {
   id: string
@@ -32,6 +32,17 @@ export interface Item {
    * drawn from wherever these two cards are. */
   from?: string
   to?: string
+  /* A model's camera, so a card comes back showing what it was left showing.
+   * Degrees round it and up from its equator, and a distance where one is the
+   * model exactly filling the card — which means the numbers mean the same on
+   * a ring and on a building. */
+  stage?: { yaw: number; pitch: number; dist: number }
+  /* The materials the file declares, what each one is textured with and which
+   * UV set those textures read. Kept on the card so the panel can show it
+   * without parsing the model again. */
+  parts?: { name: string; maps: string[]; uv: number[]; tint: string }[]
+  /* Material name -> the media key of a card being worn as its colour map. */
+  skins?: Record<string, string>
   /* Video cards only, and only for ones loaded from a URL: whether the host
    * lets us read the video's pixels back. False means the picture plays but
    * shaders cannot run on it. Undefined for local files, whose pixels are
@@ -94,7 +105,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  pdf: 'PDF', design: 'ART', edge: 'ARR',
+  pdf: 'PDF', design: 'ART', model: '3D', edge: 'ARR',
 }
 
 export const TAGS = [

@@ -55,6 +55,11 @@ export const TRAITS: Record<Kind, Traits> = {
      under `media`, the picture inside it under `poster`. What is different is
      only that there is one picture rather than a run of pages. */
   design: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* A model is a rendered view of itself and the file beside it, which is the
+     same shape a document has: the .glb under `media`, the picture under
+     `poster`. Everything that works on pixels then works on it — the effects,
+     the export, the palette, being read through by another card. */
+  model: { thing: true, pixels: true, graded: true, media: true, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -118,7 +123,7 @@ export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readab
  * still kept beside it under `poster`. Three places were asking this with the
  * same ternary written out by hand, and the third kind was the one that would
  * have been missed. */
-const BESIDE = new Set<string>(['video', 'pdf', 'design'])
+const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model'])
 export const pixelKey = (i?: Item | null): string | undefined =>
   !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
 

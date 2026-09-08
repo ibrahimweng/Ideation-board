@@ -19,6 +19,7 @@ import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
 import { canFrame, reframeWheel, startReframe } from './reframe'
+import { canTurn, startTurn, turnWheel } from './turning'
 import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
@@ -196,7 +197,8 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       /* Alt over a picture scales it inside its own card rather than moving
-         the board underneath it. */
+         the board underneath it, and over a model goes in and out. */
+      if (turnWheel(e)) return
       if (reframeWheel(e)) return
       const engine = getEngine()
       engine.touch()
@@ -325,7 +327,10 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       /* The panel follows what you are framing, but a selection you built on
          purpose is not thrown away to do it. */
       if (!store.isSelected(id)) store.select([id])
-      startReframe(e, id)
+      /* On a model there is no picture to push about — there is a thing, and
+         the same gesture turns it round to show the other side. */
+      if (canTurn(store.getItem(id))) startTurn(e, id)
+      else startReframe(e, id)
       return
     }
     /* Held still, a finger means the same as a right button. Cancelled below

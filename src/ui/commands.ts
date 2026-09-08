@@ -39,6 +39,7 @@ export interface CommandActions {
   importBoard: () => void
   exportBoard: () => void
   exportPictures: (ids: string[]) => void
+  exportModels: (ids: string[]) => void
   pullColours: (ids: string[]) => void
   keepInFolder: () => void
   copyToFolder: () => void
@@ -134,6 +135,12 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('arrange.spready', 'Space the selection out down', 'Arrange', () => store.distribute(sel(), 'y'), { disabled: a.selection.length < 3 }),
 
     cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => a.exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
+    /* A model card exports as a picture like everything else; this is the one
+       that hands back a model, wearing whatever was put on its materials. */
+    cmd('out.model', 'Export the selected model as a .glb', 'Take out', () => a.exportModels(sel()), {
+      disabled: !a.selection.some((id) => store.getItem(id)?.kind === 'model'),
+      keywords: 'glb gltf 3d model save download three',
+    }),
     /* The other way out: not a file, but an agent given the board to work on. */
     cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),

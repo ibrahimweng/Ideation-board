@@ -8,6 +8,10 @@ import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
+import { DIST, PITCH, stageOf, turnTo, wearSkin } from '../state/staging'
+import { STAGE_0 } from '../store/model'
+import type { Part, Stage } from '../store/model'
+import type { Item } from '../state/types'
 import { holdOriginal, releaseOriginal, useComparing } from '../board/original'
 import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
@@ -242,7 +246,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
-          {/* Thirty one of them in a three across grid is more than anyone can
+          {/* Forty one of them in a three across grid is more than anyone can
               scan, and knowing the name is faster than finding the picture. */}
           <div className="fx-find">
             <IconSearch />
@@ -379,6 +383,11 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'adjust' && (
         <div className="panel-scroll">
+          {/* First, on a card that has one, because it is the thing the card
+              is: everything below adjusts a picture, and this decides which
+              picture there is to adjust. */}
+          {primary.kind === 'model' && <ModelSection it={primary} fed={fed} />}
+
           <section className="fx-controls">
             <h4>Presets</h4>
             <div className="preset-row">
@@ -452,6 +461,104 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
         </div>
       )}
     </aside>
+  )
+}
+
+/* ---------------------------------------------------------------------------
+ * A model, on its stand.
+ *
+ * Two things, and they are different in kind. The first is where the camera
+ * is, which is a picture decision and belongs with the other picture
+ * decisions. The second is the list of materials the file declares — and that
+ * is not a control at all, it is the model telling you what it is made of.
+ *
+ * Nothing here is guessed. A glTF says which materials it has, which texture
+ * slots each one fills and which UV set those textures read; this is that
+ * list, read off the file and shown. What it is for is the button at the end
+ * of each row: a card wired into this one can be handed to one material, and
+ * the model comes back wearing it — the label on the tin, the print on the
+ * fabric, the sticker on the case. A moodboard where the reference lands on
+ * the thing being designed, instead of beside it.
+ * ------------------------------------------------------------------------- */
+
+const DEG = '\u00b0'
+
+/* What the file says this material is. */
+const partWhat = (p: Part): string => {
+  const maps = p.maps.length ? p.maps.join(', ') : 'no textures'
+  /* -1 means the mesh was never unwrapped, so there is nowhere on it for a
+     picture to sit — which is a different answer from "not textured yet" and
+     the only one that stops the button below being worth pressing. */
+  const uv = p.uv.includes(-1) ? 'not unwrapped' : 'UV ' + p.uv.join(' and ')
+  return `${maps} \u00b7 ${uv}`
+}
+
+function ModelSection({ it, fed }: { it: Item; fed?: string }) {
+  const stage = stageOf(it)
+  /* A sweep of the slider is one step of undo, like every other sweep in this
+     panel — and unlike them it is one card, because where a camera stands is
+     about the particular thing it is pointed at. */
+  const set = (patch: Partial<Stage>) => {
+    store.beginGesture(600)
+    void turnTo(it.id, { ...stage, ...patch })
+  }
+  const parts = it.parts || []
+  return (
+    <>
+      <section className="fx-controls">
+        <h4>View</h4>
+        <p className="fx-hint">Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
+        <Slider label="Turn" def={STAGE_0.yaw} min={-180} max={180} step={1} unit={DEG} value={stage.yaw} onChange={(v) => set({ yaw: v })} />
+        <Slider label="Tilt" def={STAGE_0.pitch} min={-PITCH} max={PITCH} step={1} unit={DEG} value={stage.pitch} onChange={(v) => set({ pitch: v })} />
+        <Slider label="Distance" def={STAGE_0.dist} min={DIST.min} max={DIST.max} step={0.05} value={stage.dist} onChange={(v) => set({ dist: v })} />
+      </section>
+
+      {!!parts.length && (
+        <section className="fx-controls">
+          <h4>Materials</h4>
+          <p className="fx-hint">
+            {fed
+              ? 'Hand the card wired into this one to a material and the model wears it.'
+              : 'Drag a wire from another card to this one, and you can hand its picture to any of these.'}
+          </p>
+          <ul className="part-list">
+            {parts.map((p) => {
+              const worn = it.skins?.[p.name]
+              const unwrapped = !p.uv.includes(-1)
+              return (
+                <li key={p.name} className="part" data-worn={worn ? '' : undefined}>
+                  <i className="part-tint" style={{ background: p.tint }} aria-hidden="true" />
+                  <span className="part-of">
+                    <b>{p.name}</b>
+                    <em>{partWhat(p)}</em>
+                  </span>
+                  {worn ? (
+                    <button className="ghost" onClick={() => void wearSkin(it.id, p.name, null)}>
+                      Take off
+                    </button>
+                  ) : (
+                    <button
+                      className="ghost"
+                      disabled={!fed || !unwrapped}
+                      title={
+                        !unwrapped
+                          ? `${p.name} has no UVs, so a picture has nowhere to sit on it.`
+                          : !fed
+                            ? 'Wire a card into this one first.'
+                            : `Put the wired card on ${p.name}`
+                      }
+                      onClick={() => fed && void wearSkin(it.id, p.name, fed)}
+                    >
+                      Wear
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+    </>
   )
 }
 
