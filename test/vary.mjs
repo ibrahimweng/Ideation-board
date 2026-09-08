@@ -184,6 +184,8 @@ const effects = await page.evaluate(async (src) => {
   return {
     ids: items.map((i) => i.fx?.fxid).filter(Boolean),
     stacked: items.filter((i) => i.fx?.more?.length).length,
+    /* Both effects of each stacked one, in the order they are applied. */
+    stacks: items.filter((i) => i.fx?.more?.length).map((i) => [i.fx.fxid, ...i.fx.more.map((l) => l.fxid)]),
     graded: items.filter((i) => i.fx && (i.fx.sat !== 100 || i.fx.con !== 0 || i.fx.exp !== 0 || i.fx.warm !== 0)).length,
     framed: items.filter((i) => i.fx && (i.fx.zoom !== 1 || i.fx.ox !== 0 || i.fx.rot !== 0)).length,
   }
@@ -193,11 +195,23 @@ check('twelve different effects, not one effect twelve times',
   new Set(effects.ids).size >= 9, `${new Set(effects.ids).size} different effects in ${effects.ids.length}`)
 check('none of them is the effect the card already had',
   !effects.ids.includes('none'), effects.ids.join(' '))
-/* Spread across the groups rather than drawn from the hat, or a batch comes up
-   five kinds of blur about as often as not. */
-check('some of them stack a second effect, which is where the surprises are',
-  effects.stacked >= 1, `${effects.stacked} stacked`)
-check('and most carry a tone as well as an effect', effects.graded >= 7, `${effects.graded} graded`)
+/* How often a batch stacks a second effect is a rate, and a rate cannot be
+   asserted on twelve samples. This check used to say `stacked >= 1`: at one in
+   four, a fair batch stacks none of them about three times in a hundred, so it
+   turned red on a run of a commit that had been green an hour before. The rate
+   is checked over two thousand draws in test/unit/variations.test.ts, where a
+   fair run failing is not something anyone will see.
+
+   What is worth asking here is the part only a browser can answer — that a
+   variant which did stack carries both effects all the way to the board — so
+   it is asked when there is one and passed over when there is not. */
+check('a variant that stacked a second effect carries both, and two different ones',
+  effects.stacks.every((s) => s.length === 2 && s[0] !== s[1]),
+  effects.stacked ? effects.stacks.map((s) => s.join('+')).join(' ') : 'none stacked this time')
+/* Seven of twelve was also a rate, and a tighter one than it looked: one
+   preset in eight leaves the tone alone. Four is the same claim with no
+   arithmetic behind it. */
+check('and they carry tones as well as effects', effects.graded >= 4, `${effects.graded} graded`)
 /* A roll replaces the treatment. The crop belongs to the photograph it was set
    on, which is the same line a saved look draws. */
 check('but none of them touched the framing', effects.framed === 0, `${effects.framed} reframed`)
@@ -406,7 +420,7 @@ const shown = () =>
     return h
   }, source)
 
-/* Five throws rather than one. A shuffle picks from forty-one effects and can
+/* Five throws rather than one. A shuffle picks from sixty-four effects and can
    land on the one it just landed on — that is a fair throw rather than a bug —
    so the claim worth checking is that pressing it again keeps giving you
    something else, not that any single press is guaranteed to. */

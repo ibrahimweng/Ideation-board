@@ -123,7 +123,7 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Select a card and press <K>{KEYS.effects.hint}</K>. Forty one effects, applied on the
+            Select a card and press <K>{KEYS.effects.hint}</K>. Sixty four effects, applied on the
             graphics card, on as many pictures as you like at once — and on video and animated GIFs
             while they are still playing.
           </p>
@@ -178,6 +178,28 @@ function parts(): Part[] {
       ),
     },
     {
+      id: 'sound',
+      title: 'Sound',
+      body: (
+        <>
+          <p>
+            A sound card draws its own waveform and plays. Select one and the panel becomes a{' '}
+            <strong>Sound</strong> panel: thirteen effects in a chain of up to four — speed, reverse,
+            trim, wow and flutter, filter, drive, bit crush, ring mod, delay, reverb, chorus, tremolo
+            and a gate. It is rendered rather than played through, so the card keeps the treatment
+            when you come back to it, the waveform on the card is the treated sound, and you can
+            take it out of the board.
+          </p>
+          <p>
+            The file you dropped is never written over. <strong>Back to the original</strong> puts
+            the card back on it, because it was there the whole time.{' '}
+            <strong>Export the selected sound</strong> in the command list hands you what the card
+            plays, as a WAV.
+          </p>
+        </>
+      ),
+    },
+    {
       id: 'sketches',
       title: 'Cards you write',
       body: (
@@ -219,7 +241,10 @@ function parts(): Part[] {
             so about itself, and this reads it. Draw a line from another card to the model and you
             can hand that card to a material: press <strong>Wear</strong> and the model comes back
             with your picture on it, which is the shortest route there is from a reference to the
-            thing you are designing. <strong>Export the selected model as a .glb</strong> in the
+            thing you are designing. It takes the card <em>as it looks</em> — the effect on it, the
+            tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
+            picture taken at the moment you press it rather than a live link, so press{' '}
+            <strong>Again</strong> after working on the card. <strong>Export the selected model as a .glb</strong> in the
             command list hands it back as a model rather than a picture of one, carrying whatever
             you put on it, so it opens in the program it came from.
           </p>

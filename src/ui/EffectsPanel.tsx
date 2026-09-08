@@ -8,7 +8,11 @@ import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
-import { DIST, PITCH, stageOf, turnTo, wearSkin } from '../state/staging'
+import { DIST, PITCH, stageOf, takeOffSkin, turnTo, wearSkin } from '../state/staging'
+import {
+  addSoundLayer, chainOf, clearSound, dropSoundLayer, isSound, setSoundEffect, setSoundParam, treating,
+} from '../state/sounds'
+import { MAX_CHAIN, SOUND_BY_ID, soundDefaults, soundGroups } from '../store/sound'
 import { STAGE_0 } from '../store/model'
 import type { Part, Stage } from '../store/model'
 import type { Item } from '../state/types'
@@ -71,12 +75,21 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
      read two pictures. */
   const fed = useFeeder(primaryId || '')
 
+  /* Sounds, which this panel treats as its own thing rather than as a picture
+     with no pixels. Nothing above applies to them — there is no shader, no
+     tone and no crop — and nothing below does either, so they get a panel of
+     their own and this one stands aside. */
+  const sounds = useMemo(() => selection.map((id) => store.getItem(id)).filter(isSound), [selection])
+  const heardId = sounds[0]?.id
+
+  if (!primary && heardId) return <SoundPanel ids={sounds.map((s) => s.id)} id={heardId} say={say} />
+
   /* Open, with nothing to work on. A full width column of one sentence takes
    * three hundred and twenty pixels off the board to say nothing; a rail says
    * the same thing and gives them back. */
   if (!primary) {
     return (
-      <aside className="panel panel-rail" title="Select a picture or a video to work on it">
+      <aside className="panel panel-rail" title="Select a picture, a video or a sound to work on it">
         <IconEffects />
       </aside>
     )
@@ -246,7 +259,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
-          {/* Forty one of them in a three across grid is more than anyone can
+          {/* Sixty four of them in a three across grid is more than anyone can
               scan, and knowing the name is faster than finding the picture. */}
           <div className="fx-find">
             <IconSearch />
@@ -481,6 +494,138 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
  * the thing being designed, instead of beside it.
  * ------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+ * A sound, being worked on.
+ *
+ * The same panel the pictures get, for the one medium on this board that had
+ * nothing: a chain of effects in the order they are applied, the controls for
+ * whichever one you are looking at, and a way off again.
+ *
+ * It is a separate component rather than a fourth tab because almost nothing
+ * carries over. A sound has no shader, no tone, no crop and no blend mode, and
+ * a panel that showed those greyed out would be a panel mostly about what this
+ * card cannot do.
+ *
+ * There is no preview strip. Twelve thumbnails is how you choose between
+ * pictures and there is no such thing for a sound — you have to hear it — so
+ * the list is names and the card plays.
+ * ------------------------------------------------------------------------- */
+
+function SoundPanel({ ids, id, say }: { ids: string[]; id: string; say: (msg: string) => void }) {
+  const it = useItem(id)
+  const [at, setAt] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const chain = chainOf(it)
+  const here = Math.min(at, Math.max(0, chain.length - 1))
+  const layer = chain[here]
+  const spec = layer ? SOUND_BY_ID[layer.fxid] : undefined
+
+  if (!it) return null
+
+  /* Every one of these renders the whole chain, so they are awaited and the
+     panel says it is working. A sound is not a shader: it is decoded, run
+     through a graph and written back, which is a moment rather than a
+     frame. */
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true)
+    try { await fn() } finally { setBusy(false) }
+  }
+
+  return (
+    <aside className="panel">
+      <div className="panel-tabs">
+        <button data-on>Sound</button>
+      </div>
+
+      <div className="panel-scroll">
+        <section className="fx-controls">
+          <h4>{it.name || 'Sound'}</h4>
+          <p className="fx-hint">
+            {chain.length
+              ? 'Rendered and saved, so the card plays the treatment and draws it. The file you dropped is still underneath.'
+              : 'Put something on it. The file you dropped is never written over, so taking it all off puts the original back.'}
+          </p>
+
+          {!!chain.length && (
+            <div className="fx-stack" role="group" aria-label="Effects on this sound">
+              {chain.map((l, i) => (
+                <span key={i} className="fx-layer" data-on={i === here || undefined}>
+                  <button onClick={() => setAt(i)} title={`Work on ${(SOUND_BY_ID[l.fxid] || { name: 'Nothing' }).name}`}>
+                    <i>{i + 1}</i>
+                    {(SOUND_BY_ID[l.fxid] || { name: 'Nothing' }).name}
+                  </button>
+                  <button
+                    className="fx-layer-off"
+                    aria-label={`Take off ${(SOUND_BY_ID[l.fxid] || { name: 'that' }).name}`}
+                    onClick={() => void run(async () => { await dropSoundLayer(ids, i); setAt(Math.max(0, i - 1)) })}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {chain.length < MAX_CHAIN && (
+                <button
+                  className="fx-layer-add"
+                  onClick={() => void run(async () => { await addSoundLayer(ids); setAt(chain.length) })}
+                >
+                  + Add
+                </button>
+              )}
+            </div>
+          )}
+          {(busy || treating(id)) && <p className="fx-hint">Rendering\u2026</p>}
+        </section>
+
+        {soundGroups().map((g) => (
+          <section key={g.name} className="fx-group">
+            <h4>{g.name}</h4>
+            <div className="snd-grid">
+              {g.items.map((e) => (
+                <button
+                  key={e.id}
+                  className="snd-pick"
+                  data-on={layer?.fxid === e.id || undefined}
+                  title={e.about}
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await setSoundEffect(ids, chain.length ? here : 0, e.id)
+                      say(ids.length > 1 ? `${e.name} on ${ids.length} sounds` : e.name)
+                    })
+                  }
+                >
+                  <b>{e.name}</b>
+                  <em>{e.about}</em>
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {!!spec && (
+          <section className="fx-controls">
+            <h4>{spec.name}</h4>
+            {spec.controls.map((c) => (
+              <ControlRow
+                key={c.k}
+                control={c}
+                value={(layer!.ep || soundDefaults(layer!.fxid))[c.k]}
+                onChange={(v) => void run(() => setSoundParam(ids, here, c.k, v))}
+              />
+            ))}
+          </section>
+        )}
+
+        {!!chain.length && (
+          <button className="ghost" disabled={busy} onClick={() => void run(async () => { await clearSound(ids); setAt(0) })}>
+            Back to the original
+          </button>
+        )}
+      </div>
+    </aside>
+  )
+}
+
 const DEG = '\u00b0'
 
 /* What the file says this material is. */
@@ -518,7 +663,7 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
           <h4>Materials</h4>
           <p className="fx-hint">
             {fed
-              ? 'Hand the card wired into this one to a material and the model wears it.'
+              ? 'Hand the card wired into this one to a material and the model wears it \u2014 as it looks now, effects and all. Press Wear again after changing it.'
               : 'Drag a wire from another card to this one, and you can hand its picture to any of these.'}
           </p>
           <ul className="part-list">
@@ -532,11 +677,10 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
                     <b>{p.name}</b>
                     <em>{partWhat(p)}</em>
                   </span>
-                  {worn ? (
-                    <button className="ghost" onClick={() => void wearSkin(it.id, p.name, null)}>
-                      Take off
-                    </button>
-                  ) : (
+                  {/* Wear stays there once something is worn, because pressing
+                      it again is how a material catches up with a card that
+                      has been worked on since. */}
+                  <span className="part-do">
                     <button
                       className="ghost"
                       disabled={!fed || !unwrapped}
@@ -545,13 +689,20 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
                           ? `${p.name} has no UVs, so a picture has nowhere to sit on it.`
                           : !fed
                             ? 'Wire a card into this one first.'
-                            : `Put the wired card on ${p.name}`
+                            : worn
+                              ? `Put the wired card on ${p.name} again, as it looks now`
+                              : `Put the wired card on ${p.name}, as it looks now`
                       }
-                      onClick={() => fed && void wearSkin(it.id, p.name, fed)}
+                      onClick={() => void wearSkin(it.id, p.name)}
                     >
-                      Wear
+                      {worn ? 'Again' : 'Wear'}
                     </button>
-                  )}
+                    {!!worn && (
+                      <button className="ghost" onClick={() => void takeOffSkin(it.id, p.name)}>
+                        Take off
+                      </button>
+                    )}
+                  </span>
                 </li>
               )
             })}

@@ -58,6 +58,10 @@ export const Card = memo(function Card({
   )
   /* The cover out of a sound file, where it had one. */
   const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
+  /* A treated sound plays the render rather than the file it came from. The
+     file is still there under `media` and is what the chain is rebuilt from,
+     so nothing is lost by playing the other one. */
+  const heardUrl = useObjectURL(it?.kind === 'audio' ? it?.heard : undefined)
   const ready = useSourceReady(
     isStill(it) ? pixelKey(it) : undefined
   )
@@ -376,7 +380,7 @@ export const Card = memo(function Card({
 
           {it.kind === 'audio' && (
             <AudioCard
-              url={url}
+              url={heardUrl || url}
               name={it.name || 'Sound'}
               art={artUrl}
               peaks={it.peaks || []}

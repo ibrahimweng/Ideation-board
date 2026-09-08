@@ -119,7 +119,11 @@ export function coverFromId3(buf: ArrayBuffer): Blob | null {
  * The waveform.
  * ------------------------------------------------------------------------- */
 
-function peaksFrom(audio: AudioBuffer, buckets = PEAKS): number[] {
+/* Exported because a treated sound has to be drawn on the same scale as the
+ * one it was made from. Two peak functions is two waveforms for one card: the
+ * card would visibly change shape when a treatment was taken off and put back,
+ * which is a redraw pretending to be an edit. */
+export function peaksFrom(audio: AudioBuffer, buckets = PEAKS): number[] {
   const n = audio.length
   if (!n) return []
   /* Both channels, because a track mixed hard to one side would otherwise

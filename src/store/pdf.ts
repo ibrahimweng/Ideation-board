@@ -10,7 +10,7 @@
  * So a PDF card is a picture of a page, and the file itself is kept beside it.
  * That follows the shape a video card already has — `media` is the file,
  * `poster` is what you look at — which means everything downstream works with
- * no special case: the page goes to the graphics card, takes the forty one
+ * no special case: the page goes to the graphics card, takes the sixty four
  * effects, exports, and gives up its colours to the palette.
  *
  * ## Why the library is loaded late

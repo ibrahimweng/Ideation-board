@@ -78,6 +78,7 @@ export async function gather(rootId: string): Promise<Gathered> {
     for (const it of b.items as Item[]) {
       if (it.media) keys.add(it.media)
       if (it.poster) keys.add(it.poster)
+      if (it.heard) keys.add(it.heard)
       /* A picture a model is wearing. Usually a card on the same board, whose
          own file is already here — but the name has to travel with it or the
          model comes back undressed on the next turn. */
@@ -179,6 +180,7 @@ export async function importTree(file: Blob, at: { x: number; y: number }): Prom
       if (it.board) copy.board = boardMap.get(it.board) || it.board
       if (it.media) copy.media = mediaMap.get(it.media) || undefined
       if (it.poster) copy.poster = mediaMap.get(it.poster) || undefined
+      if (it.heard) copy.heard = mediaMap.get(it.heard) || undefined
       if (it.skins) {
         const worn: Record<string, string> = {}
         for (const [material, key] of Object.entries(it.skins)) {

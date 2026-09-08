@@ -43,6 +43,13 @@ export interface Item {
   parts?: { name: string; maps: string[]; uv: number[]; tint: string }[]
   /* Material name -> the media key of a card being worn as its colour map. */
   skins?: Record<string, string>
+  /* A sound card's chain of effects, and what came out of running it. `media`
+   * is always the file that was dropped and is never written over, so taking
+   * the chain off is the card pointing back at what it always had rather than
+   * an undo. `heard` is what it plays; `peaks` follows the treated sound, so
+   * the waveform on the card is what you will hear. */
+  chain?: { fxid: string; ep?: Record<string, number | string> | null }[]
+  heard?: string
   /* A sketch card's drawing code, and the throw of the dice it was drawn on.
    * The code is the card: the picture beside it under `poster` is what came
    * out of running it, and can always be made again from these two. */

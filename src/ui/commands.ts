@@ -41,6 +41,7 @@ export interface CommandActions {
   writeSketch: (at: { x: number; y: number }) => void
   exportPictures: (ids: string[]) => void
   exportModels: (ids: string[]) => void
+  exportSounds: (ids: string[]) => void
   pullColours: (ids: string[]) => void
   keepInFolder: () => void
   copyToFolder: () => void
@@ -147,6 +148,12 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('out.model', 'Export the selected model as a .glb', 'Take out', () => a.exportModels(sel()), {
       disabled: !a.selection.some((id) => store.getItem(id)?.kind === 'model'),
       keywords: 'glb gltf 3d model save download three',
+    }),
+    /* What the card plays, which after a treatment is not the file that was
+       dropped and is the whole reason to have treated it. */
+    cmd('out.sound', 'Export the selected sound', 'Take out', () => a.exportSounds(sel()), {
+      disabled: !a.selection.some((id) => store.getItem(id)?.kind === 'audio'),
+      keywords: 'wav audio music sound save download render',
     }),
     /* The other way out: not a file, but an agent given the board to work on. */
     cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),

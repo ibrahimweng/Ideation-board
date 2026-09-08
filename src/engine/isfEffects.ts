@@ -5,7 +5,7 @@ import type { EffectSpec } from './types'
  * Effects written as ISF, and translated on the way in.
  *
  * These could have been written in the engine's own shape like the other
- * thirty-eight. Writing them in ISF instead means the translator is exercised
+ * sixty-one. Writing them in ISF instead means the translator is exercised
  * by the running board rather than only by its tests: if a rename breaks, the
  * board does not start, which is the only way a translator nobody is looking
  * at stays working.
