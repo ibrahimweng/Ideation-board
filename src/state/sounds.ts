@@ -64,8 +64,13 @@ async function sourceOf(key: string): Promise<AudioBuffer | null> {
 }
 
 /* Renders a card's chain and points the card at what came out. Returns the
- * reason it could not, or null if it did. */
-export async function treatSound(id: string, chain?: SoundLayer[]): Promise<string | null> {
+ * reason it could not, or null if it did.
+ *
+ * `record` is for the callers that have already opened a step of undo before
+ * asking. Twelve variations are one press of undo, not thirteen: the exchange
+ * that put them on the board is the step, and the renders that follow are it
+ * finishing rather than twelve more things that happened. */
+export async function treatSound(id: string, chain?: SoundLayer[], record = true): Promise<string | null> {
   const it = store.getItem(id)
   if (!isSound(it)) return 'that card is not a sound'
   if (busy.has(id)) return null
@@ -90,7 +95,7 @@ export async function treatSound(id: string, chain?: SoundLayer[]): Promise<stri
         chain: given.length ? given : undefined,
         peaks: peaksFrom(src),
         secs: src.duration,
-      })
+      }, record)
       return null
     }
 
@@ -100,7 +105,7 @@ export async function treatSound(id: string, chain?: SoundLayer[]): Promise<stri
 
     const still = store.getItem(id)
     if (!isSound(still)) return null
-    store.update(id, { heard: key, chain: given, peaks: peaksFrom(out), secs: out.duration })
+    store.update(id, { heard: key, chain: given, peaks: peaksFrom(out), secs: out.duration }, record)
     return null
   } catch (e) {
     return e instanceof Error ? e.message : 'that could not be rendered'

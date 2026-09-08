@@ -151,7 +151,8 @@ function parts(): Part[] {
             <K>{KEYS.keep.hint}</K> and press <K>{KEYS.vary.hint}</K> again: the ones you did not mark
             are replaced by twelve bred from the ones you did. Press it on a single version to go
             further into that one. The whole round is one press of undo, and{' '}
-            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
+            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from. It works
+            on a sound as well — see <strong>Sound</strong> below.
           </p>
           <p>
             Every effect in the stack carries a <strong>×1</strong> beside its name. Press it and
@@ -195,6 +196,20 @@ function parts(): Part[] {
             the card back on it, because it was there the whole time.{' '}
             <strong>Export the selected sound</strong> in the command list hands you what the card
             plays, as a WAV.
+          </p>
+          <p>
+            <K>{KEYS.vary.hint}</K> works on a sound too: twelve versions underneath, each run
+            through something different, and you can see which is which before you hear any of
+            them — the waveform on each card is that version. Mark the ones worth keeping with{' '}
+            <K>{KEYS.keep.hint}</K> and press it again to breed from those, exactly as with a
+            picture, and the whole round is one press of undo. <K>{KEYS.shuffle.hint}</K> throws
+            the same dice without the grid.
+          </p>
+          <p>
+            Twelve versions of a sound are twelve real renders, so this stops at half a minute:
+            twelve copies of a four-minute track would fill the browser. Trim it first — which is
+            what you want anyway, since nobody needs twelve four-minute tracks and everybody wants
+            twelve versions of the eight seconds that matter.
           </p>
         </>
       ),

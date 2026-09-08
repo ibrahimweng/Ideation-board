@@ -38,6 +38,7 @@ import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
 import { shuffle, vary } from './state/variations'
+import { shuffleSound, soundsSelected, varySound } from './state/soundVary'
 import { describeSweep, sweep } from './store/reclaim'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
@@ -516,8 +517,17 @@ export default function App() {
    * The batch is left selected, so pressing the key again is another round on
    * the same twelve rather than twelve more somewhere else — which is the loop
    * the whole thing is for. */
-  const varyNow = useCallback(() => {
-    const r = vary()
+  const varyNow = useCallback(async () => {
+    /* One key, two sets of dice. What is selected decides which: a sound is
+       varied by what it is run through and a picture by what is drawn on it,
+       and neither answer is any use for the other. A mixed selection is a
+       picture question, because the grid works on one card at a time and the
+       sound half would only refuse. */
+    const sound = soundsSelected(store.getSelection())
+    /* Twelve renders take a moment, unlike twelve looks, so the board says it
+       is working rather than appearing to have ignored the key. */
+    if (sound) say('Making twelve\u2026', 4000)
+    const r = sound ? await varySound() : vary()
     say(r.say, r.made ? 3600 : 2200)
     /* And into the live region as well. Twelve cards appearing is the single
        largest thing any key on this board does, and a reader that is told
@@ -526,8 +536,9 @@ export default function App() {
     if (r.made) fitToBoard(true)
   }, [say])
 
-  const shuffleNow = useCallback(() => {
-    const r = shuffle()
+  const shuffleNow = useCallback(async () => {
+    const sound = soundsSelected(store.getSelection())
+    const r = sound ? await shuffleSound() : shuffle()
     say(r.say)
     setSpoken(r.say)
   }, [say])
@@ -1145,8 +1156,8 @@ export default function App() {
         exportPoster: (as) => void exportSheet(as),
         gather,
         compare,
-        vary: varyNow,
-        shuffle: shuffleNow,
+        vary: () => void varyNow(),
+        shuffle: () => void shuffleNow(),
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
@@ -1191,8 +1202,8 @@ export default function App() {
     takeAway,
     gather,
     compare,
-    vary: varyNow,
-    shuffle: shuffleNow,
+    vary: () => void varyNow(),
+    shuffle: () => void shuffleNow(),
   })
 
   /* ---------- paste ---------- */

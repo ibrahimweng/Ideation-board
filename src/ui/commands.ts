@@ -1,6 +1,8 @@
 import { store } from '../state/store'
 import { noteItem, labelItem, sectionItem } from '../state/ingest'
 import { isSection, isWire, hasPixels } from '../state/kinds'
+import { isSound } from '../state/sounds'
+import type { Item } from '../state/types'
 import { KEYS } from './shortcuts'
 import { markPick } from '../state/walk'
 import { matches, narrowed, subject, subjectLabel } from '../state/subject'
@@ -61,6 +63,11 @@ export interface CommandActions {
   putHere: () => void
   clipped: number
 }
+
+/* What the dice can be thrown at. A picture varies by what is drawn on it and
+ * a sound by what it is run through; both are treatments, and the two keys
+ * that roll one work on either. */
+const variable = (i?: Item | null): boolean => hasPixels(i) || isSound(i)
 
 export function buildCommands(a: CommandActions): Command[] {
   const sel = () => store.getSelection()
@@ -193,15 +200,17 @@ export function buildCommands(a: CommandActions): Command[] {
     }),
     cmd('in.board', 'Import a board file', 'Take out', () => a.importBoard(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
 
+    /* A sound has versions too now, so what these two work on is anything with
+       a treatment rather than anything with pixels. */
     cmd('add.vary', KEYS.vary.label, 'Add', () => a.vary(), {
       hint: KEYS.vary.hint,
-      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
-      keywords: 'variation versions explore random shuffle try twelve grid ideas different',
+      disabled: !a.selection.some((id) => variable(store.getItem(id))),
+      keywords: 'variation versions explore random shuffle try twelve grid ideas different sound audio',
     }),
     cmd('edit.shuffle', KEYS.shuffle.label, 'Edit', () => a.shuffle(), {
       hint: KEYS.shuffle.hint,
-      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
-      keywords: 'random chance surprise mosh roll dice try anything different',
+      disabled: !a.selection.some((id) => variable(store.getItem(id))),
+      keywords: 'random chance surprise mosh roll dice try anything different sound audio',
     }),
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
