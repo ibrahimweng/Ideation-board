@@ -17,7 +17,7 @@ import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
-import { canShade, hasPixels, pixelKey } from '../state/kinds'
+import { canShade, hasPixels, isStill, pixelKey } from '../state/kinds'
 import { nextPage, prevPage } from '../state/pages'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
@@ -52,14 +52,14 @@ export const Card = memo(function Card({
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
   const pageUrl = useObjectURL(
-    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' ? it?.poster : undefined
+    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch'
+      ? it?.poster
+      : undefined
   )
   /* The cover out of a sound file, where it had one. */
   const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
   const ready = useSourceReady(
-    it?.kind === 'image' || it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model'
-      ? pixelKey(it)
-      : undefined
+    isStill(it) ? pixelKey(it) : undefined
   )
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
@@ -294,7 +294,7 @@ export const Card = memo(function Card({
               </div>
             ))}
 
-          {(it.kind === 'pdf' || it.kind === 'design' || it.kind === 'model') && (
+          {(it.kind === 'pdf' || it.kind === 'design' || it.kind === 'model' || it.kind === 'sketch') && (
             /* A page of a document, and the artwork inside a design file, are
                both pictures — so this is the image branch with a file around
                it: the same effects, the same canvas, the same fall back to the
@@ -324,7 +324,9 @@ export const Card = memo(function Card({
                       ? `Page ${it.page || 1} of ${it.name || 'document'}`
                       : it.kind === 'model'
                         ? `${it.name || 'Model'}, turned to ${Math.round(it.stage?.yaw ?? 0)} degrees`
-                        : it.name || 'Artwork'
+                        : it.kind === 'sketch'
+                          ? `${it.name || 'Sketch'}, drawn by its own code`
+                          : it.name || 'Artwork'
                   }
                   draggable={false}
                 />
@@ -333,7 +335,14 @@ export const Card = memo(function Card({
                    shape of a page and says so, rather than showing an empty
                    square that looks like a picture which failed to load. */
                 <div className="media placeholder pdf-unread">
-                  <span>{(it.name || 'Document').split('.').pop()?.toUpperCase() || 'FILE'}</span>
+                  {/* A sketch that has not been run yet, or one that would not
+                      run: the card says which rather than showing an empty
+                      square that looks like a picture that failed to load. */}
+                  <span>
+                    {it.kind === 'sketch'
+                      ? 'Nothing drawn yet'
+                      : (it.name || 'Document').split('.').pop()?.toUpperCase() || 'FILE'}
+                  </span>
                 </div>
               )}
               {it.kind === 'pdf' && (it.pages || 1) > 1 && (

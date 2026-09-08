@@ -13,9 +13,11 @@ import { download, safeName } from './store/fs'
 import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
 import { exportCards } from './state/exportImage'
 import { exportModels } from './state/exportModel'
+import { sketchItem, runSketch } from './state/sketches'
 import { isStaged } from './state/staging'
 import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
+import { SketchEditor } from './ui/SketchEditor'
 import { Stats } from './ui/Stats'
 import { CommandPalette } from './ui/CommandPalette'
 import { TopBar } from './ui/TopBar'
@@ -326,6 +328,12 @@ export default function App() {
         void openBoard([...pathRef.current, { id: it.board, name: it.name || 'Board', card: it.id }])
         return
       }
+      /* A sketch is a picture whose contents are the code, so opening it opens
+         the code — the same answer a note gives, for the same reason. */
+      if (it?.kind === 'sketch') {
+        setEditing(id)
+        return
+      }
       /* Double clicking a picture is the whole world's way of saying "bigger",
          and on the one card where that matters most it used to do nothing at
          all: only a note, a label or a section had an editor to open. It shows
@@ -339,6 +347,18 @@ export default function App() {
     },
     [openBoard]
   )
+
+  /* A card that draws itself. It goes down, runs once so there is something
+   * to look at, and opens its editor — a blank editor is a worse offer than
+   * no editor, and a card that appears empty and stays empty teaches nothing
+   * about what this is for. */
+  const writeSketch = useCallback((at: { x: number; y: number }) => {
+    const it = sketchItem(at)
+    store.add(it)
+    store.select([it.id])
+    setEditing(it.id)
+    void runSketch(it.id)
+  }, [])
 
   const addBoard = useCallback(async (at: { x: number; y: number }) => {
     /* The record is written first so that opening the card straight away
@@ -1065,6 +1085,7 @@ export default function App() {
         addBoard: (at) => void addBoard(at),
         askForLink: () => askForLink(),
         draw: () => setDrawSheet(true),
+        writeSketch: (at) => writeSketch(at),
         connectClaude: () => setRelaySheet(true),
         reclaim: () => void reclaim(),
         deleteBoard: () => void deleteBoard(),
@@ -1101,7 +1122,7 @@ export default function App() {
         projects: projectCount,
       }),
     [
-      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
+      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
       exportBoard, exportPictures, exportSolids, exportSheet, pullColours, keepInFolder, copyToFolder,
       gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
@@ -1115,6 +1136,7 @@ export default function App() {
     addBoard: (at) => void addBoard(at),
     askForLink,
     draw: () => setDrawSheet(true),
+    writeSketch,
     pickFiles: () => fileRef.current?.click(),
     importBoard: () => importRef.current?.click(),
     exportBoard: () => void exportBoard(),
@@ -1351,7 +1373,12 @@ export default function App() {
         />
       )}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-      {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
+      {editing &&
+        (store.getItem(editing)?.kind === 'sketch' ? (
+          <SketchEditor id={editing} onClose={() => setEditing(null)} />
+        ) : (
+          <NoteEditor id={editing} onClose={() => setEditing(null)} />
+        ))}
       {/* One line, whether it is carrying a message, an offer, or a message
           that arrived while an offer was standing. */}
       {(busy || openOffer) && (

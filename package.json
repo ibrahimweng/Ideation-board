@@ -51,6 +51,7 @@
     "test:audio": "node test/audio.mjs",
     "test:design": "node test/design.mjs",
     "test:model": "node test/model.mjs",
+    "test:sketch": "node test/sketch.mjs",
     "test:finish": "node test/finish.mjs",
     "test:plate": "node test/plate.mjs",
     "test:dialogs": "node test/dialogs.mjs",

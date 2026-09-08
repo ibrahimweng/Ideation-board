@@ -1558,6 +1558,62 @@ body[data-turning] .card-chrome { opacity: 0; }
 .swatches button[data-on], .tag-row button[data-on] { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- the sketch editor ---------- */
+
+/* Wider than the other sheets because it holds two things at once: the code
+   and what the code drew. A preview that is not the size of a card is a
+   preview of something else. */
+.sheet.sketch-sheet { width: min(980px, 94vw); }
+.shelf { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.shelf > span { font-size: var(--t-xs); color: var(--faint); margin-right: 2px; }
+.shelf button {
+  padding: 4px 10px; border-radius: var(--r-sm); font-size: var(--t-xs);
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface);
+}
+.shelf button:hover { color: var(--ink); border-color: var(--ink); }
+
+.sketch-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
+.sketch-code { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sheet .sketch-code textarea {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px; line-height: 1.55; tab-size: 2;
+  min-height: 320px; resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto;
+}
+.sketch-hint { font-size: var(--t-xs); color: var(--faint); margin: 0; }
+.sketch-hint code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  background: var(--sunk); border-radius: 4px; padding: 1px 4px; margin-right: 3px;
+}
+
+.sketch-shown {
+  position: relative; width: 260px; height: 260px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--sunk); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.sketch-shown img { width: 100%; height: 100%; object-fit: contain; }
+.sketch-blank { width: 100%; height: 100%; background: var(--well); }
+/* A quiet corner mark rather than a spinner over the picture: the picture that
+   is there is the last one that worked, and covering it hides the thing you
+   are comparing against. */
+.sketch-running {
+  position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent, #e2341d); animation: sketch-beat 1s ease-in-out infinite;
+}
+@keyframes sketch-beat { 0%, 100% { opacity: 0.25 } 50% { opacity: 1 } }
+
+.sketch-error, .sketch-note { font-size: var(--t-xs); line-height: 1.5; margin: 0; }
+.sketch-note { color: var(--faint); }
+.sketch-error {
+  color: var(--on-ink); background: #b3261e; border-radius: var(--r-sm); padding: 7px 9px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+@media (max-width: 720px) {
+  .sketch-body { grid-template-columns: minmax(0, 1fr); }
+  .sketch-shown { width: 100%; height: 220px; }
+}
+
 .sheet-actions button { padding: 8px 16px; border-radius: var(--r-sm); font-size: var(--t-md); background: var(--ink); color: var(--on-ink); }
 .sheet-actions .ghost { background: var(--surface); color: var(--muted); }
 

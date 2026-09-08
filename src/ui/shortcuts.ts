@@ -24,6 +24,10 @@ export const KEYS = {
   link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
   /* Not cmd+D, which duplicates. A picture that did not exist before. */
   draw: { key: 'd', hint: 'D', label: 'Draw a picture from a prompt', short: 'Draw' },
+  /* W for write, and the letter was free. The other way to make a picture
+     that did not exist before, and the only one that costs nothing to run
+     again. */
+  sketch: { key: 'w', hint: 'W', label: 'Write a sketch that draws a card', short: 'Sketch' },
   effects: { key: 'e', hint: 'E', label: 'Effects panel', short: 'Effects' },
   present: { key: 'p', hint: 'P', label: 'Present the board', short: 'Present' },
   fitBoard: { key: '1', hint: '1', label: 'Fit the whole board on screen', short: 'Fit board' },

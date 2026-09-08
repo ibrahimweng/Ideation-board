@@ -38,6 +38,7 @@ export interface CommandActions {
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
+  writeSketch: (at: { x: number; y: number }) => void
   exportPictures: (ids: string[]) => void
   exportModels: (ids: string[]) => void
   pullColours: (ids: string[]) => void
@@ -80,6 +81,12 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('add.board', 'Board inside this one', 'Add', () => a.addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
     cmd('add.link', 'Link or video URL', 'Add', () => a.askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
     cmd('add.draw', 'Draw a picture from a prompt', 'Add', () => a.draw(), { hint: KEYS.draw.hint, keywords: 'ai generate image imagine gemini imagen prompt make' }),
+    /* The other way to make a picture that was not there before, and the one
+       that costs nothing to run again. */
+    cmd('add.sketch', 'Write a sketch that draws a card', 'Add', () => a.writeSketch(at()), {
+      hint: KEYS.sketch.hint,
+      keywords: 'code javascript js generative draw canvas program pattern procedural creative coding',
+    }),
 
     cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
     cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),

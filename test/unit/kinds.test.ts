@@ -6,7 +6,7 @@ import { FX_0 } from '../../src/engine/types'
 /* The table is the one place a new kind of card is described. These check that
  * it stays a description rather than drifting into a list of exceptions. */
 
-const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'model', 'edge']
+const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'model', 'sketch', 'edge']
 const of = (kind: Kind, extra: Partial<Item> = {}): Item =>
   ({ id: 'i', kind, x: 0, y: 0, z: 0, w: 10, h: 10, fx: { ...FX_0 }, tag: null, ...extra } as Item)
 
@@ -125,6 +125,9 @@ describe('pixelKey', () => {
     expect(pixelKey(of('pdf', { media: 'd1', poster: 'p2' }))).toBe('p2')
     expect(pixelKey(of('design', { media: 'd2', poster: 'p3' }))).toBe('p3')
     expect(pixelKey(of('model', { media: 'g1', poster: 'p4' }))).toBe('p4')
+    /* A sketch has no file of its own at all: the code is on the card and the
+       picture it drew is beside it. */
+    expect(pixelKey(of('sketch', { poster: 'p5' }))).toBe('p5')
   })
 
   it('is nothing when there is nothing', () => {

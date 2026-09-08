@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'pdf' | 'design' | 'model' | 'edge'
+  | 'pdf' | 'design' | 'model' | 'sketch' | 'edge'
 
 export interface Item {
   id: string
@@ -43,6 +43,11 @@ export interface Item {
   parts?: { name: string; maps: string[]; uv: number[]; tint: string }[]
   /* Material name -> the media key of a card being worn as its colour map. */
   skins?: Record<string, string>
+  /* A sketch card's drawing code, and the throw of the dice it was drawn on.
+   * The code is the card: the picture beside it under `poster` is what came
+   * out of running it, and can always be made again from these two. */
+  code?: string
+  roll?: number
   /* Video cards only, and only for ones loaded from a URL: whether the host
    * lets us read the video's pixels back. False means the picture plays but
    * shaders cannot run on it. Undefined for local files, whose pixels are
@@ -105,7 +110,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  pdf: 'PDF', design: 'ART', model: '3D', edge: 'ARR',
+  pdf: 'PDF', design: 'ART', model: '3D', sketch: 'JS', edge: 'ARR',
 }
 
 export const TAGS = [

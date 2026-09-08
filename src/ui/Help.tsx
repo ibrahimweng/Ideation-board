@@ -178,6 +178,29 @@ function parts(): Part[] {
       ),
     },
     {
+      id: 'sketches',
+      title: 'Cards you write',
+      body: (
+        <>
+          <p>
+            <K>{KEYS.sketch.hint}</K> makes a card whose picture is drawn by a dozen lines of
+            code, with eight starting points to work from — a grid you can shake, a flow field, a
+            pattern of tiles, a colour field. Change a number, press <strong>Run</strong>. Press{' '}
+            <strong>Roll again</strong> and you get another one from the same code, which is the
+            whole point of the thing: a sketch is not a picture, it is a way of making a hundred.
+          </p>
+          <p>
+            The code is handed a canvas, the size, a seeded random, and — if you wire another card
+            into it — that card&rsquo;s picture, so a sketch can read a photograph and become
+            another way to treat one. It runs on its own, away from the board, and is stopped after
+            a few seconds: a loop with no end in it costs you a card rather than the tab. What it
+            draws is a picture like any other, so it takes the effects, exports, and can be varied
+            twelve ways.
+          </p>
+        </>
+      ),
+    },
+    {
       id: 'models',
       title: 'Models',
       body: (

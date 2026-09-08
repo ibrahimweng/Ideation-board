@@ -60,6 +60,10 @@ export const TRAITS: Record<Kind, Traits> = {
      `poster`. Everything that works on pixels then works on it — the effects,
      the export, the palette, being read through by another card. */
   model: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* A sketch is code that draws, and what it drew is kept beside it under
+     `poster` — so the card is a picture in every respect that matters here,
+     and the code is the thing you edit rather than the thing you look at. */
+  sketch: { thing: true, pixels: true, graded: true, media: false, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -123,7 +127,7 @@ export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readab
  * still kept beside it under `poster`. Three places were asking this with the
  * same ternary written out by hand, and the third kind was the one that would
  * have been missed. */
-const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model'])
+const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model', 'sketch'])
 export const pixelKey = (i?: Item | null): string | undefined =>
   !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
 
