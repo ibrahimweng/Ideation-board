@@ -123,7 +123,7 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Select a card and press <K>{KEYS.effects.hint}</K>. Forty one effects, applied on the
+            Select a card and press <K>{KEYS.effects.hint}</K>. Sixty four effects, applied on the
             graphics card, on as many pictures as you like at once — and on video and animated GIFs
             while they are still playing.
           </p>

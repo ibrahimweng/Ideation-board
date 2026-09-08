@@ -420,7 +420,7 @@ const shown = () =>
     return h
   }, source)
 
-/* Five throws rather than one. A shuffle picks from forty-one effects and can
+/* Five throws rather than one. A shuffle picks from sixty-four effects and can
    land on the one it just landed on — that is a fair throw rather than a bug —
    so the claim worth checking is that pressing it again keeps giving you
    something else, not that any single press is guaranteed to. */

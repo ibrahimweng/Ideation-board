@@ -50,7 +50,7 @@ export function FirstRun({ onAddFiles, onNote, onCommands, onHelp }: {
       <ul className="first-more">
         <li>
           <IconPresent />
-          Forty one effects, applied on the GPU, on as many pictures as you like at once.
+          Sixty four effects, applied on the GPU, on as many pictures as you like at once.
         </li>
         <li>
           <IconDraw />

@@ -246,7 +246,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
-          {/* Forty one of them in a three across grid is more than anyone can
+          {/* Sixty four of them in a three across grid is more than anyone can
               scan, and knowing the name is faster than finding the picture. */}
           <div className="fx-find">
             <IconSearch />

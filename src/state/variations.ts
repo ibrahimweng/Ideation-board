@@ -40,7 +40,7 @@ import type { FxState, Layer, Params } from '../engine/types'
  *
  * ## Breadth first
  *
- * Twelve effects picked at random from forty-one would quite often be five
+ * Twelve effects picked at random from sixty-four would quite often be five
  * blurs. So the picks go round the groups in turn — one from Print, one from
  * Grid, one from Type, one from Distort — which is the cheapest possible
  * stand-in for the "perceptually different" the 1997 paper had to compute.
@@ -421,7 +421,7 @@ export function vary(): VaryResult {
  * keep pressing until it is interesting. Mosh has one button that does this
  * and it is the cheapest ideation mechanic anybody has ever built.
  *
- * It is also the fastest way anyone finds out what the other forty effects
+ * It is also the fastest way anyone finds out what the other sixty-three effects
  * do, which is worth more than the effect list ever was.
  * ------------------------------------------------------------------------- */
 
