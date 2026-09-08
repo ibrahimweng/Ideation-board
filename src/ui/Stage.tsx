@@ -67,6 +67,7 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
                 id={`${tag}:${item.id}`}
                 mediaKey={pixelKey(item)!}
                 effectId={fx.fxid}
+                n={fx.n}
                 params={fx.ep}
                 seed={11}
                 w={box.w}

@@ -26,7 +26,7 @@ import type { Layer, Params } from '../engine/types'
  * effect has always looked like; the engine takes `{ effectId, params }`. One
  * place translates, so the two names never have to agree anywhere else. */
 const asStack = (more?: Layer[]) =>
-  more && more.length ? more.map((l) => ({ effectId: l.fxid, params: l.ep })) : undefined
+  more && more.length ? more.map((l) => ({ effectId: l.fxid, params: l.ep, n: l.n })) : undefined
 
 /* See the note on TRACE in engine/client.ts. */
 const TRACE = (globalThis as unknown as { __fxTrace?: boolean }).__fxTrace === true
@@ -107,6 +107,8 @@ interface Props {
   params: Params | null
   /* Effects after the first. */
   more?: Layer[]
+  /* Times the first effect runs, each pass reading the one before. */
+  n?: number
   seed: number
   /* Card size in CSS pixels. */
   w: number
@@ -116,7 +118,7 @@ interface Props {
   className?: string
 }
 
-export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, distance, className }: Props) {
+export function FxCanvas({ id, mediaKey, effectId, params, more, n, seed, w, h, distance, className }: Props) {
   /* Whatever card is wired into this one, for the effects that read two.
    *
    * The fed card's pixels have to be on the GPU as well, and a card with no
@@ -154,7 +156,7 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, dis
     /* The stack is part of what makes a render the one already on screen. Left
      * out, a card would keep the picture it had before an effect was put on
      * top of it and never ask for another. */
-    const sig = `${mediaKey}|${feed || ''}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${Math.round(w)}x${Math.round(h)}`
+    const sig = `${mediaKey}|${feed || ''}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${n || 1}|${Math.round(w)}x${Math.round(h)}`
     if (sigRef.current === sig) return
     sigRef.current = sig
     engine.request({
@@ -164,12 +166,13 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, dis
       effectId,
       params,
       stack: asStack(more),
+      n,
       cssW: w,
       cssH: h,
       seed,
       distance: distRef.current,
     })
-  }, [id, mediaKey, feed, feedReady, effectId, params, more, seed, w, h, sourceReady])
+  }, [id, mediaKey, feed, feedReady, effectId, params, more, n, seed, w, h, sourceReady])
 
   return <canvas ref={ref} className={className} aria-hidden />
 }
@@ -181,6 +184,7 @@ interface VideoProps {
   effectId: string
   params: Params | null
   more?: Layer[]
+  n?: number
   seed: number
   w: number
   h: number
@@ -191,7 +195,7 @@ interface VideoProps {
  * again. Without it one dropped frame would stall playback for good. */
 const FRAME_TIMEOUT_MS = 500
 
-export function FxVideoCanvas({ id, video, playing, effectId, params, more, seed, w, h, className }: VideoProps) {
+export function FxVideoCanvas({ id, video, playing, effectId, params, more, n, seed, w, h, className }: VideoProps) {
   /* Timestamp of the frame currently being rendered, or 0 when idle. Capturing
    * a new frame while one is in flight would build a backlog of frames that
    * are already stale by the time they are drawn. */
@@ -207,8 +211,8 @@ export function FxVideoCanvas({ id, video, playing, effectId, params, more, seed
 
   /* Read inside the frame loop so a parameter change takes effect on the next
    * frame without tearing down and restarting the loop. */
-  const jobRef = useRef({ effectId, params, stack: asStack(more), seed, w, h })
-  jobRef.current = { effectId, params, stack: asStack(more), seed, w, h }
+  const jobRef = useRef({ effectId, params, stack: asStack(more), n, seed, w, h })
+  jobRef.current = { effectId, params, stack: asStack(more), n, seed, w, h }
 
   useEffect(() => {
     const engine = getEngine()
@@ -268,7 +272,7 @@ export function FxVideoCanvas({ id, video, playing, effectId, params, more, seed
           }
           const c = jobRef.current
           engine.renderLive(
-            { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
+            { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, n: c.n, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
             bmp,
             playing
           )
@@ -319,6 +323,7 @@ interface AnimProps {
   effectId: string
   params: Params | null
   more?: Layer[]
+  n?: number
   seed: number
   w: number
   h: number
@@ -329,15 +334,15 @@ interface AnimProps {
   onCannot?: () => void
 }
 
-export function FxAnimCanvas({ id, mediaKey, effectId, params, more, seed, w, h, className, onCannot }: AnimProps) {
+export function FxAnimCanvas({ id, mediaKey, effectId, params, more, n, seed, w, h, className, onCannot }: AnimProps) {
   const waitingRef = useRef(0)
   const settled = useCallback(() => {
     waitingRef.current = 0
   }, [])
   const ref = useFxSink(id, settled)
 
-  const jobRef = useRef({ effectId, params, stack: asStack(more), seed, w, h })
-  jobRef.current = { effectId, params, stack: asStack(more), seed, w, h }
+  const jobRef = useRef({ effectId, params, stack: asStack(more), n, seed, w, h })
+  jobRef.current = { effectId, params, stack: asStack(more), n, seed, w, h }
   const cannotRef = useRef(onCannot)
   cannotRef.current = onCannot
 
@@ -401,7 +406,7 @@ export function FxAnimCanvas({ id, mediaKey, effectId, params, more, seed, w, h,
         }
         const c = jobRef.current
         engine.renderLive(
-          { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
+          { id, key: '', effectId: c.effectId, params: c.params, stack: c.stack, n: c.n, cssW: c.w, cssH: c.h, seed: c.seed, distance: 0 },
           bmp,
           true
         )

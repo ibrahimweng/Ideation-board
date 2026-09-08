@@ -154,6 +154,12 @@ function parts(): Part[] {
             <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
           </p>
           <p>
+            Every effect in the stack carries a <strong>×1</strong> beside its name. Press it and
+            the effect runs again on what it drew — a kaleidoscope that recurses, a warp that
+            spirals, a blur that blooms. It is a count rather than something that keeps going,
+            because a card has to look the same next time you open it.
+          </p>
+          <p>
             Three effects read <em>two</em> pictures — <strong>Displace</strong>,{' '}
             <strong>Stencil</strong> and <strong>Through</strong>. Drag a line from one card to
             another and the card at the start of the line is the second picture: a texture pushed

@@ -188,7 +188,12 @@ export async function renderCardPicture(
       /* Everything stacked on top, or a card exported at full size would come
        * out as its bottom layer only — which looks like a working export and
        * is not the picture on the board. */
-      stack: item.fx.more?.length ? item.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep })) : undefined,
+      stack: item.fx.more?.length
+        ? item.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep, n: l.n }))
+        : undefined,
+      /* And how many times each one runs, or a card that was repeated on the
+         board would come out of the export having run once. */
+      n: item.fx.n,
       seed: seedFor(item.id),
       width: w,
       height: h,

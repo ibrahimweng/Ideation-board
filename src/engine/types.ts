@@ -96,16 +96,31 @@ const BLEND_IDS = new Set(BLENDS.map((b) => b.id))
  * by a newer one may have a mode this build does not know. Both mean normal. */
 export const blendOf = (mix?: string): string => (mix && BLEND_IDS.has(mix) ? mix : 'normal')
 
-/* One effect and the settings it was given. */
+/* One effect and the settings it was given.
+ *
+ * `n` is how many times it runs, each pass reading what the pass before it
+ * drew. One is an effect; more is feedback — the thing that makes a
+ * kaleidoscope recurse, a warp spiral and a blur bloom, and the reason a
+ * live-coded video synth is worth using at all. It is a count rather than a
+ * running loop because this board holds still pictures: a card has to look the
+ * same next time you open it, and an effect that drifts while nobody is
+ * watching cannot be exported or reloaded. */
 export interface Layer {
   fxid: string
   ep: Params | null
+  n?: number
 }
+
+/* Past a dozen the picture has usually turned to mush, and every pass is
+ * another full draw of the card. */
+export const REPEATS = 12
 
 export interface FxState extends Adjust {
   preset: string
   fxid: string
   ep: Params | null
+  /* How many times the first effect runs. The ones after it carry their own. */
+  n?: number
   /* Effects applied after `fxid`, in order, each working on what the one
    * before it produced.
    *

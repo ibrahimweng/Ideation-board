@@ -1,7 +1,7 @@
 import { memo, useId, useMemo, useRef, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
 import { EFFECTS, GROUPS, BY_ID, PRESETS, defaults } from '../engine/effects'
-import { ADJUST_0, BLENDS, blendOf, isColor, isEnum } from '../engine/types'
+import { ADJUST_0, BLENDS, REPEATS, blendOf, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
@@ -84,7 +84,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   /* A card's effects, as a list. The first has always lived on the card itself
    * and the rest in `more`, so that every board ever saved reads back as it
    * was; here they are one thing, because to work on them they are one thing. */
-  const layers: Layer[] = [{ fxid: fx.fxid, ep: fx.ep }, ...(fx.more || [])]
+  const layers: Layer[] = [{ fxid: fx.fxid, ep: fx.ep, n: fx.n }, ...(fx.more || [])]
   const at = Math.min(layer, layers.length - 1)
   const spec = BY_ID[layers[at].fxid] || BY_ID.none
 
@@ -124,6 +124,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const pack = (list: Layer[]): Partial<FxState> => ({
     fxid: list[0]?.fxid || 'none',
     ep: list[0]?.ep ?? null,
+    n: list[0]?.n,
     more: list.length > 1 ? list.slice(1) : undefined,
   })
 
@@ -135,7 +136,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
-      const mine: Layer[] = [{ fxid: cur.fx.fxid, ep: cur.fx.ep }, ...(cur.fx.more || [])]
+      const mine: Layer[] = [{ fxid: cur.fx.fxid, ep: cur.fx.ep, n: cur.fx.n }, ...(cur.fx.more || [])]
       store.update(id, { fx: { ...cur.fx, ...pack(fn(mine)) } }, false)
     }
   }
@@ -275,6 +276,28 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                     <i>{i + 1}</i>
                     {(BY_ID[l.fxid] || BY_ID.none).name}
                   </button>
+                  {/* How many times this one runs, each pass reading what the
+                      pass before it drew. One is an effect; more is feedback,
+                      and it is where a kaleidoscope starts recursing and a
+                      warp starts spiralling. Shown as a count rather than as a
+                      running loop because these are still pictures: a card has
+                      to look the same next time it is opened. */}
+                  {l.fxid !== 'none' && (
+                    <button
+                      className="fx-layer-n"
+                      title={`Run ${(BY_ID[l.fxid] || BY_ID.none).name} again on what it drew`}
+                      aria-label={`${(BY_ID[l.fxid] || BY_ID.none).name} runs ${l.n || 1} time${(l.n || 1) === 1 ? '' : 's'}. Click to run it once more.`}
+                      onClick={() =>
+                        editLayers((list) =>
+                          list.map((x, k) =>
+                            k === i ? { ...x, n: ((x.n || 1) % REPEATS) + 1 } : x
+                          )
+                        )
+                      }
+                    >
+                      ×{l.n || 1}
+                    </button>
+                  )}
                   {layers.length > 1 && (
                     <button
                       className="fx-layer-off"

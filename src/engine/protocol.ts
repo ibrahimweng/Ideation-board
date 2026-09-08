@@ -27,8 +27,10 @@ export interface RenderMsg {
   key2?: string
   effectId: string
   /* Effects after the first, in order. Absent for the ordinary card. */
-  stack?: { effectId: string; params: Params | null }[]
+  stack?: { effectId: string; params: Params | null; n?: number }[]
   params: Params | null
+  /* Repeats of the first effect. */
+  n?: number
   width: number
   height: number
   seed: number
@@ -43,8 +45,9 @@ export interface RenderLiveMsg {
   key2?: string
   effectId: string
   /* Effects after the first, in order. Absent for the ordinary card. */
-  stack?: { effectId: string; params: Params | null }[]
+  stack?: { effectId: string; params: Params | null; n?: number }[]
   params: Params | null
+  n?: number
   width: number
   height: number
   seed: number

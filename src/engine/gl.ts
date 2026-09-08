@@ -1,6 +1,7 @@
 import { VERT, BLUR, PRE } from './shaders'
 import { paintGlyphs } from './glyphs'
 import { BY_ID } from './effects'
+import { REPEATS } from './types'
 import type { EffectSpec, Params } from './types'
 
 /* ---------------------------------------------------------------------------
@@ -54,6 +55,8 @@ interface FBO {
 export interface JobLayer {
   effectId: string
   params: Params | null
+  /* Times to run, each pass reading the one before. */
+  n?: number
 }
 
 /* The card wired into the one being rendered. Uploaded and cached exactly like
@@ -68,6 +71,8 @@ export interface Second {
 export interface RenderJob {
   effectId: string
   params: Params | null
+  /* Repeats of the first effect. The rest carry their own in `stack`. */
+  n?: number
   /* Effects applied after the first, in order, each reading what the one
    * before it drew. Absent or empty for a card with a single effect, which is
    * nearly every card — and that path is untouched by any of this: no extra
@@ -547,7 +552,18 @@ export class Renderer {
       if (t2) two = { tex: t2, cover: coverUv(second.w, second.h, w, h) }
     }
 
-    const stacked = job.stack && job.stack.length ? job.stack : null
+    /* Every pass this card asks for, in order: each layer as many times as it
+     * asked to run. Expanding here rather than in the loop keeps the two paths
+     * below reading as "one pass" and "more than one pass" rather than having
+     * to think about layers and repeats at once. */
+    const asked: JobLayer[] = [{ effectId: job.effectId, params: job.params, n: job.n }, ...(job.stack || [])]
+    const passes: JobLayer[] = []
+    for (const l of asked) {
+      const times = Math.max(1, Math.min(REPEATS, Math.round(l.n || 1)))
+      for (let i = 0; i < times; i++) passes.push(l)
+    }
+
+    const stacked = passes.length > 1 ? passes.slice(1) : null
     if (!stacked) {
       /* The whole of the board, nearly always: one effect, one draw, straight
        * to the canvas. Deliberately not routed through the loop below — a card
@@ -560,7 +576,7 @@ export class Renderer {
      * because a pass only ever needs what the pass before it wrote. */
     this.ensureStackBufs(w, h)
     const bufs = this.stack!
-    const layers: JobLayer[] = [{ effectId: job.effectId, params: job.params }, ...stacked]
+    const layers: JobLayer[] = passes
     let read = src
     /* Only the first layer sees the picture at its own proportions and has to
      * crop it. Everything after reads a buffer that is already the shape of

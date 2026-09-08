@@ -1835,6 +1835,15 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   padding: 4px 6px; font-size: 12px; line-height: 1; color: var(--faint); background: none;
   border-left: 1px solid var(--line);
 }
+/* How many times a layer runs. A count rather than a slider: it is a small
+   whole number you press up through, and a slider for twelve values is a
+   slider nobody can land on. */
+.fx-layer-n {
+  padding: 0 5px; font: 500 var(--t-xs)/1 var(--mono); color: var(--faint);
+  border-left: 1px solid var(--line); align-self: stretch;
+}
+.fx-layer-n:hover { color: var(--ink); }
+.fx-layer[data-on] .fx-layer-n { color: var(--on-ink); border-left-color: var(--accent-line); }
 .fx-layer-off:hover { color: var(--warn); background: var(--hover); }
 .fx-layer-add {
   padding: 4px 9px; border-radius: var(--r-sm); border: 1px dashed var(--line);

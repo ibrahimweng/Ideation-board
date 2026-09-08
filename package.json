@@ -57,6 +57,7 @@
     "test:layer": "node test/layer.mjs",
     "test:vary": "node test/vary.mjs",
     "test:pair": "node test/pair.mjs",
+    "test:repeat": "node test/repeat.mjs",
     "test:stacked": "node test/stacked.mjs",
     "test:poster": "node test/poster.mjs",
     "test:urlimage": "node test/urlimage.mjs",

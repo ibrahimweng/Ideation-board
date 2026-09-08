@@ -58,6 +58,11 @@ const STACK_CHANCE = 0.25
 /* And one in three gets grain it did not ask for, which is this board's own
  * accent more than it is an effect. */
 const GRAIN_CHANCE = 0.34
+/* One in five runs its effect more than once, which is where a kaleidoscope
+ * starts recursing and a warp starts spiralling. Kept low and kept small: past
+ * a few passes most effects turn to mush, and mush twelve times is still
+ * mush. */
+const REPEAT_CHANCE = 0.2
 
 /* How far a bred variant moves from its parent, as a share of each control's
  * range. Small enough that the family resemblance survives, big enough that
@@ -219,10 +224,14 @@ export function spreadOfEffects(n: number): string[] {
  * rather than on top of whatever the last one happened to leave. */
 const FLAT = { exp: ADJUST_0.exp, con: ADJUST_0.con, sat: ADJUST_0.sat, warm: ADJUST_0.warm, blur: ADJUST_0.blur, grain: ADJUST_0.grain }
 
+function maybeRepeat(): number | undefined {
+  return rnd() < REPEAT_CHANCE ? 2 + Math.floor(rnd() * 3) : undefined
+}
+
 function maybeStack(firstId: string): Layer[] | undefined {
   if (rnd() > STACK_CHANCE) return undefined
   const second = pick(CHOOSABLE.filter((e) => e.id !== firstId))
-  return [{ fxid: second.id, ep: rollParams(second.id) }]
+  return [{ fxid: second.id, ep: rollParams(second.id), n: maybeRepeat() }]
 }
 
 /* Everything a roll writes, over the card it came from. */
@@ -234,6 +243,7 @@ function treat(source: FxState, fxid: string, ep: Params, more: Layer[] | undefi
     grain: rnd() < GRAIN_CHANCE ? Math.round(15 + rnd() * 40) : tone.grain,
     fxid,
     ep,
+    n: maybeRepeat(),
     more,
     /* Not the name of the preset it came from: the moment an effect and a
        stack are on top of it, "Noir" is a lie the panel would keep telling. */

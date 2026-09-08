@@ -24,7 +24,9 @@ export interface RenderRequest {
   params: Params | null
   /* Effects after the first. Absent for a card with one, which is the path
    * everything on the board takes unless it has been asked for otherwise. */
-  stack?: { effectId: string; params: Params | null }[]
+  stack?: { effectId: string; params: Params | null; n?: number }[]
+  /* Repeats of the first effect. */
+  n?: number
   /* CSS pixel size of the card's canvas. */
   cssW: number
   cssH: number
@@ -49,6 +51,7 @@ const jobFor = (req: RenderRequest, size: { w: number; h: number }, tier: Tier):
   effectId: req.effectId,
   stack: req.stack,
   params: req.params,
+  n: req.n,
   width: size.w,
   height: size.h,
   seed: req.seed,
@@ -267,6 +270,7 @@ export class FxEngine {
           effectId: req.effectId,
           stack: req.stack,
           params: req.params,
+          n: req.n,
           width: size.w,
           height: size.h,
           seed: req.seed,
@@ -287,6 +291,7 @@ export class FxEngine {
         effectId: req.effectId,
         stack: req.stack,
         params: req.params,
+        n: req.n,
         width: size.w,
         height: size.h,
         seed: req.seed,
@@ -311,7 +316,15 @@ export class FxEngine {
    * over a full-resolution decode to draw from. */
   renderOnce(
     source: ImageBitmap,
-    job: { effectId: string; params: Params | null; stack?: { effectId: string; params: Params | null }[]; seed: number; width: number; height: number }
+    job: {
+      effectId: string
+      params: Params | null
+      stack?: { effectId: string; params: Params | null; n?: number }[]
+      n?: number
+      seed: number
+      width: number
+      height: number
+    }
   ): Promise<ImageBitmap | null> {
     if (!this.ok) {
       source.close()
@@ -339,7 +352,7 @@ export class FxEngine {
         this.inflight++
         this.send(
           { t: 'live', id, jobId, bitmap: source, effectId: job.effectId, stack: job.stack, params: job.params,
-            width: job.width, height: job.height, seed: job.seed },
+            n: job.n, width: job.width, height: job.height, seed: job.seed },
           [source]
         )
         return
@@ -353,7 +366,7 @@ export class FxEngine {
       try {
         const okRender = r.render(source, source.width, source.height, null, {
           effectId: job.effectId,
-          stack: job.stack, params: job.params, width: job.width, height: job.height, seed: job.seed,
+          stack: job.stack, params: job.params, n: job.n, width: job.width, height: job.height, seed: job.seed,
         })
         finish(okRender ? r.takeBitmap() : null)
       } catch {
@@ -418,6 +431,7 @@ export class FxEngine {
         effectId: job.effectId,
         stack: job.stack,
         params: job.params,
+        n: job.n,
         width: job.width,
         height: job.height,
         seed: job.seed,
@@ -436,6 +450,7 @@ export class FxEngine {
         effectId: job.effectId,
         stack: job.stack,
         params: job.params,
+        n: job.n,
         width: job.width,
         height: job.height,
         seed: job.seed,
