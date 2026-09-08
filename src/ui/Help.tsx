@@ -154,6 +154,14 @@ function parts(): Part[] {
             <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
           </p>
           <p>
+            Three effects read <em>two</em> pictures — <strong>Displace</strong>,{' '}
+            <strong>Stencil</strong> and <strong>Through</strong>. Drag a line from one card to
+            another and the card at the start of the line is the second picture: a texture pushed
+            through a photograph, a photograph knocked out of a shape, a palette taken off one image
+            and put onto another. With no line drawn they read the card itself, which is a real
+            effect rather than an error.
+          </p>
+          <p>
             <strong>Layer</strong> is about two cards rather than one: an opacity, and how a card
             mixes with whatever it is sitting on. Lay a texture over a photograph on multiply, hold
             a scan at a quarter strength over the thing you are comparing it with, knock a wordmark

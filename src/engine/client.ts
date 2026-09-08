@@ -17,6 +17,9 @@ import type { ToWorker, FromWorker } from './protocol'
 export interface RenderRequest {
   id: string
   key: string
+  /* The card wired into this one, whose pixels an effect can read as well as
+   * its own. Absent for nearly every card. */
+  key2?: string
   effectId: string
   params: Params | null
   /* Effects after the first. Absent for a card with one, which is the path
@@ -29,6 +32,29 @@ export interface RenderRequest {
   /* Distance from viewport centre, in pixels. Drives ordering. */
   distance: number
 }
+
+/* A request becomes a job in exactly one place.
+ *
+ * It used to become one twice — once when a card asked, and again when the
+ * board went quiet and the proxy render was upgraded to full resolution — and
+ * the second copy was written out field by field. Adding a field to a request
+ * therefore silently did nothing to the upgraded render: the card drew
+ * correctly for a moment and then redrew without it. That is what happened the
+ * first time an effect learned to read a second picture, and it will happen to
+ * whatever is added next unless there is only one of these. */
+const jobFor = (req: RenderRequest, size: { w: number; h: number }, tier: Tier): Omit<Job, 'jobId'> => ({
+  id: req.id,
+  key: req.key,
+  key2: req.key2,
+  effectId: req.effectId,
+  stack: req.stack,
+  params: req.params,
+  width: size.w,
+  height: size.h,
+  seed: req.seed,
+  tier,
+  priority: req.distance,
+})
 
 type Sink = (bitmap: ImageBitmap) => void
 
@@ -185,21 +211,18 @@ export class FxEngine {
      * nothing to upgrade to; render once and be done. */
     const single = full.w <= proxy.w
 
-    this.queue.push({
-      id: req.id,
-      key: req.key,
-      effectId: req.effectId,
-      stack: req.stack,
-      params: req.params,
-      width: single ? full.w : proxy.w,
-      height: single ? full.h : proxy.h,
-      seed: req.seed,
-      tier: single ? Tier.Full : Tier.Proxy,
-      priority: req.distance,
-    })
+    this.queue.push(
+      jobFor(req, single ? full : proxy, single ? Tier.Full : Tier.Proxy)
+    )
 
     if (single) this.upgrades.delete(req.id)
     else this.upgrades.set(req.id, req)
+  }
+
+  /* The wired-in card's picture, on the path with no worker. */
+  private localSecond(key?: string) {
+    const bmp = key ? this.localSources.get(key) : undefined
+    return bmp ? { source: bmp, w: bmp.width, h: bmp.height, key: key as string } : null
   }
 
   /* Marks interaction. While hot, the queue serves proxy work only. */
@@ -240,6 +263,7 @@ export class FxEngine {
           id: req.id,
           jobId,
           bitmap: frame,
+          key2: req.key2,
           effectId: req.effectId,
           stack: req.stack,
           params: req.params,
@@ -266,7 +290,7 @@ export class FxEngine {
         width: size.w,
         height: size.h,
         seed: req.seed,
-      })
+      }, this.localSecond(req.key2))
       if (okRender) {
         const bmp = r.takeBitmap()
         if (bmp) this.deliver(req.id, jobId, bmp)
@@ -354,20 +378,8 @@ export class FxEngine {
 
     /* Once interaction settles, promote visible cards to full resolution. */
     if (!hot && this.upgrades.size && this.queue.size === 0 && this.inflight === 0) {
-      for (const [id, req] of this.upgrades) {
-        const full = bucketed(req.cssW, req.cssH, FULL_CAP, this.dpr)
-        this.queue.push({
-          id,
-          key: req.key,
-          effectId: req.effectId,
-          stack: req.stack,
-          params: req.params,
-          width: full.w,
-          height: full.h,
-          seed: req.seed,
-          tier: Tier.Full,
-          priority: req.distance,
-        })
+      for (const [, req] of this.upgrades) {
+        this.queue.push(jobFor(req, bucketed(req.cssW, req.cssH, FULL_CAP, this.dpr), Tier.Full))
       }
       this.upgrades.clear()
     }
@@ -402,6 +414,7 @@ export class FxEngine {
         id: job.id,
         jobId: job.jobId,
         key: job.key,
+        key2: job.key2,
         effectId: job.effectId,
         stack: job.stack,
         params: job.params,
@@ -426,7 +439,7 @@ export class FxEngine {
         width: job.width,
         height: job.height,
         seed: job.seed,
-      })
+      }, this.localSecond(job.key2))
       if (okRender) {
         const bmp = r.takeBitmap()
         if (bmp) this.deliver(job.id, job.jobId, bmp)

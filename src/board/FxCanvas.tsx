@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { getEngine } from '../engine/client'
 import { useSourceReady } from './sources'
+import { useFeeder } from '../state/feeds'
 import { getBlob } from '../store/idb'
 import { openReel } from '../store/anim'
 import type { Reel } from '../store/anim'
@@ -116,6 +117,16 @@ interface Props {
 }
 
 export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, distance, className }: Props) {
+  /* Whatever card is wired into this one, for the effects that read two.
+   *
+   * The fed card's pixels have to be on the GPU as well, and a card with no
+   * effect of its own never sends them: it is drawn as a plain <img> by the
+   * browser and the engine has never heard of it. So this asks for them the
+   * same way a card asks for its own, and holds the render until they land —
+   * otherwise the first draw reads nothing, decides it has no partner, and
+   * shows the wrong answer until something else happens to invalidate it. */
+  const feed = useFeeder(id)
+  const feedReady = useSourceReady(feed)
   /* The dirty check for "have we already asked for exactly this?". */
   const sigRef = useRef('')
   const distRef = useRef(distance)
@@ -135,17 +146,21 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, dis
   useEffect(() => {
     const engine = getEngine()
     if (!engine.ok || !mediaKey || !sourceReady) return
+    /* A wired card whose pixels have not arrived yet: wait rather than draw
+       the answer for having no partner at all. */
+    if (feed && !feedReady) return
     /* Size is quantised by the engine's buckets, so this string changes only
      * on a change that would alter the pixels. */
     /* The stack is part of what makes a render the one already on screen. Left
      * out, a card would keep the picture it had before an effect was put on
      * top of it and never ask for another. */
-    const sig = `${mediaKey}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${Math.round(w)}x${Math.round(h)}`
+    const sig = `${mediaKey}|${feed || ''}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${Math.round(w)}x${Math.round(h)}`
     if (sigRef.current === sig) return
     sigRef.current = sig
     engine.request({
       id,
       key: mediaKey,
+      key2: feed,
       effectId,
       params,
       stack: asStack(more),
@@ -154,7 +169,7 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, seed, w, h, dis
       seed,
       distance: distRef.current,
     })
-  }, [id, mediaKey, effectId, params, more, seed, w, h, sourceReady])
+  }, [id, mediaKey, feed, feedReady, effectId, params, more, seed, w, h, sourceReady])
 
   return <canvas ref={ref} className={className} aria-hidden />
 }

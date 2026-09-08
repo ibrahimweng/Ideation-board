@@ -11,6 +11,16 @@ let renderer: Renderer | null = null
  * re-render after a parameter change costs no upload and no decode. */
 const sources = new Map<string, ImageBitmap>()
 
+/* The card wired into the one being rendered, if its picture has arrived. A
+ * wire to a card whose picture is still decoding renders without it rather
+ * than waiting: the wire is a thing you drew a moment ago, and a card that
+ * goes blank while it resolves is worse than one that catches up a frame
+ * later. */
+const secondOf = (key?: string) => {
+  const bmp = key ? sources.get(key) : undefined
+  return bmp ? { source: bmp, w: bmp.width, h: bmp.height, key: key as string } : null
+}
+
 const post = (m: FromWorker, transfer?: Transferable[]) =>
   (self as unknown as Worker).postMessage(m, transfer || [])
 
@@ -86,7 +96,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
         width: msg.width,
         height: msg.height,
         seed: msg.seed,
-      })
+      }, secondOf(msg.key2))
       if (!okRender) {
         post({ t: 'fail', id: msg.id, jobId: msg.jobId, reason: 'render-failed' })
         return
@@ -110,7 +120,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
         width: msg.width,
         height: msg.height,
         seed: msg.seed,
-      })
+      }, secondOf(msg.key2))
       } catch (e) {
         post({ t: 'fail', id: msg.id, jobId: msg.jobId, reason: 'threw: ' + (e as Error).message })
         try { msg.bitmap.close() } catch { /* already gone */ }

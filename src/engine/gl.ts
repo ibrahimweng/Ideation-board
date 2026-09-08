@@ -56,6 +56,15 @@ export interface JobLayer {
   params: Params | null
 }
 
+/* The card wired into the one being rendered. Uploaded and cached exactly like
+ * the first, because it is a card like any other. */
+export interface Second {
+  source: Source
+  w: number
+  h: number
+  key: string
+}
+
 export interface RenderJob {
   effectId: string
   params: Params | null
@@ -508,7 +517,7 @@ export class Renderer {
 
   /* Renders one card. `key` is the cache identity of the pixel source; pass
    * null for live video so the frame is uploaded rather than cached. */
-  render(source: Source, srcW: number, srcH: number, key: string | null, job: RenderJob): boolean {
+  render(source: Source, srcW: number, srcH: number, key: string | null, job: RenderJob, second?: Second | null): boolean {
     if (!this.ok || !source) return false
     const gl = this.gl
     /* Four thousand and ninety six rather than two thousand: nothing on the
@@ -530,12 +539,20 @@ export class Renderer {
     /* How much of the picture the card can show without distorting it. */
     const cover = coverUv(srcW, srcH, w, h)
 
+    /* And the same for whatever is wired in, so the two line up on the card
+     * rather than on their own aspect ratios. */
+    let two: { tex: WebGLTexture; cover: Cover } | null = null
+    if (second) {
+      const t2 = this.uploadCached(second.key, second.source, second.w, second.h)
+      if (t2) two = { tex: t2, cover: coverUv(second.w, second.h, w, h) }
+    }
+
     const stacked = job.stack && job.stack.length ? job.stack : null
     if (!stacked) {
       /* The whole of the board, nearly always: one effect, one draw, straight
        * to the canvas. Deliberately not routed through the loop below — a card
        * with one effect must cost exactly what it cost before any of this. */
-      return this.pass({ effectId: job.effectId, params: job.params }, src, cover, w, h, null, job.seed)
+      return this.pass({ effectId: job.effectId, params: job.params }, src, cover, w, h, null, job.seed, two)
     }
 
     /* Each layer draws into a buffer for the next one to read, and the last
@@ -554,7 +571,7 @@ export class Renderer {
     for (let i = 0; i < layers.length; i++) {
       const last = i === layers.length - 1
       const into = last ? null : bufs[target]
-      if (!this.pass(layers[i], read, from, w, h, into, job.seed + i)) {
+      if (!this.pass(layers[i], read, from, w, h, into, job.seed + i, two)) {
         /* A layer whose shader would not build. Anything already drawn stands;
          * finishing the rest would paint over it with a half-made stack. */
         if (!last) gl.bindFramebuffer(gl.FRAMEBUFFER, null)
@@ -583,7 +600,8 @@ export class Renderer {
     w: number,
     h: number,
     into: FBO | null,
-    seed: number
+    seed: number,
+    two: { tex: WebGLTexture; cover: Cover } | null = null
   ): boolean {
     const gl = this.gl
     const spec: EffectSpec = BY_ID[layer.effectId] || BY_ID.none
@@ -608,9 +626,19 @@ export class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, bl.tex)
     gl.activeTexture(gl.TEXTURE2)
     gl.bindTexture(gl.TEXTURE_2D, this.glyph)
+    /* Unit three always has something bound to it, wired or not: sampling an
+     * unbound unit is undefined, and a shader that reads S with nothing wired
+     * would draw whatever the driver felt like. It reads the card's own pixels
+     * in that case, which is what the preamble promises. */
+    gl.activeTexture(gl.TEXTURE3)
+    gl.bindTexture(gl.TEXTURE_2D, two ? two.tex : src)
     if (pr.u.uTex) gl.uniform1i(pr.u.uTex, 0)
     if (pr.u.uBlur) gl.uniform1i(pr.u.uBlur, 1)
     if (pr.u.uGlyph) gl.uniform1i(pr.u.uGlyph, 2)
+    if (pr.u.uTex2) gl.uniform1i(pr.u.uTex2, 3)
+    if (pr.u.uHas2) gl.uniform1f(pr.u.uHas2, two ? 1 : 0)
+    if (pr.u.uCover2) gl.uniform2f(pr.u.uCover2, two ? two.cover.sx : cover.sx, two ? two.cover.sy : cover.sy)
+    if (pr.u.uCoverOff2) gl.uniform2f(pr.u.uCoverOff2, two ? two.cover.ox : cover.ox, two ? two.cover.oy : cover.oy)
     if (pr.u.uRes) gl.uniform2f(pr.u.uRes, w, h)
     if (pr.u.uCover) gl.uniform2f(pr.u.uCover, cover.sx, cover.sy)
     if (pr.u.uCoverOff) gl.uniform2f(pr.u.uCoverOff, cover.ox, cover.oy)

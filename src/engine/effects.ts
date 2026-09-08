@@ -657,6 +657,78 @@ export const EFFECTS: EffectSpec[] = [
       vec3 g = l < 0.5 ? mix(c0, c1, l*2.0) : mix(c1, c2, (l-0.5)*2.0);
       vec3 col = mix(g, g * (0.55 + l*0.9), p2);
       return vec4(mix(src.rgb, col, p3), src.a); }`
+  },
+
+  /* ---- and three that read two pictures ----
+   *
+   * Everything above this line treats one picture. These treat two: the card
+   * itself, and whatever card is wired into it. Draw a line from one card to
+   * another and the one at the start of the line is what S reads.
+   *
+   * With nothing wired, S gives back the card's own pixels — so Displace
+   * pushes a picture around by its own brightness, Stencil cuts it out of
+   * itself, and Through reads its own colours. All three are real effects in
+   * that state rather than an error, which is what lets them sit in the list
+   * beside everything else instead of being greyed out until you understand
+   * them. */
+
+  {
+    id: 'displace', name: 'Displace', group: 'Pair',
+    controls: [N('p0', 'Amount', 0, 100, 1, 45, 'px'), N('p1', 'Map scale', 0.25, 4, 0.01, 1),
+      N('p2', 'Angle', -180, 180, 1, 0, '\u00b0'), E('p3', 'Reads', 2, ['Colour', 'Brightness', 'Along the angle']),
+      N('p4', 'Map turn', -180, 180, 1, 0, '\u00b0'), N('p5', 'Amount', 0, 1, 0.01, 1)],
+    /* The oldest two-picture effect there is: one image's brightness decides
+     * how far the other one's pixels move. A crumpled paper scan over a
+     * wordmark and the wordmark is printed on crumpled paper. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = rot((uv - 0.5) / max(0.05, p1), radians(p4)) + 0.5;
+      vec4 map = S(mirror(m));
+      vec2 d;
+      int k = int(p3 + 0.5);
+      /* Colour reads red across and green down, which is what a displacement
+         map written for anywhere else will be. Brightness is the one you get
+         from a photograph. */
+      if(k == 0) d = map.rg - 0.5;
+      else if(k == 1) d = vec2(luma(map.rgb) - 0.5);
+      else d = vec2(cos(radians(p2)), sin(radians(p2))) * (luma(map.rgb) - 0.5);
+      vec2 push = d * p0 * 2.0 / uRes;
+      return vec4(mix(T(uv).rgb, T(mirror(uv + push)).rgb, p5), 1.0); }`
+  },
+
+  {
+    id: 'stencil', name: 'Stencil', group: 'Pair',
+    controls: [N('p0', 'Cut at', 0, 1, 0.01, 0.5), N('p1', 'Softness', 0, 1, 0.01, 0.12),
+      N('p2', 'Map scale', 0.25, 4, 0.01, 1), E('p3', 'Keeps', 0, ['The light', 'The dark']),
+      E('p4', 'Behind', 0, ['A colour', 'The other picture']), C('c0', 'Behind', '#F2EFE6')],
+    /* One picture decides where the other one shows. A shape knocked out of a
+     * photograph, a photograph poured into a letterform — the thing every
+     * designer opens something else to do. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = (uv - 0.5) / max(0.05, p2) + 0.5;
+      float l = luma(S(mirror(m)).rgb);
+      float e = max(0.005, p1) * 0.5;
+      float k = smoothstep(p0 - e, p0 + e, l);
+      if(p3 > 0.5) k = 1.0 - k;
+      vec3 back = p4 > 0.5 ? S(uv).rgb : c0;
+      return vec4(mix(back, T(uv).rgb, k), 1.0); }`
+  },
+
+  {
+    id: 'through', name: 'Through', group: 'Pair',
+    controls: [N('p0', 'Midpoint', 0.05, 0.95, 0.01, 0.5), N('p1', 'Contrast', -1, 1, 0.01, 0),
+      N('p2', 'Read at', 0, 1, 0.01, 0.5), E('p3', 'Reads', 0, ['Across', 'Down']),
+      N('p4', 'Amount', 0, 1, 0.01, 1), N('p5', 'Keep detail', 0, 1, 0.01, 0.25)],
+    /* This picture's range of light, coloured by a line taken across the other
+     * one. A gradient map whose gradient is a photograph — which is how a
+     * palette pulled off one image gets put onto another without anybody
+     * naming a single colour. */
+    frag: `vec4 fx(vec2 uv){
+      vec4 src = T(uv);
+      float l = clamp((luma(src.rgb) - p0) * (1.0 + p1*2.0) + 0.5, 0.0, 1.0);
+      vec2 at = p3 > 0.5 ? vec2(p2, l) : vec2(l, p2);
+      vec3 col = S(at).rgb;
+      col = mix(col, col * (0.55 + l*0.9), p5);
+      return vec4(mix(src.rgb, col, p4), src.a); }`
   }
 ]
 

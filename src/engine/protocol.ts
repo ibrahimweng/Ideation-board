@@ -22,6 +22,9 @@ export interface RenderMsg {
   id: string
   jobId: number
   key: string
+  /* The card wired into this one, if any: the second picture an effect can
+   * read. Named the same way the first is, and looked up in the same cache. */
+  key2?: string
   effectId: string
   /* Effects after the first, in order. Absent for the ordinary card. */
   stack?: { effectId: string; params: Params | null }[]
@@ -37,6 +40,7 @@ export interface RenderLiveMsg {
   id: string
   jobId: number
   bitmap: ImageBitmap
+  key2?: string
   effectId: string
   /* Effects after the first, in order. Absent for the ordinary card. */
   stack?: { effectId: string; params: Params | null }[]

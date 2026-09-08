@@ -5,6 +5,7 @@ import { ADJUST_0, BLENDS, blendOf, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
+import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
 import { holdOriginal, releaseOriginal, useComparing } from '../board/original'
@@ -62,6 +63,9 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   )
   const primaryId = targets[0]?.id
   const primary = useItem(primaryId || '')
+  /* Whether a card is wired into the one being worked on, for the effects that
+     read two pictures. */
+  const fed = useFeeder(primaryId || '')
 
   /* Open, with nothing to work on. A full width column of one sentence takes
    * three hundred and twenty pixels off the board to say nothing; a rail says
@@ -312,6 +316,18 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           {!!spec.controls.length && (
             <section className="fx-controls">
               <h4>{spec.name}</h4>
+              {/* An effect that reads two pictures, with only one to read.
+                  It still does something — it reads the card's own pixels —
+                  but what it is for is invisible until the wire is there, so
+                  the panel says so rather than leaving you to guess why it
+                  looks like a weaker version of an effect you already have. */}
+              {spec.group === 'Pair' && (
+                <p className="fx-hint">
+                  {fed
+                    ? 'Reading the card wired into this one. Draw another wire to read a different card.'
+                    : 'Reads a second picture: drag from this card\u2019s edge to another one, and it will read that. On its own it reads itself.'}
+                </p>
+              )}
               {spec.controls.map((c) => (
                 <ControlRow
                   key={c.k}
