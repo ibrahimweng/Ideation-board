@@ -3,6 +3,8 @@ import { getBlob, putBlob } from '../store/idb'
 import { ensureSource } from '../board/sources'
 import { decodeCapped, newKey } from '../store/media'
 import { STAGE_0, renderModel } from '../store/model'
+import { exportSize, renderCardPicture } from './exportImage'
+import { feederCard, refreshFeeds } from './feeds'
 import type { Stage } from '../store/model'
 import type { Item } from './types'
 
@@ -151,15 +153,85 @@ export async function turnTo(id: string, stage: Stage): Promise<boolean> {
   }
 }
 
-/* Hands a picture to one of the model's materials, or takes it off again. One
- * step of undo, because it is one decision. */
-export async function wearSkin(id: string, material: string, mediaKey: string | null): Promise<boolean> {
+/* ---------------------------------------------------------------------------
+ * Handing a card to a material.
+ *
+ * What goes on the model is the card as it looks, not the file behind it.
+ *
+ * That distinction is the whole feature. A card on this board is a photograph
+ * plus everything that has been done to it — an effect, a tone, a crop — and
+ * the point of putting one on a material is to see that treatment on the
+ * thing, not to see the original photograph again. Handing over the file's
+ * address was quick and quietly wrong: halftone a scan, hand it to a material,
+ * and the model came back wearing the scan.
+ *
+ * So the card is rendered exactly the way exporting it as a picture renders
+ * it — same path, same order, effect then tone then crop — and the result is
+ * what the material wears.
+ *
+ * ## A picture taken at the moment you press it
+ *
+ * The skin is a render, so it is a moment rather than a link: change the card
+ * afterwards and the model goes on wearing what it was given. That is why the
+ * button stays there once something is worn — pressing it again takes a fresh
+ * picture — and it is the honest arrangement, because a live link would mean
+ * every slider on a wired card re-rendering a model somewhere else on the
+ * board.
+ * ------------------------------------------------------------------------- */
+
+/* Plenty for a material on a model rendered at 1024, and small enough that a
+ * board of dressed models is not a board of ten-megabyte textures. */
+const SKIN = 2048
+
+/* WebP at this quality is indistinguishable from the PNG on a texture and
+ * about a tenth of the size, which on a browser that holds all your work in a
+ * storage quota is the difference that matters. */
+const SKIN_TYPE = 'image/webp'
+const SKIN_Q = 0.92
+
+async function bake(from: Item): Promise<Blob | null> {
+  /* The picture's own dimensions, cropped to the shape the card is showing it
+   * in, then capped. `nw`/`nh` describe the picture; `w`/`h` the card. */
+  const at = exportSize(from.nw || from.w, from.nh || from.h, from.w, from.h)
+  const k = Math.min(1, SKIN / Math.max(at.w, at.h))
+  const cv = await renderCardPicture(from, Math.max(2, Math.round(at.w * k)), Math.max(2, Math.round(at.h * k)))
+  if (!cv) return null
+  const blob = await new Promise<Blob | null>((r) => cv.toBlob(r, SKIN_TYPE, SKIN_Q))
+  /* A browser that will not write WebP still gets a texture. */
+  return blob || (await new Promise<Blob | null>((r) => cv.toBlob(r, 'image/png')))
+}
+
+/* Puts the card wired into this model onto one of its materials. Returns the
+ * reason it could not, or null if it did. */
+export async function wearSkin(id: string, material: string): Promise<string | null> {
   const it = store.getItem(id)
-  if (!isStaged(it)) return false
-  const next: Record<string, string> = { ...(it.skins || {}) }
-  if (mediaKey) next[material] = mediaKey
-  else delete next[material]
+  if (!isStaged(it)) return 'that card is not a model'
+  refreshFeeds()
+  const fromId = feederCard(id)
+  const from = fromId ? store.getItem(fromId) : null
+  if (!from) return 'wire a card into this one first'
+
+  const blob = await bake(from)
+  if (!blob) return 'that card could not be rendered'
+  const key = newKey('skn')
+  await putBlob(key, blob)
+
+  const still = store.getItem(id)
+  if (!isStaged(still)) return null
+  store.beginGesture(0)
+  store.update(id, { skins: { ...(still.skins || {}), [material]: key } }, false)
+  await turnTo(id, stageOf(store.getItem(id)))
+  return null
+}
+
+/* And takes it off again. One step of undo, because it is one decision. */
+export async function takeOffSkin(id: string, material: string): Promise<boolean> {
+  const it = store.getItem(id)
+  if (!isStaged(it) || !it.skins?.[material]) return false
+  const next: Record<string, string> = { ...it.skins }
+  delete next[material]
   store.beginGesture(0)
   store.update(id, { skins: Object.keys(next).length ? next : undefined }, false)
-  return turnTo(id, stageOf(store.getItem(id)))
+  await turnTo(id, stageOf(store.getItem(id)))
+  return true
 }

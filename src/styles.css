@@ -1270,6 +1270,7 @@ body[data-turning] .card-chrome { opacity: 0; }
 .part-of { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .part-of b { font-size: var(--t-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .part-of em { font-style: normal; font-size: var(--t-xs); color: var(--faint); }
+.part-do { display: flex; gap: 4px; }
 .part button { padding: 4px 9px; font-size: var(--t-xs); white-space: nowrap; }
 .part button:disabled { opacity: 0.45; cursor: default; }
 

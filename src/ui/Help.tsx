@@ -219,7 +219,10 @@ function parts(): Part[] {
             so about itself, and this reads it. Draw a line from another card to the model and you
             can hand that card to a material: press <strong>Wear</strong> and the model comes back
             with your picture on it, which is the shortest route there is from a reference to the
-            thing you are designing. <strong>Export the selected model as a .glb</strong> in the
+            thing you are designing. It takes the card <em>as it looks</em> — the effect on it, the
+            tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
+            picture taken at the moment you press it rather than a live link, so press{' '}
+            <strong>Again</strong> after working on the card. <strong>Export the selected model as a .glb</strong> in the
             command list hands it back as a model rather than a picture of one, carrying whatever
             you put on it, so it opens in the program it came from.
           </p>

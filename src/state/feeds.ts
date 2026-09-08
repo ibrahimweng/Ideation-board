@@ -41,33 +41,42 @@ import { endsOf, hasPixels, pixelKey } from './kinds'
 
 /* target id -> the pixel key of the card feeding it */
 let feeds = new Map<string, string>()
+/* And target id -> the id of that card. The key is what a shader samples; the
+ * card is what a person pointed at, and the two answer different questions —
+ * "what pixels" and "which card, with everything that has been done to it". */
+let sources = new Map<string, string>()
 const watchers = new Map<string, Set<() => void>>()
 
 /* Worked out from the board rather than kept alongside it: a wire is an item
  * like any other, and a second copy of where the wires are is a second copy to
  * keep right through undo, paste, board switches and another tab writing. */
-function build(): Map<string, string> {
-  const next = new Map<string, string>()
+function build(): { keys: Map<string, string>; from: Map<string, string> } {
+  const keys = new Map<string, string>()
+  const from = new Map<string, string>()
   /* In board order, so a wire drawn later replaces one drawn earlier. */
   for (const id of store.getOrder()) {
     const it = store.getItem(id)
     const ends = endsOf(it)
     if (!ends) continue
-    const from = store.getItem(ends[0])
+    const feeder = store.getItem(ends[0])
     const to = store.getItem(ends[1])
-    if (!to || !hasPixels(from)) continue
-    const key = pixelKey(from)
-    if (key) next.set(ends[1], key)
+    if (!to || !hasPixels(feeder)) continue
+    const key = pixelKey(feeder)
+    if (key) {
+      keys.set(ends[1], key)
+      from.set(ends[1], ends[0])
+    }
   }
-  return next
+  return { keys, from }
 }
 
 function recheck() {
   const next = build()
   /* Only the cards whose answer moved. Rebuilding the map is cheap; making
    * three hundred cards re-render because a wire was drawn is not. */
-  const touched = new Set<string>([...feeds.keys(), ...next.keys()])
-  feeds = next
+  const touched = new Set<string>([...feeds.keys(), ...next.keys.keys()])
+  feeds = next.keys
+  sources = next.from
   for (const id of touched) {
     if (feeds.get(id) === undefined && !watchers.has(id)) continue
     const subs = watchers.get(id)
@@ -86,6 +95,11 @@ function listen() {
 }
 
 export const feederKey = (id: string): string | undefined => feeds.get(id)
+
+/* The card feeding this one, rather than the pixels it happens to hold. What
+ * a material is handed is a card as it looks — effects, tone and crop and all —
+ * and none of that is knowable from the address of the file underneath. */
+export const feederCard = (id: string): string | undefined => sources.get(id)
 
 /* The pixel key of whatever is wired into this card, for the render request. */
 export function useFeeder(id: string): string | undefined {
@@ -109,5 +123,7 @@ export function useFeeder(id: string): string | undefined {
 /* For anything that needs the map rebuilt now rather than on the next change —
  * an export, which runs outside React and cannot wait to be told. */
 export function refreshFeeds() {
-  feeds = build()
+  const next = build()
+  feeds = next.keys
+  sources = next.from
 }

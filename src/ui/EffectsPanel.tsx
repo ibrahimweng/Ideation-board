@@ -8,7 +8,7 @@ import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
-import { DIST, PITCH, stageOf, turnTo, wearSkin } from '../state/staging'
+import { DIST, PITCH, stageOf, takeOffSkin, turnTo, wearSkin } from '../state/staging'
 import { STAGE_0 } from '../store/model'
 import type { Part, Stage } from '../store/model'
 import type { Item } from '../state/types'
@@ -518,7 +518,7 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
           <h4>Materials</h4>
           <p className="fx-hint">
             {fed
-              ? 'Hand the card wired into this one to a material and the model wears it.'
+              ? 'Hand the card wired into this one to a material and the model wears it \u2014 as it looks now, effects and all. Press Wear again after changing it.'
               : 'Drag a wire from another card to this one, and you can hand its picture to any of these.'}
           </p>
           <ul className="part-list">
@@ -532,11 +532,10 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
                     <b>{p.name}</b>
                     <em>{partWhat(p)}</em>
                   </span>
-                  {worn ? (
-                    <button className="ghost" onClick={() => void wearSkin(it.id, p.name, null)}>
-                      Take off
-                    </button>
-                  ) : (
+                  {/* Wear stays there once something is worn, because pressing
+                      it again is how a material catches up with a card that
+                      has been worked on since. */}
+                  <span className="part-do">
                     <button
                       className="ghost"
                       disabled={!fed || !unwrapped}
@@ -545,13 +544,20 @@ function ModelSection({ it, fed }: { it: Item; fed?: string }) {
                           ? `${p.name} has no UVs, so a picture has nowhere to sit on it.`
                           : !fed
                             ? 'Wire a card into this one first.'
-                            : `Put the wired card on ${p.name}`
+                            : worn
+                              ? `Put the wired card on ${p.name} again, as it looks now`
+                              : `Put the wired card on ${p.name}, as it looks now`
                       }
-                      onClick={() => fed && void wearSkin(it.id, p.name, fed)}
+                      onClick={() => void wearSkin(it.id, p.name)}
                     >
-                      Wear
+                      {worn ? 'Again' : 'Wear'}
                     </button>
-                  )}
+                    {!!worn && (
+                      <button className="ghost" onClick={() => void takeOffSkin(it.id, p.name)}>
+                        Take off
+                      </button>
+                    )}
+                  </span>
                 </li>
               )
             })}

@@ -386,16 +386,93 @@ check('and it shows full screen like any other picture',
 await page.keyboard.press('Escape')
 await page.waitForTimeout(600)
 
+/* ---------- what the material is actually wearing ---------- */
+
+/* The skin as bytes, rather than as a patch of the lit render. The model's own
+   base colour multiplies whatever texture it is given, so reading the card
+   tells you a colour changed and not which colour it changed to. This reads
+   the file the material was handed. */
+const skin = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open('ideation.board.db')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const get = (storeName, key) =>
+      new Promise((res) => {
+        const t = db.transaction(storeName, 'readonly')
+        const r = t.objectStore(storeName).get(key)
+        r.onsuccess = () => res(r.result)
+        r.onerror = () => res(null)
+      })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const r = t.objectStore('boards').getAll()
+      r.onsuccess = () => res(r.result || [])
+      r.onerror = () => res([])
+    })
+    const it = all.flatMap((b) => b.items || []).find((i) => i.kind === 'model')
+    const key = it?.skins?.Shell
+    if (!key) return null
+    const blob = await get('blobs', key)
+    if (!blob) return null
+    const bmp = await createImageBitmap(blob)
+    const c = document.createElement('canvas')
+    c.width = 24
+    c.height = 24
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(bmp, 0, 0, 24, 24)
+    const d = cx.getImageData(0, 0, 24, 24).data
+    let r = 0, g = 0, b = 0
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2] }
+    const n = d.length / 4
+    return { key, r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n), w: bmp.width, type: blob.type }
+  })
+
+const plain = await skin()
+check('the material is handed a picture of the card, not a pointer at its file',
+  !!plain && plain.key.startsWith('skn'), JSON.stringify(plain))
+check('and that picture is the green one that was wired in',
+  !!plain && plain.g > plain.r + 60 && plain.g > plain.b + 60, JSON.stringify(plain))
+check('at a size worth putting on a model', !!plain && plain.w >= 256, `${plain?.w}px`)
+
+/* Now change the card and hand it over again. A card on this board is a
+   photograph plus what has been done to it, and the whole point of putting one
+   on a material is to see the treatment on the thing. */
+await page.locator(`.card[data-id="${green}"]`).click()
+await page.waitForTimeout(500)
+await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.waitForTimeout(500)
+const sat = page.locator('.ctl').filter({ hasText: 'Saturation' }).locator('.ctl-num')
+await sat.fill('0')
+await sat.press('Enter')
+await page.waitForTimeout(1200)
+
+await page.locator(`.card[data-id="${solid}"]`).click()
+await page.waitForTimeout(700)
+if (!(await page.locator('.part').count())) {
+  await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+  await page.waitForTimeout(500)
+}
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
+await page.waitForTimeout(4000)
+
+const treated = await skin()
+check('a card taken to greyscale is worn in greyscale',
+  !!treated && Math.abs(treated.r - treated.g) < 14 && Math.abs(treated.g - treated.b) < 14,
+  JSON.stringify(treated))
+check('which is a different picture from the one before it',
+  !!treated && !!plain && treated.key !== plain.key, `${plain?.key} then ${treated?.key}`)
+
 /* ---------- and taken off again ---------- */
 
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
-await page.waitForTimeout(600)
-await page.locator('.part').first().locator('button').click()
+await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
 await page.waitForTimeout(3500)
 check('and it can be taken off again', !(await saved())?.skins, JSON.stringify((await saved())?.skins))
 
 /* Back on, for the trip out of the browser below. */
-await page.locator('.part').first().locator('button').click()
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
 await page.waitForTimeout(3500)
 
 /* ---------- out of this browser and back into it ---------- */
