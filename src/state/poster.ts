@@ -1,6 +1,6 @@
 import type { Item } from './types'
 import { TAGS } from './types'
-import { isSection, isWire, pixelKey } from './kinds'
+import { TRAITS, isSection, isWire, pixelKey } from './kinds'
 import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
 import type { PaperName } from './posterPage'
 import { parse } from './rich'
@@ -514,9 +514,9 @@ function drawCaption(cx: Ctx, it: Item, t: Tokens) {
   /* A note already has its words on it. */
   if (it.kind === 'note' || it.kind === 'label') return
 
-  const overPicture =
-    it.kind === 'image' || it.kind === 'video' || it.kind === 'pdf' || it.kind === 'design' ||
-    it.kind === 'embed' || it.kind === 'board'
+  /* Asked of the table rather than as a guard: a guard proves the item is
+     there, which leaves nothing at all on the other side of the `||`. */
+  const overPicture = TRAITS[it.kind].pixels || it.kind === 'embed' || it.kind === 'board'
   const h = overPicture ? 34 : 26
   const y = it.y + it.h - h
 
@@ -602,23 +602,19 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
   rrect(cx, it.x, it.y, it.w, it.h, R_MD)
   cx.clip()
 
-  switch (it.kind) {
-    case 'image':
-    case 'video':
-    /* A page, and the artwork inside a design file, are both pictures and are
-       both drawn as one. */
-    case 'pdf':
-    case 'design': {
-      const w = Math.max(2, Math.round(it.w * scale))
-      const h = Math.max(2, Math.round(it.h * scale))
-      const picture = await renderCardPicture(it, w, h, await sourceFor(it))
-      if (picture) cx.drawImage(picture, it.x, it.y, it.w, it.h)
-      else {
-        cx.fillStyle = t.well
-        cx.fillRect(it.x, it.y, it.w, it.h)
-      }
-      break
+  /* A photograph, a frame of video, a page, an artboard, a view of a model:
+     all pictures, all drawn as one. Asked of the traits table rather than
+     listed here, because a list here is a list that forgets. */
+  if (TRAITS[it.kind].pixels) {
+    const w = Math.max(2, Math.round(it.w * scale))
+    const h = Math.max(2, Math.round(it.h * scale))
+    const picture = await renderCardPicture(it, w, h, await sourceFor(it))
+    if (picture) cx.drawImage(picture, it.x, it.y, it.w, it.h)
+    else {
+      cx.fillStyle = t.well
+      cx.fillRect(it.x, it.y, it.w, it.h)
     }
+  } else switch (it.kind) {
     /* The player's pixels belong to the provider, so the sheet gets the
      * shape of a video rather than a frame of one. */
     case 'embed': drawEmbed(cx, it, t); break

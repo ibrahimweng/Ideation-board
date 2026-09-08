@@ -2,7 +2,7 @@ import type { Item } from './types'
 import { boardTree } from './boards'
 import { getBlob } from '../store/idb'
 import { renderCardPicture } from './exportImage'
-import { TRAITS } from './kinds'
+import { TRAITS, pixelKey } from './kinds'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
@@ -82,10 +82,12 @@ async function dataUri(blob: Blob): Promise<string> {
  * from, so it falls back to the still that was kept when it was brought in.
  * Without that, every video on every nested board would come out blank. */
 async function sourceFor(item: Item): Promise<ImageBitmap | null> {
-  const keys = [item.media, item.poster].filter(Boolean) as string[]
-  /* A document's file is a PDF, which is not something createImageBitmap can
-     read. Its page is under poster, so that is the one to try. */
-  if (item.kind === 'pdf' || item.kind === 'design') keys.reverse()
+  /* Which file holds the pixels is a question with one answer, asked in one
+     place: a document's own file is a PDF and a model's is a .glb, and neither
+     is something createImageBitmap can read. The other address is kept as a
+     fallback rather than dropped, because a record written by an older version
+     may not name the one this expects. */
+  const keys = [...new Set([pixelKey(item), item.media, item.poster].filter(Boolean) as string[])]
   if (item.kind === 'video') {
     const el = document.querySelector(`.card[data-id="${item.id}"] video`) as HTMLVideoElement | null
     if (el && el.videoWidth) {

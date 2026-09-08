@@ -372,6 +372,15 @@ if (await halftone.count()) {
 check('every effect works on it, because it is a picture',
   (await page.locator(`.card[data-id="${solid}"] canvas.media`).count()) === 1)
 
+/* Full screen, where four places used to write out a list of the kinds that
+   have a picture and every one of them would have left this one out. */
+await page.locator(`.card[data-id="${solid}"]`).dblclick()
+await page.waitForTimeout(1200)
+check('and it shows full screen like any other picture',
+  (await page.locator('.present-stage img, .present-stage canvas').count()) > 0)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(600)
+
 /* ---------- taking it off, and coming back ---------- */
 
 await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()

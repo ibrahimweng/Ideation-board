@@ -127,6 +127,18 @@ const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model'])
 export const pixelKey = (i?: Item | null): string | undefined =>
   !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
 
+/* A card the app draws a still picture for.
+ *
+ * Not the same question as `hasPixels`: a video has pixels and is drawn by a
+ * video element, which everything below has to leave alone. Everything else
+ * with pixels — a photograph, a page, an artboard, a view of a model — is an
+ * <img> or a canvas, and is treated identically wherever one of those will do.
+ *
+ * Asked rather than listed, because it was listed: four places wrote out
+ * `image || pdf || design` by hand, and every one of them silently left the
+ * next kind out of the full-screen view, the board poster and the export. */
+export const isStill = (i?: Item | null): i is Item => hasPixels(i) && i.kind !== 'video'
+
 /* Both ends of a wire, or nothing. */
 export const endsOf = (i?: Item | null): [string, string] | null =>
   i && isWire(i) && i.from && i.to ? [i.from, i.to] : null

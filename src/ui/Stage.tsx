@@ -7,7 +7,7 @@ import { adjustCSS, frameCSS, hasEffect } from '../board/adjust'
 import { GRAIN_URL } from '../board/grain'
 import { RichText } from '../board/RichText'
 import { hostOf } from '../state/urls'
-import { canShade, pixelKey } from '../state/kinds'
+import { canShade, isStill, pixelKey } from '../state/kinds'
 import { inkOn } from '../state/palette'
 
 /* ---------------------------------------------------------------------------
@@ -55,13 +55,13 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
   const fx = item.fx
   const filter = adjustCSS(fx)
   const frame = frameCSS(fx)
-  const effected = hasEffect(fx) && (item.kind === 'image' || item.kind === 'pdf' || item.kind === 'design') && canShade(item)
+  const effected = hasEffect(fx) && isStill(item) && canShade(item)
 
   return (
     <div className="present-stage" style={{ width: box.w, height: box.h }}>
       <div className="present-body" style={{ filter: filter || undefined }}>
         <div className="present-frame" style={{ transform: frame || undefined }}>
-          {(item.kind === 'image' || item.kind === 'pdf' || item.kind === 'design') &&
+          {isStill(item) &&
             (effected && ready && pixelKey(item) ? (
               <FxCanvas
                 id={`${tag}:${item.id}`}
