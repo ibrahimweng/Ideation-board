@@ -6,6 +6,22 @@ import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
 import { KEYS } from '../ui/shortcuts'
 import { keysHeld } from '../ui/modal'
+import { holdOriginal, releaseOriginal } from '../board/original'
+
+/* Input types that words go into. A range, a checkbox or a colour swatch is an
+ * <input> too, but nothing is typed into one, so it has no claim on the keys
+ * the board wants. */
+const TYPED = new Set([
+  'text', 'search', 'url', 'tel', 'email', 'password', 'number',
+  'date', 'time', 'datetime-local', 'month', 'week',
+])
+
+function typingInto(t: HTMLElement | null): boolean {
+  if (!t) return false
+  if (t.tagName === 'TEXTAREA' || t.isContentEditable) return true
+  /* An <input> with no type at all is a text field. */
+  return t.tagName === 'INPUT' && TYPED.has((t as HTMLInputElement).type || 'text')
+}
 
 /* ---------------------------------------------------------------------------
  * The keyboard.
@@ -34,6 +50,7 @@ export interface KeyActions {
   addBoard: (at: { x: number; y: number }) => void
   askForLink: (at: { x: number; y: number }) => void
   draw: () => void
+  writeSketch: (at: { x: number; y: number }) => void
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
@@ -50,6 +67,8 @@ export interface KeyActions {
   takeAway: () => void
   gather: () => void
   compare: () => void
+  vary: () => void
+  shuffle: () => void
 }
 
 export function useShortcuts(a: KeyActions) {
@@ -67,8 +86,20 @@ export function useShortcuts(a: KeyActions) {
       a.togglePalette()
       return
     }
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
     const cmd = e.metaKey || e.ctrlKey
+
+    /* Somewhere words are being written. The keyboard is theirs, including
+       ⌘Z, which in a text field means the field's own undo. */
+    if (typingInto(t)) return
+
+    /* The one key here that is held rather than pressed. A held key repeats,
+       and every repeat arrives as another keydown, so starting the comparison
+       twice has to be the same as starting it once. */
+    if (!cmd && e.key === KEYS.original.key) {
+      e.preventDefault()
+      holdOriginal()
+      return
+    }
 
     if (cmd && e.key.toLowerCase() === 'z') {
       e.preventDefault()
@@ -76,6 +107,14 @@ export function useShortcuts(a: KeyActions) {
       else store.undo()
       return
     }
+
+    /* A slider or a swatch is an <input> with nothing being written into it,
+       so the two above still work while one has the focus — which is the
+       common case, since undo and the compare key are what you reach for
+       straight after moving a slider, and having them do nothing there is
+       baffling. Everything past this point is a bare letter or an arrow, and
+       those the control is entitled to keep. */
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) return
     if (cmd && e.key.toLowerCase() === 'a') {
       e.preventDefault()
       /* With a search running, everything means everything you can see. */
@@ -137,6 +176,7 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.board.key) { e.preventDefault(); a.addBoard(at); return }
       if (k === KEYS.link.key) { e.preventDefault(); a.askForLink(at); return }
       if (k === KEYS.draw.key) { e.preventDefault(); a.draw(); return }
+      if (k === KEYS.sketch.key) { e.preventDefault(); a.writeSketch(at); return }
       if (k === KEYS.addFiles.key) { e.preventDefault(); a.pickFiles(); return }
       if (k === KEYS.effects.key) { e.preventDefault(); a.togglePanel(); return }
       if (k === KEYS.present.key) { e.preventDefault(); a.present(); return }
@@ -151,6 +191,12 @@ export function useShortcuts(a: KeyActions) {
       if (k === KEYS.gather.key) { e.preventDefault(); a.gather(); return }
       /* And the deciding itself, which is nearly always between two things. */
       if (k === KEYS.compare.key) { e.preventDefault(); a.compare(); return }
+      /* Twelve versions of the picture, to decide between. Pressed again on
+         the batch it made, it breeds from whichever of them were kept. */
+      if (k === KEYS.vary.key) { e.preventDefault(); a.vary(); return }
+      /* The same dice thrown in place, for when you do not want to decide
+         between twelve, you just want it to be something else. */
+      if (k === KEYS.shuffle.key) { e.preventDefault(); a.shuffle(); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -196,7 +242,26 @@ export function useShortcuts(a: KeyActions) {
       store.moveMany(store.dragSet(sel).ids, dx, dy, false)
     }
   }
+
+  /* Letting go, and every other way a hold can end without one.
+   *
+   * A key held down while the window loses focus never sends its keyup — the
+   * window that takes the focus gets that — so a board left with the
+   * comparison switched on would be a board showing none of your work with no
+   * way to notice why. Blur ends it too, which is half the reason this is a
+   * hold and not a toggle. */
+  const onUp = (e: KeyboardEvent) => {
+    if (e.key === KEYS.original.key) releaseOriginal()
+  }
+  const onBlur = () => releaseOriginal()
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keyup', onUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onUp)
+      window.removeEventListener('blur', onBlur)
+    }
   }, [a])
 }

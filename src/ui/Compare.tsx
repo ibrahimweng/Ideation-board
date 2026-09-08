@@ -5,6 +5,7 @@ import { readingOrder } from '../state/order'
 import { Stage, fitStage } from './Stage'
 import { bestGrid, MOST } from './compare'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 
 /* ---------------------------------------------------------------------------
  * Two, three or four things, held up against each other.
@@ -38,6 +39,7 @@ export function Compare({ ids, onClose, say }: { ids: string[]; onClose: () => v
   const tooMany = ids.length - items.length
 
   useEffect(holdKeys, [])
+  const dialog = useDialog(onClose)
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -59,7 +61,6 @@ export function Compare({ ids, onClose, say }: { ids: string[]; onClose: () => v
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose()
       if (e.key === 'ArrowRight' || e.key === 'Tab') {
         e.preventDefault()
         return setAt((n) => (n + 1) % Math.max(1, items.length))
@@ -103,7 +104,7 @@ export function Compare({ ids, onClose, say }: { ids: string[]; onClose: () => v
   const focused = items[Math.min(at, items.length - 1)]
 
   return (
-    <div className="present compare">
+    <div ref={dialog} className="present compare" aria-label="Holding things up against each other">
       <div
         className="compare-grid"
         style={{ gridTemplateColumns: `repeat(${grid.cols}, ${Math.floor(grid.tile.w)}px)` }}

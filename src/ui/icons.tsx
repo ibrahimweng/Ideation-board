@@ -181,3 +181,13 @@ export const IconTrash = (p: P) => (
     <path d="M4.2 4.4l.6 8.4a.8.8 0 0 0 .8.8h4.8a.8.8 0 0 0 .8-.8l.6-8.4" />
   </Svg>
 )
+
+/* Held down to see a picture without what has been done to it. An eye, on the
+ * same grid and at the same weight as the rest: an open lid with a pupil, and
+ * nothing filled, because nothing else in this set is. */
+export const IconEye = ({ className }: P) => (
+  <Svg className={className}>
+    <path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4S1.5 8 1.5 8Z" />
+    <circle cx="8" cy="8" r="1.9" />
+  </Svg>
+)

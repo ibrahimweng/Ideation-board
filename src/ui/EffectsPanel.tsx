@@ -1,13 +1,20 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useId, useMemo, useRef, useState } from 'react'
 import { store, useSelection, useItem } from '../state/store'
-import { EFFECTS, GROUPS, BY_ID, defaults } from '../engine/effects'
-import { isColor, isEnum } from '../engine/types'
+import { EFFECTS, GROUPS, BY_ID, PRESETS, defaults } from '../engine/effects'
+import { ADJUST_0, BLENDS, REPEATS, blendOf, isColor, isEnum } from '../engine/types'
 import type { Control, Layer, Params, FxState } from '../engine/types'
 import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
+import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
-import { canShade, isGradeable } from '../state/kinds'
-import { IconEffects, IconSearch } from './icons'
+import { canShade, isGradeable, pixelKey } from '../state/kinds'
+import { DIST, PITCH, stageOf, turnTo, wearSkin } from '../state/staging'
+import { STAGE_0 } from '../store/model'
+import type { Part, Stage } from '../store/model'
+import type { Item } from '../state/types'
+import { holdOriginal, releaseOriginal, useComparing } from '../board/original'
+import { KEYS, nameFor, titleFor } from './shortcuts'
+import { IconEffects, IconEye, IconSearch } from './icons'
 
 /* Every layer past the first is another full pass over the card, so this is a
  * real cost and not a taste. Four is past what anybody has wanted and still
@@ -27,17 +34,6 @@ const MAX_LAYERS = 4
  * full card, so the strip costs a handful of small draw calls and no encoding.
  * ------------------------------------------------------------------------- */
 
-const PRESETS: { id: string; name: string; vals: Partial<FxState> }[] = [
-  { id: 'none', name: 'Original', vals: {} },
-  { id: 'bw', name: 'B&W', vals: { sat: 0, con: 12 } },
-  { id: 'noir', name: 'Noir', vals: { sat: 0, con: 36, exp: -8 } },
-  { id: 'faded', name: 'Faded', vals: { sat: 74, con: -18, exp: 10, warm: 12 } },
-  { id: 'warm', name: 'Warm', vals: { warm: 28, sat: 112, exp: 4 } },
-  { id: 'cool', name: 'Cool', vals: { warm: -26, sat: 106, con: 8 } },
-  { id: 'punch', name: 'Punch', vals: { con: 28, sat: 134 } },
-  { id: 'print', name: 'Print', vals: { sat: 86, con: 12, grain: 30, warm: 8 } },
-]
-
 export type PanelTab = 'effect' | 'adjust' | 'looks'
 
 interface Props {
@@ -49,6 +45,7 @@ interface Props {
 export function EffectsPanel({ tab, onTab, say }: Props) {
   const selection = useSelection()
   const [find, setFind] = useState('')
+  const comparing = useComparing()
   /* Which of a card's effects the grid and the sliders are working on. Held
      here rather than on the card: it is where you are looking, not something
      about the board. */
@@ -70,6 +67,9 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   )
   const primaryId = targets[0]?.id
   const primary = useItem(primaryId || '')
+  /* Whether a card is wired into the one being worked on, for the effects that
+     read two pictures. */
+  const fed = useFeeder(primaryId || '')
 
   /* Open, with nothing to work on. A full width column of one sentence takes
    * three hundred and twenty pixels off the board to say nothing; a rail says
@@ -88,7 +88,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   /* A card's effects, as a list. The first has always lived on the card itself
    * and the rest in `more`, so that every board ever saved reads back as it
    * was; here they are one thing, because to work on them they are one thing. */
-  const layers: Layer[] = [{ fxid: fx.fxid, ep: fx.ep }, ...(fx.more || [])]
+  const layers: Layer[] = [{ fxid: fx.fxid, ep: fx.ep, n: fx.n }, ...(fx.more || [])]
   const at = Math.min(layer, layers.length - 1)
   const spec = BY_ID[layers[at].fxid] || BY_ID.none
 
@@ -102,13 +102,19 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
       ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`
       : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
 
-  /* A video card previews its effects on the still it was opened with; a
-   * remote one has no still to use, so its thumbnails stay blank. */
-  const previewKey = primary.kind === 'video' ? primary.poster : primary.media
+  /* A video card previews its effects on the still it was opened with, and a
+   * document on the page it is showing; a remote video has no still to use, so
+   * its thumbnails stay blank. */
+  const previewKey = pixelKey(primary)
 
-  const patchFx = (patch: Partial<FxState>) => {
+  /* `discrete` for a control that is pressed rather than swept. The window
+   * below is right for a slider, which has no beginning, and wrong for a
+   * button: without it, choosing a blend mode half a second after typing an
+   * opacity made the two of them one step, and undoing the mode took the
+   * opacity with it. */
+  const patchFx = (patch: Partial<FxState>, discrete = false) => {
     /* A slider sweep is one undo step rather than none. */
-    store.beginGesture(600)
+    store.beginGesture(discrete ? 0 : 600)
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
@@ -122,6 +128,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const pack = (list: Layer[]): Partial<FxState> => ({
     fxid: list[0]?.fxid || 'none',
     ep: list[0]?.ep ?? null,
+    n: list[0]?.n,
     more: list.length > 1 ? list.slice(1) : undefined,
   })
 
@@ -133,7 +140,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
     for (const id of ids) {
       const cur = store.getItem(id)
       if (!cur) continue
-      const mine: Layer[] = [{ fxid: cur.fx.fxid, ep: cur.fx.ep }, ...(cur.fx.more || [])]
+      const mine: Layer[] = [{ fxid: cur.fx.fxid, ep: cur.fx.ep, n: cur.fx.n }, ...(cur.fx.more || [])]
       store.update(id, { fx: { ...cur.fx, ...pack(fn(mine)) } }, false)
     }
   }
@@ -183,6 +190,39 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
         </button>
       </div>
 
+      {/* Held rather than pressed, so it cannot be left switched on: a mode
+          that hides your work is the worst kind of mode to be in by accident.
+          Under the tabs rather than inside one, because the question it
+          answers — is this better than nothing — is the same question whether
+          you are choosing an effect or moving a slider. */}
+      {tab !== 'looks' && (
+        <div className="panel-compare">
+          <button
+            data-on={comparing || undefined}
+            title={titleFor('original')}
+            aria-label={nameFor('original')}
+            aria-pressed={comparing}
+            onPointerDown={(e) => { e.preventDefault(); holdOriginal() }}
+            onPointerUp={releaseOriginal}
+            onPointerLeave={releaseOriginal}
+            onPointerCancel={releaseOriginal}
+            /* A keyboard cannot hold a button down, so for one this is a
+               toggle — and it says which it is doing through aria-pressed. */
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); holdOriginal() }
+            }}
+            onKeyUp={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') releaseOriginal()
+            }}
+            onBlur={releaseOriginal}
+          >
+            <IconEye />
+            <span>{comparing ? 'Showing the original' : 'Hold to see the original'}</span>
+            <em>{KEYS.original.hint}</em>
+          </button>
+        </div>
+      )}
+
       {tab === 'looks' && (
         <LooksTab
           ids={ids}
@@ -206,7 +246,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'effect' && shadeable && (
         <div className="panel-scroll">
-          {/* Thirty one of them in a three across grid is more than anyone can
+          {/* Forty one of them in a three across grid is more than anyone can
               scan, and knowing the name is faster than finding the picture. */}
           <div className="fx-find">
             <IconSearch />
@@ -240,6 +280,28 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                     <i>{i + 1}</i>
                     {(BY_ID[l.fxid] || BY_ID.none).name}
                   </button>
+                  {/* How many times this one runs, each pass reading what the
+                      pass before it drew. One is an effect; more is feedback,
+                      and it is where a kaleidoscope starts recursing and a
+                      warp starts spiralling. Shown as a count rather than as a
+                      running loop because these are still pictures: a card has
+                      to look the same next time it is opened. */}
+                  {l.fxid !== 'none' && (
+                    <button
+                      className="fx-layer-n"
+                      title={`Run ${(BY_ID[l.fxid] || BY_ID.none).name} again on what it drew`}
+                      aria-label={`${(BY_ID[l.fxid] || BY_ID.none).name} runs ${l.n || 1} time${(l.n || 1) === 1 ? '' : 's'}. Click to run it once more.`}
+                      onClick={() =>
+                        editLayers((list) =>
+                          list.map((x, k) =>
+                            k === i ? { ...x, n: ((x.n || 1) % REPEATS) + 1 } : x
+                          )
+                        )
+                      }
+                    >
+                      ×{l.n || 1}
+                    </button>
+                  )}
                   {layers.length > 1 && (
                     <button
                       className="fx-layer-off"
@@ -281,6 +343,18 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           {!!spec.controls.length && (
             <section className="fx-controls">
               <h4>{spec.name}</h4>
+              {/* An effect that reads two pictures, with only one to read.
+                  It still does something — it reads the card's own pixels —
+                  but what it is for is invisible until the wire is there, so
+                  the panel says so rather than leaving you to guess why it
+                  looks like a weaker version of an effect you already have. */}
+              {spec.group === 'Pair' && (
+                <p className="fx-hint">
+                  {fed
+                    ? 'Reading the card wired into this one. Draw another wire to read a different card.'
+                    : 'Reads a second picture: drag from this card\u2019s edge to another one, and it will read that. On its own it reads itself.'}
+                </p>
+              )}
               {spec.controls.map((c) => (
                 <ControlRow
                   key={c.k}
@@ -309,6 +383,11 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
       {tab === 'adjust' && (
         <div className="panel-scroll">
+          {/* First, on a card that has one, because it is the thing the card
+              is: everything below adjusts a picture, and this decides which
+              picture there is to adjust. */}
+          {primary.kind === 'model' && <ModelSection it={primary} fed={fed} />}
+
           <section className="fx-controls">
             <h4>Presets</h4>
             <div className="preset-row">
@@ -322,20 +401,25 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
 
           <section className="fx-controls">
             <h4>Tone</h4>
-            <Slider label="Exposure" min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
-            <Slider label="Contrast" min={-100} max={100} step={1} value={fx.con} onChange={(v) => patchFx({ con: v, preset: 'custom' })} />
-            <Slider label="Saturation" min={0} max={200} step={1} value={fx.sat} onChange={(v) => patchFx({ sat: v, preset: 'custom' })} />
-            <Slider label="Warmth" min={-100} max={100} step={1} value={fx.warm} onChange={(v) => patchFx({ warm: v, preset: 'custom' })} />
-            <Slider label="Blur" min={0} max={100} step={1} value={fx.blur} onChange={(v) => patchFx({ blur: v, preset: 'custom' })} />
-            <Slider label="Grain" min={0} max={100} step={1} value={fx.grain} onChange={(v) => patchFx({ grain: v, preset: 'custom' })} />
+            <Slider label="Exposure" def={ADJUST_0.exp} min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
+            <Slider label="Contrast" def={ADJUST_0.con} min={-100} max={100} step={1} value={fx.con} onChange={(v) => patchFx({ con: v, preset: 'custom' })} />
+            <Slider label="Saturation" def={ADJUST_0.sat} min={0} max={200} step={1} value={fx.sat} onChange={(v) => patchFx({ sat: v, preset: 'custom' })} />
+            <Slider label="Warmth" def={ADJUST_0.warm} min={-100} max={100} step={1} value={fx.warm} onChange={(v) => patchFx({ warm: v, preset: 'custom' })} />
+            <Slider label="Blur" def={ADJUST_0.blur} min={0} max={100} step={1} value={fx.blur} onChange={(v) => patchFx({ blur: v, preset: 'custom' })} />
+            <Slider label="Grain" def={ADJUST_0.grain} min={0} max={100} step={1} value={fx.grain} onChange={(v) => patchFx({ grain: v, preset: 'custom' })} />
           </section>
 
           <section className="fx-controls">
             <h4>Frame</h4>
-            <Slider label="Zoom" min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
-            <Slider label="Offset X" min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
-            <Slider label="Offset Y" min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
-            <Slider label="Rotate" min={-180} max={180} step={1} value={fx.rot} onChange={(v) => patchFx({ rot: v })} />
+            {/* Nobody frames a photograph by typing coordinates into two
+                boxes, and the gesture that does it properly is a modifier
+                drag, which announces itself to nobody. So it is said here,
+                next to the two numbers it writes. */}
+            <p className="fx-hint">Alt-drag the picture to move it in its card, Alt-scroll to scale it.</p>
+            <Slider label="Zoom" def={ADJUST_0.zoom} min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
+            <Slider label="Offset X" def={ADJUST_0.ox} min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
+            <Slider label="Offset Y" def={ADJUST_0.oy} min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
+            <Slider label="Rotate" def={ADJUST_0.rot} min={-180} max={180} step={1} value={fx.rot} onChange={(v) => patchFx({ rot: v })} />
             <div className="flip-row">
               <button data-on={fx.fh || undefined} onClick={() => patchFx({ fh: !fx.fh })}>
                 Flip H
@@ -343,6 +427,31 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
               <button data-on={fx.fv || undefined} onClick={() => patchFx({ fv: !fx.fv })}>
                 Flip V
               </button>
+            </div>
+          </section>
+
+          {/* How this card sits with the ones under it, which is the one part
+              of the panel that is about two pictures rather than one — and
+              most of what a moodboard is for. A texture over a photograph, a
+              wordmark knocked out of a colour field, a scan held at a quarter
+              strength over the thing it is being compared with. */}
+          <section className="fx-controls">
+            <h4>Layer</h4>
+            <p className="fx-hint">How this card mixes with whatever is underneath it.</p>
+            <Slider label="Opacity" def={ADJUST_0.op} min={0} max={100} step={1} unit="%" value={fx.op ?? 100} onChange={(v) => patchFx({ op: v })} />
+            {/* Drawn like the presets above and named apart from them: a
+                preset is a starting point you move on from, and a blend mode
+                is a choice that stays chosen. */}
+            <div className="blend-row">
+              {BLENDS.map((b) => (
+                <button
+                  key={b.id}
+                  data-on={blendOf(fx.mix) === b.id || undefined}
+                  onClick={() => patchFx({ mix: b.id }, true)}
+                >
+                  {b.name}
+                </button>
+              ))}
             </div>
           </section>
 
@@ -355,10 +464,108 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   )
 }
 
-const resetTone = () => ({
-  exp: 0, con: 0, sat: 100, warm: 0, blur: 0, grain: 0,
-  zoom: 1, ox: 0, oy: 0, rot: 0, fh: false, fv: false,
-})
+/* ---------------------------------------------------------------------------
+ * A model, on its stand.
+ *
+ * Two things, and they are different in kind. The first is where the camera
+ * is, which is a picture decision and belongs with the other picture
+ * decisions. The second is the list of materials the file declares — and that
+ * is not a control at all, it is the model telling you what it is made of.
+ *
+ * Nothing here is guessed. A glTF says which materials it has, which texture
+ * slots each one fills and which UV set those textures read; this is that
+ * list, read off the file and shown. What it is for is the button at the end
+ * of each row: a card wired into this one can be handed to one material, and
+ * the model comes back wearing it — the label on the tin, the print on the
+ * fabric, the sticker on the case. A moodboard where the reference lands on
+ * the thing being designed, instead of beside it.
+ * ------------------------------------------------------------------------- */
+
+const DEG = '\u00b0'
+
+/* What the file says this material is. */
+const partWhat = (p: Part): string => {
+  const maps = p.maps.length ? p.maps.join(', ') : 'no textures'
+  /* -1 means the mesh was never unwrapped, so there is nowhere on it for a
+     picture to sit — which is a different answer from "not textured yet" and
+     the only one that stops the button below being worth pressing. */
+  const uv = p.uv.includes(-1) ? 'not unwrapped' : 'UV ' + p.uv.join(' and ')
+  return `${maps} \u00b7 ${uv}`
+}
+
+function ModelSection({ it, fed }: { it: Item; fed?: string }) {
+  const stage = stageOf(it)
+  /* A sweep of the slider is one step of undo, like every other sweep in this
+     panel — and unlike them it is one card, because where a camera stands is
+     about the particular thing it is pointed at. */
+  const set = (patch: Partial<Stage>) => {
+    store.beginGesture(600)
+    void turnTo(it.id, { ...stage, ...patch })
+  }
+  const parts = it.parts || []
+  return (
+    <>
+      <section className="fx-controls">
+        <h4>View</h4>
+        <p className="fx-hint">Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
+        <Slider label="Turn" def={STAGE_0.yaw} min={-180} max={180} step={1} unit={DEG} value={stage.yaw} onChange={(v) => set({ yaw: v })} />
+        <Slider label="Tilt" def={STAGE_0.pitch} min={-PITCH} max={PITCH} step={1} unit={DEG} value={stage.pitch} onChange={(v) => set({ pitch: v })} />
+        <Slider label="Distance" def={STAGE_0.dist} min={DIST.min} max={DIST.max} step={0.05} value={stage.dist} onChange={(v) => set({ dist: v })} />
+      </section>
+
+      {!!parts.length && (
+        <section className="fx-controls">
+          <h4>Materials</h4>
+          <p className="fx-hint">
+            {fed
+              ? 'Hand the card wired into this one to a material and the model wears it.'
+              : 'Drag a wire from another card to this one, and you can hand its picture to any of these.'}
+          </p>
+          <ul className="part-list">
+            {parts.map((p) => {
+              const worn = it.skins?.[p.name]
+              const unwrapped = !p.uv.includes(-1)
+              return (
+                <li key={p.name} className="part" data-worn={worn ? '' : undefined}>
+                  <i className="part-tint" style={{ background: p.tint }} aria-hidden="true" />
+                  <span className="part-of">
+                    <b>{p.name}</b>
+                    <em>{partWhat(p)}</em>
+                  </span>
+                  {worn ? (
+                    <button className="ghost" onClick={() => void wearSkin(it.id, p.name, null)}>
+                      Take off
+                    </button>
+                  ) : (
+                    <button
+                      className="ghost"
+                      disabled={!fed || !unwrapped}
+                      title={
+                        !unwrapped
+                          ? `${p.name} has no UVs, so a picture has nowhere to sit on it.`
+                          : !fed
+                            ? 'Wire a card into this one first.'
+                            : `Put the wired card on ${p.name}`
+                      }
+                      onClick={() => fed && void wearSkin(it.id, p.name, fed)}
+                    >
+                      Wear
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+    </>
+  )
+}
+
+/* Everything the Adjust tab writes, back to nothing. Spread from the defaults
+ * rather than typed out again, since a copy of a list is a copy that gets left
+ * behind: this one had already lost the two the panel learned last. */
+const resetTone = () => ({ ...ADJUST_0 })
 
 /* A preview is a real render of the selected image through that effect, at
  * thumbnail size, scheduled behind the visible cards. */
@@ -432,14 +639,26 @@ function ControlRow({ control, value, onChange }: { control: Control; value: num
       max={control.max}
       step={control.step}
       unit={control.unit}
+      def={control.def}
       value={typeof value === 'number' ? value : control.def}
       onChange={onChange}
     />
   )
 }
 
+/* A slider whose number can be typed into.
+ *
+ * Every control in this panel was a bare range input with a read-only figure
+ * beside it, which meant a setting could not be entered exactly, could not be
+ * copied, and could not be matched across two cards by hand. A setting you
+ * cannot enter is a setting you cannot repeat, and repeating a treatment is
+ * most of what this panel is for.
+ *
+ * Three ways in now: drag it, type it, or double-click to put it back where it
+ * started. Shift with an arrow key moves in tens, because a range of two
+ * hundred in steps of one is forty presses from end to end otherwise. */
 function Slider({
-  label, min, max, step, value, unit, onChange,
+  label, min, max, step, value, unit, def, onChange,
 }: {
   label: string
   min: number
@@ -447,17 +666,75 @@ function Slider({
   step: number
   value: number
   unit?: string
+  /* What double-clicking puts it back to. */
+  def?: number
   onChange: (v: number) => void
 }) {
+  const id = useId()
+  /* What is in the box while it is being typed in, which is not a number yet:
+     halfway through "-1" is "-", and turning that into a number every
+     keystroke would fight whoever is typing it. */
+  const [typing, setTyping] = useState<string | null>(null)
+  /* Escape blurs the box, and a blur is the other way a figure is committed.
+     Without this the escape would put the box back and then the blur would
+     immediately commit what it was put back from. */
+  const abandoned = useRef(false)
+  const shown = step < 1 ? value.toFixed(2) : String(Math.round(value))
+
+  const commit = (raw: string) => {
+    setTyping(null)
+    const n = parseFloat(raw)
+    if (!Number.isFinite(n)) return
+    const clamped = Math.min(max, Math.max(min, n))
+    if (clamped !== value) onChange(clamped)
+  }
+
+  const nudge = (by: number) => onChange(Math.min(max, Math.max(min, value + by)))
+
   return (
-    <label className="ctl">
-      <span>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} />
-      <em>
-        {step < 1 ? value.toFixed(2) : Math.round(value)}
-        {unit}
-      </em>
-    </label>
+    <div className="ctl">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        onDoubleClick={() => def !== undefined && onChange(def)}
+        onKeyDown={(e) => {
+          if (!e.shiftKey) return
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); nudge(-step * 10) }
+          else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); nudge(step * 10) }
+        }}
+      />
+      <input
+        className="ctl-num"
+        type="text"
+        inputMode="decimal"
+        aria-label={`${label}${unit ? ` in ${unit}` : ''}`}
+        value={typing ?? `${shown}${unit || ''}`}
+        /* Selected, so typing replaces it, but not copied into state: a write
+           on focus is a write racing whatever put the focus there, and the
+           value on show is already the right thing to be editing. The unit
+           comes with it and parses away again. */
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setTyping(e.target.value)}
+        onBlur={(e) => {
+          if (abandoned.current) { abandoned.current = false; setTyping(null); return }
+          commit(e.target.value)
+        }}
+        onKeyDown={(e) => {
+          /* The board listens for keys on the window and already stands down
+             for an input, but the panel is inside a sheet on a narrow window
+             and this is cheaper than finding out. */
+          e.stopPropagation()
+          if (e.key === 'Enter') { commit(e.currentTarget.value); e.currentTarget.blur() }
+          else if (e.key === 'Escape') { abandoned.current = true; setTyping(null); e.currentTarget.blur() }
+        }}
+      />
+    </div>
   )
 }
 

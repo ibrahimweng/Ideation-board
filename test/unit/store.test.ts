@@ -367,3 +367,73 @@ describe('taking cards off one board and putting them on another', () => {
     expect(store.paste({ x: 0, y: 0 })).toEqual([])
   })
 })
+
+/* ---------------------------------------------------------------------------
+ * The revision counter.
+ *
+ * The board's frame loop does nothing at all when this has not moved, which is
+ * what keeps an untouched board from walking every item sixty times a second.
+ * That trade is only safe while the counter is complete: anything that changes
+ * where a card is, or whether it exists, has to move it, or the loop goes on
+ * drawing a board that is no longer there.
+ *
+ * `touch()` sits on every edit and takes care of itself. `load()` is the one
+ * write path that deliberately does not call it — a board read off the disk is
+ * not dirty — and that exception cost the offline suite a whole board once:
+ * the cards arrived in the store and none of them was ever drawn.
+ * ------------------------------------------------------------------------- */
+describe('the revision counter', () => {
+  const moves = (name: string, run: () => void) =>
+    it(`moves on ${name}`, () => {
+      const before = store.rev
+      run()
+      expect(store.rev).toBeGreaterThan(before)
+    })
+
+  moves('a card added', () => void add({ id: 'a' }))
+
+  moves('a card changed', () => {
+    add({ id: 'a' })
+    store.update('a', { x: 40 })
+  })
+
+  moves('a card moved', () => {
+    add({ id: 'a' })
+    store.moveMany(['a'], 8, 0)
+  })
+
+  moves('a card deleted', () => {
+    add({ id: 'a' })
+    store.remove(['a'])
+  })
+
+  moves('undo', () => {
+    add({ id: 'a' })
+    store.update('a', { x: 40 })
+    store.undo()
+  })
+
+  /* The one that was missed. A board arriving from IndexedDB, from the folder
+     on disk, or from another tab replaces everything on screen. */
+  moves('a board loaded', () => {
+    store.load({
+      id: 'other',
+      name: 'other',
+      items: [{ id: 'x', kind: 'image', x: 0, y: 0, w: 10, h: 10, z: 1, fx: { ...FX_0 }, tag: null } as Item],
+      view: { x: 0, y: 0, z: 1 },
+      updated: 0,
+    })
+  })
+
+  it('never goes backwards across a board switch', () => {
+    const seen: number[] = []
+    add({ id: 'a' })
+    seen.push(store.rev)
+    store.load({ id: 'two', name: 'two', items: [], view: { x: 0, y: 0, z: 1 }, updated: 0 })
+    seen.push(store.rev)
+    add({ id: 'b' })
+    seen.push(store.rev)
+    expect(seen).toEqual([...seen].sort((p, q) => p - q))
+    expect(new Set(seen).size).toBe(seen.length)
+  })
+})

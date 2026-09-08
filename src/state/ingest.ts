@@ -3,6 +3,10 @@ import { FX_0 } from '../engine/types'
 import { saveMedia, newKey, posterFrom, isImage, isVideo, isAudio, decodeCapped } from '../store/media'
 import { putBlob } from '../store/idb'
 import { isAnimated, mightMove } from '../store/anim'
+import { isPdf, renderPdfPage } from '../store/pdf'
+import { readSound } from '../store/audio'
+import { designPreview, isDesign, isPdfInside } from '../store/design'
+import { STAGE_0, VIEW, isModel, renderModel } from '../store/model'
 import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
@@ -29,6 +33,18 @@ export function kindOf(mime: string, name: string): Kind {
   if (isImage(mime)) return 'image'
   if (isVideo(mime)) return 'video'
   if (isAudio(mime)) return 'audio'
+  /* Before the text check and before the fallback, because a PDF is neither.
+     It used to fall all the way through to `file`, which is a grey rectangle
+     with three letters on it — the wrong answer for the format most of a
+     brand direction actually arrives in. */
+  if (isPdf(mime, name)) return 'pdf'
+  /* Photoshop, Sketch, and Illustrator — which is really a PDF inside, but
+     that cannot be told from the name alone, so it is settled by looking at
+     the bytes when the file is read rather than guessed at here. */
+  if (isDesign(name) || /\.ai$/i.test(name)) return 'design'
+  /* A .glb is what a product designer works in all day, and it used to land as
+     a grey rectangle with three letters on it. */
+  if (isModel(name, mime)) return 'model'
   if (/^text\/|\.(md|txt)$/i.test(mime + name)) return 'note'
   return 'file'
 }
@@ -90,7 +106,10 @@ export async function* ingest(
       continue
     }
 
-    const key = newKey(kind === 'image' ? 'img' : kind === 'video' ? 'vid' : 'med')
+    const key = newKey(
+      kind === 'image' ? 'img' : kind === 'video' ? 'vid'
+        : kind === 'pdf' ? 'pdf' : kind === 'design' ? 'dsn' : 'med'
+    )
     await saveMedia(key, file)
 
     if (kind === 'image') {
@@ -135,8 +154,119 @@ export async function* ingest(
       continue
     }
 
+    if (kind === 'pdf') {
+      /* The same split a video has: the document under `media`, and what you
+       * actually look at rendered beside it under `poster`. Everything
+       * downstream then treats the page as the picture it is.
+       *
+       * The page gets a key of its own rather than the video's `${key}:poster`
+       * convention, because unlike a first frame this one changes: turning to
+       * page two writes a new picture and lets the old one be swept, and two
+       * cards made from one document by duplicating it do not end up sharing
+       * a page number. */
+      const first = await renderPdfPage(key, file, 1)
+      const pageKey = first ? newKey('pg') : undefined
+      if (first && pageKey) {
+        await putBlob(pageKey, first.blob)
+        void ensureSource(pageKey, first.blob)
+      }
+      /* A4 in points, for a document that would not open at all: the card is
+       * then the shape of a page rather than a square, which reads as a
+       * document that failed rather than as something of no known kind. */
+      const nw = first?.w || 595
+      const nh = first?.h || 842
+      const box = fitBox(nw, nh)
+      yield {
+        ...base, kind: 'pdf', media: key, poster: pageKey,
+        pages: first?.pages || 1, page: 1, nw, nh, ...box,
+      }
+      continue
+    }
+
+    if (kind === 'design') {
+      /* Illustrator writes a PDF inside every file it saves with the
+       * compatibility option on, which has been the default for twenty years.
+       * So an .ai file goes through the reader that already exists and gets
+       * its artboards as pages for nothing. An older one is PostScript, which
+       * is what the check on the bytes is for. */
+      if (await isPdfInside(file)) {
+        const first = await renderPdfPage(key, file, 1)
+        if (first) {
+          const pageKey = newKey('pg')
+          await putBlob(pageKey, first.blob)
+          void ensureSource(pageKey, first.blob)
+          const box = fitBox(first.w, first.h)
+          yield {
+            ...base, kind: 'pdf', media: key, poster: pageKey,
+            pages: first.pages, page: 1, nw: first.w, nh: first.h, ...box,
+          }
+          continue
+        }
+      }
+
+      const art = await designPreview(file, file.name || '')
+      if (art) {
+        const artKey = newKey('pv')
+        await putBlob(artKey, art.blob)
+        void ensureSource(artKey, art.blob)
+        const box = fitBox(art.w, art.h)
+        yield {
+          ...base, kind: 'design', media: key, poster: artKey,
+          nw: art.w, nh: art.h, ...box,
+        }
+        continue
+      }
+
+      /* A design file with no picture in it: an older Illustrator file, a
+       * Photoshop document in a colour mode this does not read and saved
+       * without its thumbnail, something only named like one. It is a file,
+       * which is what all of these were before, rather than an empty card
+       * pretending to be artwork. */
+      yield { ...base, kind: 'file', media: key, w: 260, h: 120 }
+      continue
+    }
+
+    if (kind === 'model') {
+      const shot = await renderModel(key, file, STAGE_0)
+      if (shot) {
+        const viewKey = newKey('pv')
+        await putBlob(viewKey, shot.blob)
+        void ensureSource(viewKey, shot.blob)
+        /* The view is square, and fitBox reads the picture's own size rather
+           than a ratio. */
+        const box = fitBox(VIEW, VIEW)
+        yield {
+          ...base, kind: 'model', media: key, poster: viewKey,
+          stage: { ...STAGE_0 }, parts: shot.parts,
+          nw: VIEW, nh: VIEW, ...box,
+        }
+        continue
+      }
+      /* Something only named like a model, or one this cannot read. It is a
+         file, which is what it was before, rather than an empty card
+         pretending to be a model. */
+      yield { ...base, kind: 'file', media: key, w: 260, h: 120 }
+      continue
+    }
+
     if (kind === 'audio') {
-      yield { ...base, kind: 'audio', media: key, w: 320, h: 130 }
+      /* Decoded once, here, so the card has the shape of the track from the
+       * moment it appears rather than a grey bar that fills in later. A file
+       * this browser cannot decode gives back nothing, and the card is then
+       * what it always was: a name and a player. */
+      const sound = await readSound(file)
+      let artKey: string | undefined
+      if (sound?.art) {
+        artKey = newKey('art')
+        await putBlob(artKey, sound.art)
+        void ensureSource(artKey, sound.art)
+      }
+      yield {
+        ...base, kind: 'audio', media: key, poster: artKey,
+        ...(sound?.peaks.length ? { peaks: sound.peaks } : {}),
+        ...(sound?.secs ? { secs: sound.secs } : {}),
+        w: 320, h: artKey ? 320 : 130,
+      }
       continue
     }
 

@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'edge'
+  | 'pdf' | 'design' | 'model' | 'sketch' | 'edge'
 
 export interface Item {
   id: string
@@ -32,6 +32,22 @@ export interface Item {
    * drawn from wherever these two cards are. */
   from?: string
   to?: string
+  /* A model's camera, so a card comes back showing what it was left showing.
+   * Degrees round it and up from its equator, and a distance where one is the
+   * model exactly filling the card — which means the numbers mean the same on
+   * a ring and on a building. */
+  stage?: { yaw: number; pitch: number; dist: number }
+  /* The materials the file declares, what each one is textured with and which
+   * UV set those textures read. Kept on the card so the panel can show it
+   * without parsing the model again. */
+  parts?: { name: string; maps: string[]; uv: number[]; tint: string }[]
+  /* Material name -> the media key of a card being worn as its colour map. */
+  skins?: Record<string, string>
+  /* A sketch card's drawing code, and the throw of the dice it was drawn on.
+   * The code is the card: the picture beside it under `poster` is what came
+   * out of running it, and can always be made again from these two. */
+  code?: string
+  roll?: number
   /* Video cards only, and only for ones loaded from a URL: whether the host
    * lets us read the video's pixels back. False means the picture plays but
    * shaders cannot run on it. Undefined for local files, whose pixels are
@@ -59,6 +75,28 @@ export interface Item {
    * and the answer never changes. An effected card reads it to decide whether
    * to feed the renderer one still or a reel of frames. */
   anim?: boolean
+  /* A document with more than one page in it, and which of them the card is
+   * showing. Both are one-based and both are written down rather than worked
+   * out, because counting the pages means parsing the file and a card has to
+   * be able to say "2 of 12" the moment it is drawn.
+   *
+   * The page itself is not here. It is a picture, kept under `poster` the way
+   * a video's still is, which is what lets a page take effects, be exported
+   * and give up its colours without any of that code knowing what a PDF is. */
+  pages?: number
+  page?: number
+  /* The shape of a sound, and how long it runs.
+   *
+   * A couple of hundred whole numbers rather than a picture of a waveform: it
+   * is a few hundred bytes on the board record, it draws crisply at any size
+   * because it is drawn rather than scaled, and redrawing it as the track
+   * plays costs nothing. Read once when the file arrives, because decoding a
+   * track to find out is not something to do on every render.
+   *
+   * The cover inside the file, where it has one, is a real picture and is kept
+   * under `poster` like any other still. */
+  peaks?: number[]
+  secs?: number
 }
 
 export interface Board {
@@ -72,7 +110,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  edge: 'ARR',
+  pdf: 'PDF', design: 'ART', model: '3D', sketch: 'JS', edge: 'ARR',
 }
 
 export const TAGS = [

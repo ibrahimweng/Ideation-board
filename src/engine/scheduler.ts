@@ -18,8 +18,11 @@ import type { Params } from './types'
 export interface Job {
   id: string
   key: string
+  /* The card wired into this one, whose picture an effect can read too. */
+  key2?: string
   effectId: string
-  stack?: { effectId: string; params: Params | null }[]
+  stack?: { effectId: string; params: Params | null; n?: number }[]
+  n?: number
   params: Params | null
   width: number
   height: number

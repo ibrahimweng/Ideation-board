@@ -1,6 +1,6 @@
 import type { Item } from './types'
 import { TAGS } from './types'
-import { isSection, isWire } from './kinds'
+import { TRAITS, isSection, isWire, pixelKey } from './kinds'
 import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
 import type { PaperName } from './posterPage'
 import { parse } from './rich'
@@ -13,6 +13,8 @@ import { getBlob } from '../store/idb'
 import { portPoint, sideFacing, wirePath } from '../board/wire'
 import { safeName } from '../store/fs'
 import { hostOf } from './urls'
+import { clock } from '../store/audio'
+import { blendOf } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
  * The whole board, as one picture.
@@ -71,6 +73,11 @@ interface Tokens {
   hover: string
   wire: string
   sans: string
+  /* The quietest ink, and the face figures are set in. Added for the length of
+     a track, which is a figure and belongs beside the others in the app rather
+     than in whatever the sans happens to do with digits. */
+  faint: string
+  mono: string
 }
 
 function tokens(): Tokens {
@@ -89,6 +96,8 @@ function tokens(): Tokens {
     hover: v('--hover', 'rgba(24, 24, 27, 0.05)'),
     wire: v('--wire', '#a8a8b0'),
     sans: v('--sans', "'Instrument Sans', -apple-system, sans-serif"),
+    faint: v('--faint', '#a1a1aa'),
+    mono: v('--mono', "'JetBrains Mono', ui-monospace, Menlo, monospace"),
   }
 }
 
@@ -192,8 +201,10 @@ async function sourceFor(item: Item): Promise<ImageBitmap | null> {
       const still = await getBlob(item.poster)
       return still ? await createImageBitmap(still) : null
     }
-    if (item.media) {
-      const blob = await getBlob(item.media)
+    /* A document keeps its picture beside the file rather than in it. */
+    const key = pixelKey(item)
+    if (key) {
+      const blob = await getBlob(key)
       if (blob) return await createImageBitmap(blob)
       return null
     }
@@ -382,16 +393,44 @@ function drawAudio(cx: Ctx, it: Item, t: Tokens) {
   cx.textBaseline = 'middle'
   cx.fillStyle = t.muted
   cx.font = `12px ${t.sans}`
-  cx.fillText(ellipsis(cx, it.name || 'Audio', width), left, it.y + it.h / 2 - 14)
-  /* Stand-in for the player: the shape of one, so the card reads as sound. */
-  cx.fillStyle = t.sunk
-  rrect(cx, left, it.y + it.h / 2 + 2, width, 22, 11)
-  cx.fill()
-  cx.fillStyle = t.muted
-  cx.beginPath()
-  cx.arc(left + 13, it.y + it.h / 2 + 13, 5, 0, Math.PI * 2)
-  cx.fill()
-  cx.fillRect(left + 24, it.y + it.h / 2 + 12, width - 36, 2)
+  cx.fillText(ellipsis(cx, it.name || 'Audio', width - 34), left, it.y + it.h / 2 - 22)
+
+  const peaks = it.peaks || []
+  const top = it.y + it.h / 2 - 10
+  const tall = 30
+
+  if (peaks.length) {
+    /* The real shape of the track, the same peaks the card draws from. This
+     * used to be a stand-in — a drawing of a play button and a line, so the
+     * card at least read as sound. There is no need to stand anything in now
+     * that the sound itself is written on the card. */
+    const slot = width / peaks.length
+    const bar = Math.max(0.6, slot * 0.6)
+    cx.fillStyle = t.muted
+    for (let i = 0; i < peaks.length; i++) {
+      const h = Math.max(0.05, (peaks[i] || 0) / 100) * tall
+      cx.fillRect(left + i * slot + (slot - bar) / 2, top + (tall - h) / 2, bar, h)
+    }
+  } else {
+    /* A file nothing could decode still has a length and a name, so it keeps
+     * the shape of a player rather than becoming an empty rectangle. */
+    cx.fillStyle = t.sunk
+    rrect(cx, left, top + 4, width, 22, 11)
+    cx.fill()
+    cx.fillStyle = t.muted
+    cx.beginPath()
+    cx.arc(left + 13, top + 15, 5, 0, Math.PI * 2)
+    cx.fill()
+    cx.fillRect(left + 24, top + 14, width - 36, 2)
+  }
+
+  if (it.secs) {
+    cx.fillStyle = t.faint
+    cx.font = `11px ${t.mono}`
+    cx.textAlign = 'right'
+    cx.fillText(clock(it.secs), it.x + it.w - PAD, it.y + it.h / 2 - 22)
+    cx.textAlign = 'left'
+  }
 }
 
 function drawBoardCard(cx: Ctx, it: Item, t: Tokens) {
@@ -475,7 +514,9 @@ function drawCaption(cx: Ctx, it: Item, t: Tokens) {
   /* A note already has its words on it. */
   if (it.kind === 'note' || it.kind === 'label') return
 
-  const overPicture = it.kind === 'image' || it.kind === 'video' || it.kind === 'embed' || it.kind === 'board'
+  /* Asked of the table rather than as a guard: a guard proves the item is
+     there, which leaves nothing at all on the other side of the `||`. */
+  const overPicture = TRAITS[it.kind].pixels || it.kind === 'embed' || it.kind === 'board'
   const h = overPicture ? 34 : 26
   const y = it.y + it.h - h
 
@@ -536,8 +577,15 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
 
   cx.save()
   /* A cut card steps back on the sheet exactly as far as it does on the
-   * board, so the decision survives the export. */
-  if (it.pick === 'out') cx.globalAlpha = 0.4
+   * board, so the decision survives the export. It multiplies with whatever
+   * the card was given in the panel rather than replacing it. */
+  const op = (it.fx?.op ?? 100) / 100
+  cx.globalAlpha = it.pick === 'out' ? op * 0.4 : op
+  /* And how it mixes with what is under it. The canvas names these the same
+   * way CSS does, which is the reason the list is the one it is: every mode
+   * the panel offers is a mode both sides already agree on. */
+  const mix = blendOf(it.fx?.mix)
+  if (mix !== 'normal') cx.globalCompositeOperation = mix as GlobalCompositeOperation
 
   /* The shell: surface, hairline, soft corners, and a shadow the CSS draws
    * with two layers and this draws with one. */
@@ -554,19 +602,19 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
   rrect(cx, it.x, it.y, it.w, it.h, R_MD)
   cx.clip()
 
-  switch (it.kind) {
-    case 'image':
-    case 'video': {
-      const w = Math.max(2, Math.round(it.w * scale))
-      const h = Math.max(2, Math.round(it.h * scale))
-      const picture = await renderCardPicture(it, w, h, await sourceFor(it))
-      if (picture) cx.drawImage(picture, it.x, it.y, it.w, it.h)
-      else {
-        cx.fillStyle = t.well
-        cx.fillRect(it.x, it.y, it.w, it.h)
-      }
-      break
+  /* A photograph, a frame of video, a page, an artboard, a view of a model:
+     all pictures, all drawn as one. Asked of the traits table rather than
+     listed here, because a list here is a list that forgets. */
+  if (TRAITS[it.kind].pixels) {
+    const w = Math.max(2, Math.round(it.w * scale))
+    const h = Math.max(2, Math.round(it.h * scale))
+    const picture = await renderCardPicture(it, w, h, await sourceFor(it))
+    if (picture) cx.drawImage(picture, it.x, it.y, it.w, it.h)
+    else {
+      cx.fillStyle = t.well
+      cx.fillRect(it.x, it.y, it.w, it.h)
     }
+  } else switch (it.kind) {
     /* The player's pixels belong to the provider, so the sheet gets the
      * shape of a video rather than a frame of one. */
     case 'embed': drawEmbed(cx, it, t); break

@@ -5,12 +5,12 @@ import { coverUv } from '../engine/gl'
 import { adjustCSS, hasEffect } from '../board/adjust'
 import { GRAIN_SVG, GRAIN_TILE } from '../board/grain'
 import { safeName } from '../store/fs'
-import { hasPixels } from './kinds'
+import { hasPixels, pixelKey } from './kinds'
 
 /* ---------------------------------------------------------------------------
  * A card, as a picture you can hand to someone.
  *
- * The board could put thirty-one shaders on a photograph and there was no way
+ * The board could put forty-one shaders on a photograph and there was no way
  * to get the result out of it. Everything the engine draws is sized for the
  * screen; this is the one path that is not. It decodes the original file at
  * its own resolution rather than the capped copy the board keeps on the GPU,
@@ -78,8 +78,9 @@ async function sourceFor(item: Item): Promise<ImageBitmap | null> {
       if (!el || !el.videoWidth) return null
       return await createImageBitmap(el)
     }
-    if (!item.media) return null
-    const blob = await getBlob(item.media)
+    const key = pixelKey(item)
+    if (!key) return null
+    const blob = await getBlob(key)
     if (!blob) return null
     return await createImageBitmap(blob)
   } catch {
@@ -187,7 +188,12 @@ export async function renderCardPicture(
       /* Everything stacked on top, or a card exported at full size would come
        * out as its bottom layer only — which looks like a working export and
        * is not the picture on the board. */
-      stack: item.fx.more?.length ? item.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep })) : undefined,
+      stack: item.fx.more?.length
+        ? item.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep, n: l.n }))
+        : undefined,
+      /* And how many times each one runs, or a card that was repeated on the
+         board would come out of the export having run once. */
+      n: item.fx.n,
       seed: seedFor(item.id),
       width: w,
       height: h,

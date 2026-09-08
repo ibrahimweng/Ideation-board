@@ -21,8 +21,9 @@ void main(){
 /* Prepended to every effect fragment: uniforms, helpers, palettes. */
 export const PRE = `#version 300 es
 precision highp float;
-uniform sampler2D uTex, uBlur, uGlyph;
-uniform vec2 uRes, uBlurScale, uBlurOff, uCover, uCoverOff;
+uniform sampler2D uTex, uBlur, uGlyph, uTex2;
+uniform vec2 uRes, uBlurScale, uBlurOff, uCover, uCoverOff, uCover2, uCoverOff2;
+uniform float uHas2;
 uniform float p0,p1,p2,p3,p4,p5,uSeed;
 uniform vec3 c0,c1,c2;
 in vec2 vUv; out vec4 outColor;
@@ -33,12 +34,37 @@ in vec2 vUv; out vec4 outColor;
    effects measure their cells and grids in. */
 vec4 T(vec2 uv){ return texture(uTex, clamp(uv*uCover + uCoverOff, 0.001, 0.999)); }
 vec4 B(vec2 uv){ return texture(uBlur, clamp(uv,0.0,1.0)*uBlurScale + uBlurOff); }
+/* The second picture: whatever card is wired into this one.
+ *
+ * Everything above this line is one picture being treated. S is the other
+ * half — a card read through another card, which is where displacement,
+ * stencils and pattern fills come from and is most of what a moodboard is
+ * actually for. Cropped to fill the same way the first one is, so the two line
+ * up on the card rather than on their own aspect ratios.
+ *
+ * With nothing wired in it returns the card's own pixels, so an effect that
+ * wants a partner still does something sensible on its own — usually
+ * displacing itself by its own brightness, which is a real effect rather than
+ * an error state. has2() is there for the few that want to know. */
+vec4 S(vec2 uv){
+  if(uHas2 < 0.5) return texture(uTex, clamp(uv*uCover + uCoverOff, 0.001, 0.999));
+  return texture(uTex2, clamp(uv*uCover2 + uCoverOff2, 0.001, 0.999));
+}
+float has2(){ return uHas2; }
 float luma(vec3 c){ return dot(c, vec3(0.2126,0.7152,0.0722)); }
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)+uSeed*0.137); p += dot(p,p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
 vec2 rot(vec2 v, float a){ float s=sin(a), c=cos(a); return vec2(v.x*c-v.y*s, v.x*s+v.y*c); }
 float unit(){ return uRes.y/420.0; }
+/* A coordinate folded back on itself instead of clamped. Reading past the edge
+   of a picture has to give something, and a mirrored tile gives a continuation
+   rather than the smear of stretched edge pixels that clamping gives — which
+   matters for anything that bends the coordinates a long way.
+   Note the leading 1.0 minus: without it the fold is half a period out and the
+   picture comes back flipped inside its own bounds, which looks like a working
+   effect right up until you put a word in the picture. */
+vec2 mirror(vec2 v){ return 1.0 - abs(fract(v*0.5)*2.0 - 1.0); }
 const float BM[64] = float[64](
  0.,32.,8.,40.,2.,34.,10.,42., 48.,16.,56.,24.,50.,18.,58.,26.,
  12.,44.,4.,36.,14.,46.,6.,38., 60.,28.,52.,20.,62.,30.,54.,22.,

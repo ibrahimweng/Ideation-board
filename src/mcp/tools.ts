@@ -1,7 +1,7 @@
 import type { Item, Kind } from '../state/types'
 import { store } from '../state/store'
 import { labelItem, noteItem, sectionItem, addUrl } from '../state/ingest'
-import { wordsField } from '../state/kinds'
+import { hasPixels, wordsField } from '../state/kinds'
 import { drawMany, picturesFrom } from '../state/generate'
 import { fitToBoard, viewportSize } from '../state/walk'
 import { allBoards } from '../store/idb'
@@ -53,7 +53,15 @@ function describe(it: Item) {
   }
   /* Whether there is a picture, not what it is. An agent cannot see it, and
    * saying so plainly is better than it inferring from a media key. */
-  if (it.media || it.url) out.hasPicture = it.kind === 'image' || it.kind === 'video'
+  if (it.media || it.url) {
+    out.hasPicture = hasPixels(it)
+  }
+  /* A document says how long it is and where in it the card is looking, which
+     is the difference between "a PDF" and something an agent can reason about. */
+  if (it.kind === 'pdf') {
+    out.pages = it.pages || 1
+    out.page = it.page || 1
+  }
   return out
 }
 

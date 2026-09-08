@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { store, useItem } from '../state/store'
 import { SWATCH, TAGS } from '../state/types'
 import { renameBoard } from '../state/boards'
 import { wordsField } from '../state/kinds'
+import { useDialog } from './dialog'
 
 /* Inline editor for the text-bearing card kinds. Edits are written on close
  * rather than on every keystroke, so typing never touches the board. */
 export function NoteEditor({ id, onClose }: { id: string; onClose: () => void }) {
+  const dialog = useDialog(onClose)
+  const titleId = useId()
   const it = useItem(id)
   const [text, setText] = useState(it?.text || it?.name || '')
   const ref = useRef<HTMLTextAreaElement | null>(null)
@@ -83,8 +86,8 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
 
   return (
     <div className="sheet-veil" onPointerDown={commit}>
-      <div className="sheet" onPointerDown={(e) => e.stopPropagation()}>
-        <h3>
+      <div ref={dialog} className="sheet" aria-labelledby={titleId} onPointerDown={(e) => e.stopPropagation()}>
+        <h3 id={titleId}>
           {it.kind === 'note'
             ? 'Note'
             : it.kind === 'label'
@@ -117,7 +120,6 @@ export function NoteEditor({ id, onClose }: { id: string; onClose: () => void })
           rows={it.kind === 'note' ? 8 : 2}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') onClose()
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit()
             if ((e.metaKey || e.ctrlKey) && it.kind === 'note') {
               const k = e.key.toLowerCase()

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { store } from '../state/store'
+import { rollSketch } from '../state/sketches'
 import { copiedLook, copyLook, isPlain, lookFrom } from '../state/looks'
 import { TAGS } from '../state/types'
 import type { Item } from '../state/types'
@@ -244,8 +245,16 @@ function CardMenu({
               ? 'Rename section'
               : first.kind === 'board'
                 ? 'Rename board'
-                : 'Rename'}
+                : first.kind === 'sketch'
+                  ? 'Edit the code'
+                  : 'Rename'}
         </button>
+      )}
+      {/* The one thing worth doing to a sketch without opening it: keep the
+          code, throw the dice. It is the press that turns one picture into a
+          hundred, so it should not need the editor to be in the way. */}
+      {first.kind === 'sketch' && (
+        <button onClick={run(() => { for (const id of ids) void rollSketch(id) })}>Roll again</button>
       )}
       <button onClick={run(() => { const made = store.duplicate(ids); if (made.length) store.select(made) })}>
         Duplicate <em>⌘D</em>

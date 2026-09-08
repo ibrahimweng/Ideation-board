@@ -46,6 +46,24 @@ export const TRAITS: Record<Kind, Traits> = {
   /* The player's pixels are the provider's. Tone still applies, because tone
      is applied to the box the player is painted into. */
   embed: { thing: true, pixels: false, graded: true, media: false, words: false },
+  /* A page of it is a picture like any other, so everything that works on
+     pixels works here: the effects, the export, the palette. What is under
+     `media` is the document, and what is looked at is under `poster` — the
+     same split a video has, for the same reason. */
+  pdf: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* Photoshop, Illustrator and Sketch. The same shape as a document: the file
+     under `media`, the picture inside it under `poster`. What is different is
+     only that there is one picture rather than a run of pages. */
+  design: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* A model is a rendered view of itself and the file beside it, which is the
+     same shape a document has: the .glb under `media`, the picture under
+     `poster`. Everything that works on pixels then works on it — the effects,
+     the export, the palette, being read through by another card. */
+  model: { thing: true, pixels: true, graded: true, media: true, words: false },
+  /* A sketch is code that draws, and what it drew is kept beside it under
+     `poster` — so the card is a picture in every respect that matters here,
+     and the code is the thing you edit rather than the thing you look at. */
+  sketch: { thing: true, pixels: true, graded: true, media: false, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -101,6 +119,29 @@ export const isWire = (i?: Item | null): boolean => i?.kind === 'edge'
  * cross-origin reads has pixels in principle and none in practice, and the
  * difference is only knowable after asking. */
 export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readable !== false
+
+/* Which stored file holds the pixels of a card.
+ *
+ * For most cards that is `media`, because the file is the picture. For the two
+ * whose file is not itself an image — a video, and a document — it is the
+ * still kept beside it under `poster`. Three places were asking this with the
+ * same ternary written out by hand, and the third kind was the one that would
+ * have been missed. */
+const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model', 'sketch'])
+export const pixelKey = (i?: Item | null): string | undefined =>
+  !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
+
+/* A card the app draws a still picture for.
+ *
+ * Not the same question as `hasPixels`: a video has pixels and is drawn by a
+ * video element, which everything below has to leave alone. Everything else
+ * with pixels — a photograph, a page, an artboard, a view of a model — is an
+ * <img> or a canvas, and is treated identically wherever one of those will do.
+ *
+ * Asked rather than listed, because it was listed: four places wrote out
+ * `image || pdf || design` by hand, and every one of them silently left the
+ * next kind out of the full-screen view, the board poster and the export. */
+export const isStill = (i?: Item | null): i is Item => hasPixels(i) && i.kind !== 'video'
 
 /* Both ends of a wire, or nothing. */
 export const endsOf = (i?: Item | null): [string, string] | null =>

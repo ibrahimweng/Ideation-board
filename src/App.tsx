@@ -12,8 +12,12 @@ import type { Board as BoardModel, Item } from './state/types'
 import { download, safeName } from './store/fs'
 import { exportTree, importTree, looksLikeBoardFile } from './state/transfer'
 import { exportCards } from './state/exportImage'
+import { exportModels } from './state/exportModel'
+import { sketchItem, runSketch } from './state/sketches'
+import { isStaged } from './state/staging'
 import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
+import { SketchEditor } from './ui/SketchEditor'
 import { Stats } from './ui/Stats'
 import { CommandPalette } from './ui/CommandPalette'
 import { TopBar } from './ui/TopBar'
@@ -31,6 +35,7 @@ import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
+import { shuffle, vary } from './state/variations'
 import { describeSweep, sweep } from './store/reclaim'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
@@ -99,7 +104,7 @@ export default function App() {
   const [spoken, setSpoken] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   /* The line along the bottom. */
-  const [busy, setBusy] = useState<{ text: string } | null>(null)
+  const [busy, setBusy] = useState<{ text: string; n?: number } | null>(null)
   /* And a way back out of something that has just been done, which outlives
    * the sentence announcing it.
    *
@@ -323,6 +328,12 @@ export default function App() {
         void openBoard([...pathRef.current, { id: it.board, name: it.name || 'Board', card: it.id }])
         return
       }
+      /* A sketch is a picture whose contents are the code, so opening it opens
+         the code — the same answer a note gives, for the same reason. */
+      if (it?.kind === 'sketch') {
+        setEditing(id)
+        return
+      }
       /* Double clicking a picture is the whole world's way of saying "bigger",
          and on the one card where that matters most it used to do nothing at
          all: only a note, a label or a section had an editor to open. It shows
@@ -336,6 +347,20 @@ export default function App() {
     },
     [openBoard]
   )
+
+  /* A card that draws itself. It goes down, runs once so there is something
+   * to look at, and opens its editor — a blank editor is a worse offer than
+   * no editor, and a card that appears empty and stays empty teaches nothing
+   * about what this is for. */
+  const writeSketch = useCallback((at: { x: number; y: number }) => {
+    const it = sketchItem(at)
+    store.add(it)
+    store.select([it.id])
+    setEditing(it.id)
+    /* Not a step of its own: the card arriving is the step, and the picture it
+     * arrives with is part of it. */
+    void runSketch(it.id, undefined, false)
+  }, [])
 
   const addBoard = useCallback(async (at: { x: number; y: number }) => {
     /* The record is written first so that opening the card straight away
@@ -362,10 +387,17 @@ export default function App() {
     }
   }, [])
 
-  /* A line along the bottom that takes itself away again. */
+  /* A line along the bottom that takes itself away again.
+   *
+   * Each one carries a token rather than being recognised by its words. The
+   * same sentence said twice — which happens the moment any message answers a
+   * key you can press repeatedly — used to have the first timer clear the
+   * second one, so the second showing lasted whatever was left of the first. */
+  const sayId = useRef(0)
   const say = useCallback((msg: string, ms = 2200) => {
-    setBusy({ text: msg })
-    window.setTimeout(() => setBusy((b) => (b?.text === msg ? null : b)), ms)
+    const n = ++sayId.current
+    setBusy({ text: msg, n })
+    window.setTimeout(() => setBusy((b) => (b?.n === n ? null : b)), ms)
   }, [])
 
   /* Something done, and a few seconds in which to take it back. */
@@ -475,6 +507,27 @@ export default function App() {
       return
     }
     setComparing(true)
+  }, [say])
+
+  /* Twelve versions of the picture at once, and the view moved to them.
+   *
+   * The batch is left selected, so pressing the key again is another round on
+   * the same twelve rather than twelve more somewhere else — which is the loop
+   * the whole thing is for. */
+  const varyNow = useCallback(() => {
+    const r = vary()
+    say(r.say, r.made ? 3600 : 2200)
+    /* And into the live region as well. Twelve cards appearing is the single
+       largest thing any key on this board does, and a reader that is told
+       nothing about it is told nothing about the feature. */
+    setSpoken(r.say)
+    if (r.made) fitToBoard(true)
+  }, [say])
+
+  const shuffleNow = useCallback(() => {
+    const r = shuffle()
+    say(r.say)
+    setSpoken(r.say)
   }, [say])
 
   /* Curating ends in gathering: what survived, in a place of its own with a
@@ -614,6 +667,39 @@ export default function App() {
       }
       const missed = shootable.length - made.length
       if (missed > 0) setBusy({ text: `Exported ${made.length}, ${missed} could not be read` })
+      window.setTimeout(() => setBusy(null), 2600)
+    } catch (err) {
+      setBusy({ text: err instanceof Error ? err.message : 'That could not be exported' })
+      window.setTimeout(() => setBusy(null), 3200)
+    }
+  }, [])
+
+  /* A model goes out as a model, not only as a picture of one — wearing
+   * whatever was put on its materials, so the round trip is closed: in, turned,
+   * dressed, and back out into the program it came from. */
+  const exportSolids = useCallback(async (ids: string[]) => {
+    const items = ids.map((id) => store.getItem(id)).filter(isStaged)
+    if (!items.length) {
+      setBusy({ text: 'Select a model to export' })
+      window.setTimeout(() => setBusy(null), 2200)
+      return
+    }
+    setBusy({ text: items.length > 1 ? `Writing ${items.length} models\u2026` : 'Writing the model\u2026' })
+    try {
+      const made = await exportModels(items)
+      if (!made.length) {
+        setBusy({ text: 'That model could not be written' })
+        window.setTimeout(() => setBusy(null), 2600)
+        return
+      }
+      if (made.length === 1) {
+        download(made[0].blob, made[0].name)
+        setBusy({ text: `Exported ${made[0].name}` })
+      } else {
+        const bundle = await zip(made.map((m) => ({ name: m.name, blob: m.blob })))
+        download(bundle, `${safeName(store.name || 'board')}-models.zip`)
+        setBusy({ text: `Exported ${made.length} models` })
+      }
       window.setTimeout(() => setBusy(null), 2600)
     } catch (err) {
       setBusy({ text: err instanceof Error ? err.message : 'That could not be exported' })
@@ -1001,6 +1087,7 @@ export default function App() {
         addBoard: (at) => void addBoard(at),
         askForLink: () => askForLink(),
         draw: () => setDrawSheet(true),
+        writeSketch: (at) => writeSketch(at),
         connectClaude: () => setRelaySheet(true),
         reclaim: () => void reclaim(),
         deleteBoard: () => void deleteBoard(),
@@ -1008,6 +1095,7 @@ export default function App() {
         importBoard: () => importRef.current?.click(),
         exportBoard: () => void exportBoard(),
         exportPictures: (ids) => void exportPictures(ids),
+        exportModels: (ids) => void exportSolids(ids),
         pullColours: (ids) => void pullColours(ids),
         keepInFolder: () => void keepInFolder(),
         copyToFolder: () => void copyToFolder(),
@@ -1023,6 +1111,8 @@ export default function App() {
         exportPoster: (as) => void exportSheet(as),
         gather,
         compare,
+        vary: varyNow,
+        shuffle: shuffleNow,
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
@@ -1034,9 +1124,9 @@ export default function App() {
         projects: projectCount,
       }),
     [
-      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
-      exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
-      gather, compare, takeAway, putHere, clippedCount, reclaim, deleteBoard,
+      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
+      exportBoard, exportPictures, exportSolids, exportSheet, pullColours, keepInFolder, copyToFolder,
+      gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
   )
@@ -1048,6 +1138,7 @@ export default function App() {
     addBoard: (at) => void addBoard(at),
     askForLink,
     draw: () => setDrawSheet(true),
+    writeSketch,
     pickFiles: () => fileRef.current?.click(),
     importBoard: () => importRef.current?.click(),
     exportBoard: () => void exportBoard(),
@@ -1066,6 +1157,8 @@ export default function App() {
     takeAway,
     gather,
     compare,
+    vary: varyNow,
+    shuffle: shuffleNow,
   })
 
   /* ---------- paste ---------- */
@@ -1282,7 +1375,12 @@ export default function App() {
         />
       )}
       {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
-      {editing && <NoteEditor id={editing} onClose={() => setEditing(null)} />}
+      {editing &&
+        (store.getItem(editing)?.kind === 'sketch' ? (
+          <SketchEditor id={editing} onClose={() => setEditing(null)} />
+        ) : (
+          <NoteEditor id={editing} onClose={() => setEditing(null)} />
+        ))}
       {/* One line, whether it is carrying a message, an offer, or a message
           that arrived while an offer was standing. */}
       {(busy || openOffer) && (

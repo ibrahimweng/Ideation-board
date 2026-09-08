@@ -160,19 +160,46 @@ viewport. Each card subscribes only to its own item through
 Every change replaces the item object rather than editing it, so a listener can
 compare by reference.
 
-Undo and redo keep up to 60 snapshots of the item list. A drag, a resize, a
-keyboard nudge and a slider sweep each call `beginGesture` once, which takes a
-single snapshot, and then write with recording turned off. Each of those is
-therefore one step of undo rather than hundreds.
+Undo and redo keep up to 60 steps per board, and a step is what changed rather
+than a copy of the board.
 
-`beginGesture` takes an optional window in milliseconds that merges a rapid
-series into one step, which is what stops holding an arrow key from filling the
-history.
+A step holds the previous value of each item it touched, with a null standing
+for an item that did not exist yet, and a copy of the order when it changed
+that. Putting a step into effect hands back the step that would put it back, so
+undo and redo are one operation run in opposite directions.
 
-Before this existed, those gestures wrote with recording off and nothing took a
-snapshot at the start, so they left no undo entry at all. One undo after a drag
-jumped back past it to whatever was recorded before, which could remove a card
-the drag had nothing to do with.
+A step is opened before a command runs and filled in as the command writes.
+That works because every write replaces the item object rather than editing it,
+so the value read the first time a step touches an item is the value the step
+opened on. It also means the recording lives in two methods rather than in
+twenty: nothing may reach `this.items` except `put` and `drop`, which record
+first. A write that reaches around them would leave that piece behind on undo,
+which is what `test/unit/history.test.ts` exists to catch — it performs a few
+dozen arbitrary commands, walks all the way back and all the way forward, and
+insists every state matches exactly.
+
+A step is kept only once something has really been recorded into it, so a
+command that turns out to change nothing does not cost an undo press.
+
+This used to be a snapshot of the whole board per step. That was correct by
+construction, and it meant a step cost what the board weighed rather than what
+the change weighed. On five thousand items one step was about 1.8MB, so the
+budget shared between all boards held about six of them rather than sixty: undo
+got quietly shorter the more a board had on it, with nothing saying so. It also
+put a serialisation of every card on the board between the pointer going down
+and the first frame of the drag.
+
+A drag, a resize, a keyboard nudge and a slider sweep each call `beginGesture`
+once and then write with recording turned off. The step stays open until the
+next command opens another, so those writes still record and the whole gesture
+is one step. `beginGesture` takes an optional window in milliseconds that merges
+a rapid series into one step, which is what stops holding an arrow key from
+filling the history.
+
+Before any of this existed, those gestures wrote with recording off and nothing
+opened a step at the start, so they left no undo entry at all. One undo after a
+drag jumped back past it to whatever was recorded before, which could remove a
+card the drag had nothing to do with.
 
 `ingest.ts` turns dropped files into cards. It hands back one card at a time as
 each file becomes ready, so a large drop fills in as it goes. For a picture it
@@ -193,6 +220,55 @@ on disk, with the media written next to a `board.json`.
 
 `media.ts` decodes pictures, pulls a still frame out of a video and manages
 object URLs.
+
+`audio.ts` reads a sound: the peaks a waveform is drawn from, how long it runs,
+and the cover out of an ID3 tag where an mp3 has one. Peaks are kept on the
+card as a couple of hundred whole numbers rather than as a picture of a
+waveform, which is a few hundred bytes, draws crisply at any size, and costs
+nothing to redraw while the track plays.
+
+`design.ts` gets the picture out of a Photoshop, Sketch or Illustrator file.
+All three carry one and none of them needs a library for it: a `.sketch` is a
+zip with `previews/preview.png` inside and this app already has an unzip, a
+`.psd` keeps a flattened copy of the whole document at the end of the file, and
+a `.ai` is a PDF, so it goes through the reader that already exists and gets its
+artboards as pages for nothing. Whether a `.ai` really is one is settled by
+looking at the first five bytes, because an older Illustrator file is
+PostScript and the name cannot tell you.
+
+`pdf.ts` draws a page of a document. pdf.js is loaded through a dynamic import
+the first time a PDF is dropped, so a board that never holds one never fetches
+it, and the legacy build is the one asked for: the modern one calls a Map
+method new enough that a browser from last year does not have it, and the
+failure arrives as a document that will not open for no stated reason.
+
+## Documents and design files
+
+A PDF card is a picture of a page with the file kept beside it, which is the
+same split a video card has: `media` is the document, `poster` is what you
+look at. That is what lets everything downstream work with no special case —
+the page goes to the graphics card, wears the effects, exports, and gives up
+its colours to the palette — because as far as all of that is concerned it is
+an image.
+
+A design card is the same shape with one picture instead of a run of pages, so
+it shares the card, the traits row pattern and every path a document takes.
+What it does not share is the reading: a Photoshop document is parsed here
+rather than by a library, which is worth it because the flattened copy inside
+is the full size picture rather than the 256 pixel thumbnail beside it.
+
+Three places used to ask "is this a video, and therefore is its picture under
+poster?" with the same ternary written out by hand. `pixelKey` in `kinds.ts`
+is that question asked once, and adding two more kinds whose file is not a
+picture meant changing one line rather than finding all three.
+
+Turning a page renders the new one, writes it under a fresh key and points the
+card at it, in one step of undo. The old page is left unreferenced, which is
+what the sweep in `store/reclaim.ts` collects, so paging through a long
+document does not fill the browser with pictures of pages nobody is looking
+at. The card keeps its size while the page changes, because the pages of a
+document are the same shape as each other and a card that resized itself on
+every turn would walk around the board.
 
 ## Adding an effect
 

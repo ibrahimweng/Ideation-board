@@ -59,9 +59,23 @@ describe('what index.html points at', () => {
       '/apple-touch-icon.png',
       '/favicon.ico',
       '/favicon.svg',
+      /* The two faces the first screenful is set in. Preloaded rather than
+         waited for, and served from here rather than from Google, which is
+         what makes "everything stays on this machine" true of the app as well
+         as of the boards. */
+      '/fonts/instrument-sans-latin.woff2',
+      '/fonts/jetbrains-mono-latin.woff2',
       '/manifest.webmanifest',
       '/og.png',
     ])
+  })
+
+  it('asks nobody else for its typography', () => {
+    /* The app's own empty board says everything stays on this machine, and for
+       a while the one request that left it was the stylesheet Google serves to
+       say which font file to fetch. Nothing in the document may reach for a
+       font host again. */
+    expect(html).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/)
   })
 
   it('gives the link preview an absolute address to fill in', () => {

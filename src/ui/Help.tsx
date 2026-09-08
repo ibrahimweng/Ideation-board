@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 import { KEYS, MOD } from './shortcuts'
 
 /* ---------------------------------------------------------------------------
@@ -101,8 +102,8 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Drag pictures, video, audio or files from your computer onto the board — a folder at a
-            time is fine. Paste a link and it becomes a card; paste a YouTube or Vimeo link and it
+            Drag pictures, video, audio, PDFs, Photoshop or Illustrator files, 3D models or
+            anything else from your computer onto the board — a folder at a time is fine. Paste a link and it becomes a card; paste a YouTube or Vimeo link and it
             becomes something you can play. <K>{KEYS.note.hint}</K> writes a note,{' '}
             <K>{KEYS.label.hint}</K> a label, <K>{KEYS.section.hint}</K> a section to group things
             in. Drag from one card to another to draw a line between them.
@@ -122,7 +123,7 @@ function parts(): Part[] {
       body: (
         <>
           <p>
-            Select a card and press <K>{KEYS.effects.hint}</K>. Thirty one effects, applied on the
+            Select a card and press <K>{KEYS.effects.hint}</K>. Forty one effects, applied on the
             graphics card, on as many pictures as you like at once — and on video and animated GIFs
             while they are still playing.
           </p>
@@ -131,6 +132,96 @@ function parts(): Part[] {
             its own settings. <strong>Adjust</strong> is the ordinary brightness and contrast sort
             of thing, and <strong>Looks</strong> saves whatever you have set up so you can put the
             same treatment on something else later.
+          </p>
+          <p>
+            Every figure in the panel can be typed into as well as dragged, and double-clicking a
+            slider puts it back where it started. Hold <K>{KEYS.original.hint}</K> at any point to
+            see the selection without any of it — the whole board, if nothing is selected — and let
+            go to bring it back.
+          </p>
+          <p>
+            A card crops what is on it. Hold <K>Alt</K> and drag a picture to push it around inside
+            its card, or <K>Alt</K> and scroll to scale it — the same two numbers the Frame sliders
+            write, done by hand. Framing belongs to the one photograph, so it is the one thing a
+            saved look never carries.
+          </p>
+          <p>
+            <K>{KEYS.vary.hint}</K> on a picture puts twelve versions of it underneath — a different
+            effect on each, and a tone to go with it. Mark the ones worth keeping with{' '}
+            <K>{KEYS.keep.hint}</K> and press <K>{KEYS.vary.hint}</K> again: the ones you did not mark
+            are replaced by twelve bred from the ones you did. Press it on a single version to go
+            further into that one. The whole round is one press of undo, and{' '}
+            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
+          </p>
+          <p>
+            Every effect in the stack carries a <strong>×1</strong> beside its name. Press it and
+            the effect runs again on what it drew — a kaleidoscope that recurses, a warp that
+            spirals, a blur that blooms. It is a count rather than something that keeps going,
+            because a card has to look the same next time you open it.
+          </p>
+          <p>
+            Three effects read <em>two</em> pictures — <strong>Displace</strong>,{' '}
+            <strong>Stencil</strong> and <strong>Through</strong>. Drag a line from one card to
+            another and the card at the start of the line is the second picture: a texture pushed
+            through a photograph, a photograph knocked out of a shape, a palette taken off one image
+            and put onto another. With no line drawn they read the card itself, which is a real
+            effect rather than an error.
+          </p>
+          <p>
+            <strong>Layer</strong> is about two cards rather than one: an opacity, and how a card
+            mixes with whatever it is sitting on. Lay a texture over a photograph on multiply, hold
+            a scan at a quarter strength over the thing you are comparing it with, knock a wordmark
+            out of a colour field. A card over the empty board is untouched by it, so a mode set
+            once goes on meaning the same thing wherever you move the card to.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: 'sketches',
+      title: 'Cards you write',
+      body: (
+        <>
+          <p>
+            <K>{KEYS.sketch.hint}</K> makes a card whose picture is drawn by a dozen lines of
+            code, with eight starting points to work from — a grid you can shake, a flow field, a
+            pattern of tiles, a colour field. Change a number, press <strong>Run</strong>. Press{' '}
+            <strong>Roll again</strong> and you get another one from the same code, which is the
+            whole point of the thing: a sketch is not a picture, it is a way of making a hundred.
+          </p>
+          <p>
+            The code is handed a canvas, the size, a seeded random, and — if you wire another card
+            into it — that card&rsquo;s picture, so a sketch can read a photograph and become
+            another way to treat one. It runs on its own, away from the board, and is stopped after
+            a few seconds: a loop with no end in it costs you a card rather than the tab. What it
+            draws is a picture like any other, so it takes the effects, exports, and can be varied
+            twelve ways.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: 'models',
+      title: 'Models',
+      body: (
+        <>
+          <p>
+            Drop a <strong>.glb</strong> or <strong>.gltf</strong> and you get a card showing the
+            model, not a grey rectangle with three letters on it. Hold <K>Alt</K> and drag it to
+            turn it round, <K>Alt</K> and scroll to move in and out; where you leave it is where it
+            is next time you open the board. From there it is a picture like any other — every
+            effect works on it, it exports, it gives up its colours to the palette, and{' '}
+            <K>{KEYS.vary.hint}</K> gives you twelve of it.
+          </p>
+          <p>
+            <strong>Adjust</strong> lists the materials the file declares, what each one is
+            textured with and whether it was ever unwrapped. None of that is guessed — a glTF says
+            so about itself, and this reads it. Draw a line from another card to the model and you
+            can hand that card to a material: press <strong>Wear</strong> and the model comes back
+            with your picture on it, which is the shortest route there is from a reference to the
+            thing you are designing. <strong>Export the selected model as a .glb</strong> in the
+            command list hands it back as a model rather than a picture of one, carrying whatever
+            you put on it, so it opens in the program it came from.
           </p>
         </>
       ),
@@ -246,29 +337,7 @@ export function Help({ onClose }: { onClose: () => void }) {
   const shown = parts()
 
   useEffect(holdKeys, [])
-
-  /* Where the keyboard goes, and where it comes back to.
-   *
-   * This covers the board and takes its keys, so leaving focus behind on
-   * whatever was pressed to open it means Tab walks through a board nobody can
-   * see. Putting it on Close is the honest starting point — it is the way out,
-   * and from it Tab reaches the sections and then the page. */
-  useEffect(() => {
-    const was = document.activeElement as HTMLElement | null
-    close.current?.focus()
-    return () => was?.focus?.()
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  const dialog = useDialog(onClose)
 
   /* Which section you are reading, so the list on the left says where you are.
    * Watching the sections go by rather than only listening for clicks: most of
@@ -296,9 +365,8 @@ export function Help({ onClose }: { onClose: () => void }) {
   return (
     <div className="sheet-veil" onPointerDown={onClose}>
       <div
+        ref={dialog}
         className="help"
-        role="dialog"
-        aria-modal="true"
         aria-label="How this works"
         onPointerDown={(e) => e.stopPropagation()}
       >

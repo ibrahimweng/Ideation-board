@@ -53,23 +53,74 @@ export interface Adjust {
   rot: number
   fh: boolean
   fv: boolean
+  /* How a card sits with the cards under it.
+   *
+   * Everything above this line is about one picture on its own. These two are
+   * about two of them at once, which is most of what a moodboard is for: a
+   * texture laid over a photograph, a wordmark knocked out of a colour field,
+   * a scan of a print held at a quarter strength over the thing it is being
+   * compared with. Until now the only way to say any of that was to open
+   * something else, do it there, and bring the answer back as a flat picture.
+   *
+   * Percent, and one of the blend modes below. Both live here rather than on
+   * the item because they are part of the treatment: a saved look carries them
+   * the way it carries the tone. */
+  op: number
+  mix: string
 }
 
 export const ADJUST_0: Adjust = {
   exp: 0, con: 0, sat: 100, warm: 0, blur: 0, grain: 0,
   zoom: 1, ox: 0, oy: 0, rot: 0, fh: false, fv: false,
+  op: 100, mix: 'normal',
 }
 
-/* One effect and the settings it was given. */
+/* The ones worth having, which is not all of them: sixteen blend modes is a
+ * menu nobody reads, and the eight below are the ones that do something a
+ * person can name. Order matters — they read as four pairs: nothing, the two
+ * that darken and lighten by multiplying, the two that do it by picking, and
+ * the three that are their own thing. */
+export const BLENDS: { id: string; name: string }[] = [
+  { id: 'normal', name: 'Normal' },
+  { id: 'multiply', name: 'Multiply' },
+  { id: 'screen', name: 'Screen' },
+  { id: 'overlay', name: 'Overlay' },
+  { id: 'darken', name: 'Darken' },
+  { id: 'lighten', name: 'Lighten' },
+  { id: 'difference', name: 'Difference' },
+  { id: 'luminosity', name: 'Luminosity' },
+]
+
+const BLEND_IDS = new Set(BLENDS.map((b) => b.id))
+/* A board written by an older build has no blend mode on it, and one written
+ * by a newer one may have a mode this build does not know. Both mean normal. */
+export const blendOf = (mix?: string): string => (mix && BLEND_IDS.has(mix) ? mix : 'normal')
+
+/* One effect and the settings it was given.
+ *
+ * `n` is how many times it runs, each pass reading what the pass before it
+ * drew. One is an effect; more is feedback — the thing that makes a
+ * kaleidoscope recurse, a warp spiral and a blur bloom, and the reason a
+ * live-coded video synth is worth using at all. It is a count rather than a
+ * running loop because this board holds still pictures: a card has to look the
+ * same next time you open it, and an effect that drifts while nobody is
+ * watching cannot be exported or reloaded. */
 export interface Layer {
   fxid: string
   ep: Params | null
+  n?: number
 }
+
+/* Past a dozen the picture has usually turned to mush, and every pass is
+ * another full draw of the card. */
+export const REPEATS = 12
 
 export interface FxState extends Adjust {
   preset: string
   fxid: string
   ep: Params | null
+  /* How many times the first effect runs. The ones after it carry their own. */
+  n?: number
   /* Effects applied after `fxid`, in order, each working on what the one
    * before it produced.
    *

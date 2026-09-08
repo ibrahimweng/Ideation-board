@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS, wordsField } from '../../src/state/kinds'
+import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS, wordsField, pixelKey } from '../../src/state/kinds'
 import type { Item, Kind } from '../../src/state/types'
 import { FX_0 } from '../../src/engine/types'
 
 /* The table is the one place a new kind of card is described. These check that
  * it stays a description rather than drifting into a list of exceptions. */
 
-const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'edge']
+const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'model', 'sketch', 'edge']
 const of = (kind: Kind, extra: Partial<Item> = {}): Item =>
   ({ id: 'i', kind, x: 0, y: 0, z: 0, w: 10, h: 10, fx: { ...FX_0 }, tag: null, ...extra } as Item)
 
@@ -104,5 +104,79 @@ describe('where a kind keeps its words', () => {
 
   it('names nothing at all rather than throwing', () => {
     expect(wordsField(undefined)).toBe('name')
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * Where a card's pixels are.
+ *
+ * Most cards keep them under `media`, because the file is the picture. The two
+ * whose file is not itself an image keep a rendered still beside it. Three
+ * places used to ask this with the same ternary written out by hand, and a
+ * third kind was exactly the sort of thing that gets missed in two of them.
+ * ------------------------------------------------------------------------- */
+describe('pixelKey', () => {
+  it('is the file itself for a picture', () => {
+    expect(pixelKey(of('image', { media: 'm1' }))).toBe('m1')
+  })
+
+  it('is the still beside it for the ones whose file is not a picture', () => {
+    expect(pixelKey(of('video', { media: 'v1', poster: 'p1' }))).toBe('p1')
+    expect(pixelKey(of('pdf', { media: 'd1', poster: 'p2' }))).toBe('p2')
+    expect(pixelKey(of('design', { media: 'd2', poster: 'p3' }))).toBe('p3')
+    expect(pixelKey(of('model', { media: 'g1', poster: 'p4' }))).toBe('p4')
+    /* A sketch has no file of its own at all: the code is on the card and the
+       picture it drew is beside it. */
+    expect(pixelKey(of('sketch', { poster: 'p5' }))).toBe('p5')
+  })
+
+  it('is nothing when there is nothing', () => {
+    expect(pixelKey(undefined)).toBeUndefined()
+    expect(pixelKey(null)).toBeUndefined()
+    expect(pixelKey(of('note'))).toBeUndefined()
+    expect(pixelKey(of('video', { media: 'v1' }))).toBeUndefined()
+  })
+
+  it('answers for every kind that claims to have pixels', () => {
+    /* If a kind says it has pixels, something has to be able to say where they
+       are, or the export and the palette both quietly get nothing. */
+    for (const k of KINDS) {
+      if (!TRAITS[k].pixels) continue
+      const item = of(k, { media: 'm', poster: 'p' })
+      expect(pixelKey(item), k).toBeTruthy()
+    }
+  })
+})
+
+describe('a document', () => {
+  it('is a card with pixels, and can wear a look like any other', () => {
+    expect(TRAITS.pdf.thing).toBe(true)
+    expect(TRAITS.pdf.pixels).toBe(true)
+    expect(TRAITS.pdf.graded).toBe(true)
+  })
+
+  it('holds a file, so a copy carries it and a delete takes it away', () => {
+    expect(TRAITS.pdf.media).toBe(true)
+  })
+
+  it('has no words of its own for the search to read', () => {
+    /* The words are inside the document, not typed onto the card. Saying it
+       has them would have the search looking in a field that is always empty. */
+    expect(TRAITS.pdf.words).toBe(false)
+  })
+})
+
+describe('a design file', () => {
+  it('is the same shape as a document: a card with pixels that can wear a look', () => {
+    expect(TRAITS.design.thing).toBe(true)
+    expect(TRAITS.design.pixels).toBe(true)
+    expect(TRAITS.design.graded).toBe(true)
+    expect(TRAITS.design.media).toBe(true)
+  })
+
+  it('has no words of its own', () => {
+    /* Whatever type is set inside a Photoshop document is inside the picture,
+       not typed onto the card. */
+    expect(TRAITS.design.words).toBe(false)
   })
 })

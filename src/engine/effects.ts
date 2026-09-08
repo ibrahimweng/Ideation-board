@@ -1,4 +1,5 @@
-import type { EffectSpec } from './types'
+import { ISF_EFFECTS } from './isfEffects'
+import type { EffectSpec, FxState } from './types'
 
 /* Control constructors. N = numeric slider, C = colour, E = enum/segmented. */
 const N = (k: string, label: string, min: number, max: number, step: number, def: number, unit?: string) =>
@@ -505,8 +506,237 @@ export const EFFECTS: EffectSpec[] = [
       float d = length((uv-vec2(p1,p2))*vec2(uRes.x/uRes.y, 1.0));
       float m = smoothstep(p3, p3+max(0.01,p4), d);
       return vec4(mix(T(uv).rgb, B(uv).rgb, m),1.0); }`
+  },
+
+  /* ---- five the board did not have ---- */
+
+  {
+    id: 'kaleido', name: 'Kaleidoscope', group: 'Distort',
+    controls: [N('p0', 'Segments', 2, 24, 1, 6), N('p1', 'Turn', -180, 180, 1, 0, '\u00b0'),
+      N('p2', 'Zoom', 0.2, 3, 0.01, 1), N('p3', 'Centre X', -1, 1, 0.01, 0),
+      N('p4', 'Centre Y', -1, 1, 0.01, 0), N('p5', 'Amount', 0, 1, 0.01, 1)],
+    /* A wedge of the picture, mirrored round a circle. The one effect here that
+     * turns a photograph into a pattern, which is a different kind of answer
+     * from every other effect on the list: you stop looking at the subject and
+     * start looking at what it is made of. */
+    frag: `vec4 fx(vec2 uv){
+      float asp = uRes.x/uRes.y;
+      vec2 c = vec2(0.5) + vec2(p3,p4)*0.5;
+      vec2 d = (uv - c) * vec2(asp, 1.0);
+      float seg = 6.2831853 / max(2.0, floor(p0));
+      float a = atan(d.y, d.x) + radians(p1);
+      /* Folded into one wedge and then mirrored inside it, which is what makes
+         the seams meet rather than butt against each other. */
+      a = abs(mod(a, seg) - seg*0.5);
+      vec2 q = vec2(cos(a), sin(a)) * length(d) * max(0.05, p2);
+      q.x /= asp;
+      return vec4(mix(T(uv).rgb, T(mirror(q + c)).rgb, p5), 1.0); }`
+  },
+
+  {
+    id: 'warp', name: 'Warp', group: 'Distort',
+    controls: [N('p0', 'Ripples', 1, 24, 1, 8), N('p1', 'Amount', -1, 1, 0.01, 0.5),
+      N('p2', 'Radius', 0.05, 1.5, 0.01, 0.6), N('p3', 'Centre X', -1, 1, 0.01, 0),
+      N('p4', 'Centre Y', -1, 1, 0.01, 0),
+      E('p5', 'Kind', 0, ['Twirl', 'Bulge', 'Pinch', 'Ripple', 'Unroll'])],
+    /* The classic warp family, which the board only half had: Liquify pushes
+     * pixels about with noise, and none of these five do. Unroll is the odd one
+     * — it reads the picture in polar coordinates, so a circle becomes a line
+     * and a face becomes a landscape. */
+    frag: `vec4 fx(vec2 uv){
+      float asp = uRes.x/uRes.y;
+      vec2 c = vec2(0.5) + vec2(p3,p4)*0.5;
+      vec2 d = (uv - c) * vec2(asp, 1.0);
+      float r = length(d), a = atan(d.y, d.x);
+      float R = max(0.001, p2);
+      /* Falls off to nothing at the edge of the radius, squared so the middle
+         moves and the rim stays put. */
+      float t = clamp(1.0 - r/R, 0.0, 1.0); t *= t;
+      int m = int(p5 + 0.5);
+      if(m == 4){ return T(mirror(vec2(a/6.2831853 + 0.5, r*2.0))); }
+      if(m == 0) a += p1 * t * 3.1415926;
+      else if(m == 1) r *= 1.0 - p1 * t * 0.85;
+      else if(m == 2) r *= 1.0 + p1 * t * 0.85;
+      else r += p1 * 0.05 * t * sin(r * floor(p0) * 12.566);
+      vec2 q = vec2(cos(a), sin(a)) * r;
+      q.x /= asp;
+      return T(mirror(q + c)); }`
+  },
+
+  {
+    id: 'sort', name: 'Pixel sort', group: 'Distort',
+    controls: [N('p0', 'Run length', 8, 80, 1, 56, 'px'), N('p1', 'Threshold', 0, 1, 0.01, 0.34),
+      N('p2', 'Angle', -1, 1, 0.01, 0), N('p3', 'Amount', 0, 1, 0.01, 1),
+      E('p4', 'Sorts', 0, ['The light', 'The dark']), N('p5', 'Softness', 0, 1, 0.01, 0)],
+    /* The most recognisable mark in glitch art, and the one this board most
+     * conspicuously lacked.
+     *
+     * A fragment shader can gather and cannot scatter, so it cannot write a
+     * sorted run out. What it can do is work out where this pixel would have
+     * come from: count how many pixels in the run are brighter, and read from
+     * that position. Wherever the run climbs or falls steadily the two are the
+     * same answer; where it does not, what comes out is the melted smear pixel
+     * sorting is actually known for.
+     *
+     * Three passes over the run, so the run length is the cost, and eighty is
+     * the ceiling for that reason. It has to be that long: sorting across
+     * eighteen pixels is a texture, and the streaks people mean by pixel
+     * sorting run across a good part of the picture. */
+    frag: `vec4 fx(vec2 uv){
+      vec4 src = T(uv);
+      float me = luma(src.rgb);
+      bool up = p4 < 0.5;
+      float thr = p1;
+      bool inRun = up ? me >= thr : me <= thr;
+      if(!inRun) return src;
+      float N = floor(p0);
+      /* Named walk rather than step, because step is a builtin: shadowing one
+         works and reads like a bug to anyone who knows GLSL. */
+      vec2 walk = vec2(cos(p2*3.1415926), sin(p2*3.1415926)) / uRes;
+      float s = 0.0;
+      for(float i=1.0;i<=80.0;i+=1.0){
+        if(i > N) break;
+        float l = luma(T(uv - walk*i).rgb);
+        if(up ? l < thr : l > thr) break;
+        s = i;
+      }
+      float e = 0.0;
+      for(float i=1.0;i<=80.0;i+=1.0){
+        if(i > N) break;
+        float l = luma(T(uv + walk*i).rgb);
+        if(up ? l < thr : l > thr) break;
+        e = i;
+      }
+      float len = s + e;
+      if(len < 2.0) return src;
+      float rank = 0.0;
+      for(float i=0.0;i<=160.0;i+=1.0){
+        if(i > len) break;
+        if(luma(T(uv + walk*(i - s)).rgb) > me) rank += 1.0;
+      }
+      /* Softness reads a little either side of where it landed, which takes the
+         staircase off the streaks without taking the streaks off. */
+      float soft = p5 * 1.5;
+      vec3 got = T(uv + walk*(rank - s)).rgb;
+      if(soft > 0.01){
+        got = (got + T(uv + walk*(rank - s + soft)).rgb + T(uv + walk*(rank - s - soft)).rgb) / 3.0;
+      }
+      return vec4(mix(src.rgb, got, p3), src.a); }`
+  },
+
+  {
+    id: 'signal', name: 'Channel shift', group: 'Signal',
+    controls: [N('p0', 'Split', 0, 30, 0.5, 16, 'px'), N('p1', 'Angle', -1, 1, 0.01, 0),
+      N('p2', 'Wobble', 0, 40, 0.5, 6, 'px'), N('p3', 'Wobble scale', 0.2, 8, 0.1, 2),
+      N('p4', 'Line spacing', 1, 12, 1, 3, 'px'), N('p5', 'Lines', 0, 1, 0.01, 0.4)],
+    /* Red one way, blue the other, and the picture stops being a photograph and
+     * starts being a signal that went wrong on the way. The wobble is what
+     * keeps it from reading as a ruler: a clean split looks like a mistake in
+     * the software, and a drifting one looks like a mistake in the wire. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 d = vec2(cos(p1*3.1415926), sin(p1*3.1415926)) * (p0/max(1.0,uRes.x));
+      float w = (vnoise(vec2(uv.y * p3 * 40.0, uSeed*7.0)) - 0.5) * (p2/max(1.0,uRes.x)) * 2.0;
+      vec2 o = d + vec2(w, 0.0);
+      vec3 col = vec3(T(uv + o).r, T(uv).g, T(uv - o).b);
+      float lines = mix(1.0, 0.55 + 0.45*sin(uv.y * uRes.y * 3.1415926 / max(1.0, floor(p4))), p5);
+      return vec4(col * lines, 1.0); }`
+  },
+
+  {
+    id: 'gradmap', name: 'Gradient map', group: 'Map',
+    controls: [N('p0', 'Midpoint', 0.05, 0.95, 0.01, 0.5), N('p1', 'Contrast', -1, 1, 0.01, 0),
+      N('p2', 'Keep detail', 0, 1, 0.01, 0.35), N('p3', 'Amount', 0, 1, 0.01, 1),
+      C('c0', 'Shadows', '#101A2E'), C('c1', 'Midtones', '#C4553A'), C('c2', 'Highlights', '#F2E7CE')],
+    /* Three colours across the range of the picture, which is how a duotone
+     * becomes a tritone and how a photograph is put into a palette rather than
+     * merely tinted. Keep detail holds some of the original luminance back, so
+     * a portrait does not flatten into three flat shapes unless that is what
+     * was wanted. */
+    frag: `vec4 fx(vec2 uv){
+      vec4 src = T(uv);
+      float l = clamp((luma(src.rgb) - p0) * (1.0 + p1*2.0) + 0.5, 0.0, 1.0);
+      vec3 g = l < 0.5 ? mix(c0, c1, l*2.0) : mix(c1, c2, (l-0.5)*2.0);
+      vec3 col = mix(g, g * (0.55 + l*0.9), p2);
+      return vec4(mix(src.rgb, col, p3), src.a); }`
+  },
+
+  /* ---- and three that read two pictures ----
+   *
+   * Everything above this line treats one picture. These treat two: the card
+   * itself, and whatever card is wired into it. Draw a line from one card to
+   * another and the one at the start of the line is what S reads.
+   *
+   * With nothing wired, S gives back the card's own pixels — so Displace
+   * pushes a picture around by its own brightness, Stencil cuts it out of
+   * itself, and Through reads its own colours. All three are real effects in
+   * that state rather than an error, which is what lets them sit in the list
+   * beside everything else instead of being greyed out until you understand
+   * them. */
+
+  {
+    id: 'displace', name: 'Displace', group: 'Pair',
+    controls: [N('p0', 'Amount', 0, 100, 1, 45, 'px'), N('p1', 'Map scale', 0.25, 4, 0.01, 1),
+      N('p2', 'Angle', -180, 180, 1, 0, '\u00b0'), E('p3', 'Reads', 2, ['Colour', 'Brightness', 'Along the angle']),
+      N('p4', 'Map turn', -180, 180, 1, 0, '\u00b0'), N('p5', 'Amount', 0, 1, 0.01, 1)],
+    /* The oldest two-picture effect there is: one image's brightness decides
+     * how far the other one's pixels move. A crumpled paper scan over a
+     * wordmark and the wordmark is printed on crumpled paper. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = rot((uv - 0.5) / max(0.05, p1), radians(p4)) + 0.5;
+      vec4 map = S(mirror(m));
+      vec2 d;
+      int k = int(p3 + 0.5);
+      /* Colour reads red across and green down, which is what a displacement
+         map written for anywhere else will be. Brightness is the one you get
+         from a photograph. */
+      if(k == 0) d = map.rg - 0.5;
+      else if(k == 1) d = vec2(luma(map.rgb) - 0.5);
+      else d = vec2(cos(radians(p2)), sin(radians(p2))) * (luma(map.rgb) - 0.5);
+      vec2 push = d * p0 * 2.0 / uRes;
+      return vec4(mix(T(uv).rgb, T(mirror(uv + push)).rgb, p5), 1.0); }`
+  },
+
+  {
+    id: 'stencil', name: 'Stencil', group: 'Pair',
+    controls: [N('p0', 'Cut at', 0, 1, 0.01, 0.5), N('p1', 'Softness', 0, 1, 0.01, 0.12),
+      N('p2', 'Map scale', 0.25, 4, 0.01, 1), E('p3', 'Keeps', 0, ['The light', 'The dark']),
+      E('p4', 'Behind', 0, ['A colour', 'The other picture']), C('c0', 'Behind', '#F2EFE6')],
+    /* One picture decides where the other one shows. A shape knocked out of a
+     * photograph, a photograph poured into a letterform — the thing every
+     * designer opens something else to do. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = (uv - 0.5) / max(0.05, p2) + 0.5;
+      float l = luma(S(mirror(m)).rgb);
+      float e = max(0.005, p1) * 0.5;
+      float k = smoothstep(p0 - e, p0 + e, l);
+      if(p3 > 0.5) k = 1.0 - k;
+      vec3 back = p4 > 0.5 ? S(uv).rgb : c0;
+      return vec4(mix(back, T(uv).rgb, k), 1.0); }`
+  },
+
+  {
+    id: 'through', name: 'Through', group: 'Pair',
+    controls: [N('p0', 'Midpoint', 0.05, 0.95, 0.01, 0.5), N('p1', 'Contrast', -1, 1, 0.01, 0),
+      N('p2', 'Read at', 0, 1, 0.01, 0.5), E('p3', 'Reads', 0, ['Across', 'Down']),
+      N('p4', 'Amount', 0, 1, 0.01, 1), N('p5', 'Keep detail', 0, 1, 0.01, 0.25)],
+    /* This picture's range of light, coloured by a line taken across the other
+     * one. A gradient map whose gradient is a photograph — which is how a
+     * palette pulled off one image gets put onto another without anybody
+     * naming a single colour. */
+    frag: `vec4 fx(vec2 uv){
+      vec4 src = T(uv);
+      float l = clamp((luma(src.rgb) - p0) * (1.0 + p1*2.0) + 0.5, 0.0, 1.0);
+      vec2 at = p3 > 0.5 ? vec2(p2, l) : vec2(l, p2);
+      vec3 col = S(at).rgb;
+      col = mix(col, col * (0.55 + l*0.9), p5);
+      return vec4(mix(src.rgb, col, p4), src.a); }`
   }
 ]
+
+/* And the ones written as ISF and translated on the way in. Appended rather
+ * than woven in, so the file above stays the list of effects written here and
+ * this stays the list of effects that came from somewhere else. */
+EFFECTS.push(...ISF_EFFECTS)
 
 export const BY_ID: Record<string, EffectSpec> = EFFECTS.reduce(
   (m, e) => ((m[e.id] = e), m),
@@ -524,6 +754,22 @@ export const GROUPS: { name: string; items: EffectSpec[] }[] = (() => {
 })()
 
 /* Default parameter block for an effect. */
+/* The tone presets: a starting point rather than a destination, which is why
+ * the panel keeps every slider live after one is pressed. Kept here with the
+ * effects rather than in the panel because they are settings the app knows
+ * about, and two things now read them — the buttons, and the roller that makes
+ * a batch of variations. */
+export const PRESETS: { id: string; name: string; vals: Partial<FxState> }[] = [
+  { id: 'none', name: 'Original', vals: {} },
+  { id: 'bw', name: 'B&W', vals: { sat: 0, con: 12 } },
+  { id: 'noir', name: 'Noir', vals: { sat: 0, con: 36, exp: -8 } },
+  { id: 'faded', name: 'Faded', vals: { sat: 74, con: -18, exp: 10, warm: 12 } },
+  { id: 'warm', name: 'Warm', vals: { warm: 28, sat: 112, exp: 4 } },
+  { id: 'cool', name: 'Cool', vals: { warm: -26, sat: 106, con: 8 } },
+  { id: 'punch', name: 'Punch', vals: { con: 28, sat: 134 } },
+  { id: 'print', name: 'Print', vals: { sat: 86, con: 12, grain: 30, warm: 8 } },
+]
+
 export function defaults(id: string): Record<string, number | string> {
   const spec = BY_ID[id] || BY_ID.none
   const out: Record<string, number | string> = {}

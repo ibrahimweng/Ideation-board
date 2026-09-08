@@ -78,6 +78,10 @@ export async function gather(rootId: string): Promise<Gathered> {
     for (const it of b.items as Item[]) {
       if (it.media) keys.add(it.media)
       if (it.poster) keys.add(it.poster)
+      /* A picture a model is wearing. Usually a card on the same board, whose
+         own file is already here — but the name has to travel with it or the
+         model comes back undressed on the next turn. */
+      for (const key of Object.values(it.skins || {})) if (key) keys.add(key)
     }
   }
 
@@ -175,6 +179,14 @@ export async function importTree(file: Blob, at: { x: number; y: number }): Prom
       if (it.board) copy.board = boardMap.get(it.board) || it.board
       if (it.media) copy.media = mediaMap.get(it.media) || undefined
       if (it.poster) copy.poster = mediaMap.get(it.poster) || undefined
+      if (it.skins) {
+        const worn: Record<string, string> = {}
+        for (const [material, key] of Object.entries(it.skins)) {
+          const fresh = mediaMap.get(key)
+          if (fresh) worn[material] = fresh
+        }
+        copy.skins = Object.keys(worn).length ? worn : undefined
+      }
       /* Object URLs belong to the session that made them. */
       delete copy.src
       return copy

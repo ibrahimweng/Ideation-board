@@ -3,18 +3,22 @@ import { useItem, store } from '../state/store'
 import { TAGS } from '../state/types'
 import { FxAnimCanvas, FxCanvas } from './FxCanvas'
 import { VideoCard } from './VideoCard'
+import { AudioCard } from './AudioCard'
 import { EmbedCard } from './EmbedCard'
 import { BoardCard } from './BoardCard'
 import { GRAIN_URL } from './grain'
 import { adjustCSS, frameCSS, hasEffect } from './adjust'
+import { blendOf } from '../engine/types'
 import { useObjectURL } from '../store/media'
 import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
 import { useSourceReady } from './sources'
+import { usePlain } from './original'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
-import { canShade, hasPixels } from '../state/kinds'
+import { canShade, hasPixels, isStill, pixelKey } from '../state/kinds'
+import { nextPage, prevPage } from '../state/pages'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
@@ -45,7 +49,18 @@ export const Card = memo(function Card({
 }: Props) {
   const it = useItem(id)
   const objectUrl = useObjectURL(it?.media)
-  const ready = useSourceReady(it?.kind === 'image' ? it?.media : undefined)
+  /* A document's pixels are the page rendered beside it, not the file itself,
+     so the picture it draws comes from a second address. */
+  const pageUrl = useObjectURL(
+    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch'
+      ? it?.poster
+      : undefined
+  )
+  /* The cover out of a sound file, where it had one. */
+  const artUrl = useObjectURL(it?.kind === 'audio' ? it?.poster : undefined)
+  const ready = useSourceReady(
+    isStill(it) ? pixelKey(it) : undefined
+  )
   /* Still waiting on a picture that was asked for rather than dropped. */
   const drawing = useDrawing(id)
   /* Marked as moving, but this browser could not decode its frames. Set once
@@ -57,6 +72,8 @@ export const Card = memo(function Card({
    * since the app learned to ask; worked out on the spot for everything that
    * was already on a board before it did. */
   const moves = useMoves(it)
+  /* Whether the compare key is being held over this card. */
+  const plain = usePlain(id)
 
   if (!it) return null
 
@@ -71,9 +88,20 @@ export const Card = memo(function Card({
   /* `readable` is only ever false for a remote video whose host refused us
    * cross-origin access. Everything else can be shaded. */
   const shadeable = canShade(it) || !hasPixels(it)
-  const effected = hasEffect(fx) && canShade(it)
-  const filter = adjustCSS(fx)
-  const frame = frameCSS(fx)
+  /* While the compare key is held this card shows what it started as: no
+     shader, no tone, no grain, no framing. All four go together, because half
+     a comparison is not one — the question being asked is what the picture
+     looked like before any of this, not before some of it. */
+  const effected = hasEffect(fx) && canShade(it) && !plain
+  const filter = plain ? '' : adjustCSS(fx)
+  const frame = plain ? '' : frameCSS(fx)
+  const grain = plain ? 0 : fx.grain
+  /* How this card sits with the ones under it. Held back by the compare key
+     along with everything else: a card at a quarter strength over another is
+     something that was done to it, and the question the key asks is what it
+     looked like before any of that. */
+  const op = plain ? 100 : (fx.op ?? 100)
+  const mix = plain ? 'normal' : blendOf(fx.mix)
   const tag = it.tag ? TAGS.find((t) => t.id === it.tag) : null
   /* A checklist says how far along it is without being opened. */
   const todo = it.kind === 'note' ? todoCount(it.text || '') : { done: 0, total: 0 }
@@ -83,6 +111,11 @@ export const Card = memo(function Card({
     width: it.w,
     height: it.h,
     zIndex: it.z,
+    /* Written as a custom property rather than as `opacity`, because a card is
+       already faded when it does not match a search and when it has been cut,
+       and an inline opacity would win over both. The stylesheet multiplies. */
+    ...(op !== 100 ? ({ '--op': op / 100 } as React.CSSProperties) : null),
+    ...(mix !== 'normal' ? { mixBlendMode: mix as React.CSSProperties['mixBlendMode'] } : null),
   }
 
   /* Sections are backdrops: they sit behind everything and never capture the
@@ -185,6 +218,7 @@ export const Card = memo(function Card({
           crossOrigin={remote && it.readable !== false ? 'anonymous' : undefined}
           blocked={hasEffect(fx) && !shadeable}
           effectId={fx.fxid}
+          n={fx.n}
           params={fx.ep}
                 more={fx.more}
           seed={hashSeed(id)}
@@ -192,7 +226,7 @@ export const Card = memo(function Card({
           h={it.h}
           filter={filter}
           frame={frame}
-          grain={fx.grain}
+          grain={grain}
         />
       ) : it.kind === 'board' ? (
         <BoardCard boardId={it.board || ''} />
@@ -203,7 +237,7 @@ export const Card = memo(function Card({
           selected={selected}
           filter={filter}
           frame={frame}
-          grain={fx.grain}
+          grain={grain}
         />
       ) : (
       <div className="card-body" style={{ filter: filter || undefined }}>
@@ -217,6 +251,7 @@ export const Card = memo(function Card({
                 id={id}
                 mediaKey={it.media}
                 effectId={fx.fxid}
+                n={fx.n}
                 params={fx.ep}
                 more={fx.more}
                 seed={hashSeed(id)}
@@ -230,6 +265,7 @@ export const Card = memo(function Card({
                 id={id}
                 mediaKey={it.media!}
                 effectId={fx.fxid}
+                n={fx.n}
                 params={fx.ep}
                 more={fx.more}
                 seed={hashSeed(id)}
@@ -258,15 +294,96 @@ export const Card = memo(function Card({
               </div>
             ))}
 
-          {it.kind === 'audio' &&
-            (url ? (
-              <div className="audio-wrap">
-                <div className="audio-title">{it.name}</div>
-                <audio src={url} controls preload="metadata" />
-              </div>
-            ) : (
-              <div className="media placeholder" />
-            ))}
+          {(it.kind === 'pdf' || it.kind === 'design' || it.kind === 'model' || it.kind === 'sketch') && (
+            /* A page of a document, and the artwork inside a design file, are
+               both pictures — so this is the image branch with a file around
+               it: the same effects, the same canvas, the same fall back to the
+               plain picture when nothing is applied. The pager below is the
+               only part that belongs to one of them and not the other. */
+            <>
+              {effected && ready && it.poster ? (
+                <FxCanvas
+                  id={id}
+                  mediaKey={it.poster}
+                  effectId={fx.fxid}
+                  n={fx.n}
+                  params={fx.ep}
+                  more={fx.more}
+                  seed={hashSeed(id)}
+                  w={it.w}
+                  h={it.h}
+                  distance={distance}
+                  className="media"
+                />
+              ) : pageUrl ? (
+                <img
+                  className="media"
+                  src={pageUrl}
+                  alt={
+                    it.kind === 'pdf'
+                      ? `Page ${it.page || 1} of ${it.name || 'document'}`
+                      : it.kind === 'model'
+                        ? `${it.name || 'Model'}, turned to ${Math.round(it.stage?.yaw ?? 0)} degrees`
+                        : it.kind === 'sketch'
+                          ? `${it.name || 'Sketch'}, drawn by its own code`
+                          : it.name || 'Artwork'
+                  }
+                  draggable={false}
+                />
+              ) : (
+                /* A document this browser could not read. The card keeps the
+                   shape of a page and says so, rather than showing an empty
+                   square that looks like a picture which failed to load. */
+                <div className="media placeholder pdf-unread">
+                  {/* A sketch that has not been run yet, or one that would not
+                      run: the card says which rather than showing an empty
+                      square that looks like a picture that failed to load. */}
+                  <span>
+                    {it.kind === 'sketch'
+                      ? 'Nothing drawn yet'
+                      : (it.name || 'Document').split('.').pop()?.toUpperCase() || 'FILE'}
+                  </span>
+                </div>
+              )}
+              {it.kind === 'pdf' && (it.pages || 1) > 1 && (
+                /* Only on the card that is selected, like the video controls:
+                   a board of documents should read as pages, not as a wall of
+                   pagers. */
+                <div className="pager" data-on={selected || undefined}>
+                  <button
+                    aria-label="Previous page"
+                    disabled={(it.page || 1) <= 1}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); void prevPage(id) }}
+                  >
+                    ‹
+                  </button>
+                  <span>
+                    {it.page || 1} / {it.pages}
+                  </span>
+                  <button
+                    aria-label="Next page"
+                    disabled={(it.page || 1) >= (it.pages || 1)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); void nextPage(id) }}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {it.kind === 'audio' && (
+            <AudioCard
+              url={url}
+              name={it.name || 'Sound'}
+              art={artUrl}
+              peaks={it.peaks || []}
+              secs={it.secs || 0}
+              selected={selected}
+            />
+          )}
 
           {it.kind === 'note' && (
             /* The writing takes its colour from the paper. A note can be any
@@ -299,8 +416,8 @@ export const Card = memo(function Card({
           )}
         </div>
 
-        {fx.grain > 0 && (
-          <div className="grain" style={{ opacity: fx.grain / 100, backgroundImage: GRAIN_URL }} />
+        {grain > 0 && (
+          <div className="grain" style={{ opacity: grain / 100, backgroundImage: GRAIN_URL }} />
         )}
       </div>
       )}

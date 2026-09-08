@@ -2,10 +2,11 @@ import type { Item } from './types'
 import { boardTree } from './boards'
 import { getBlob } from '../store/idb'
 import { renderCardPicture } from './exportImage'
-import { TRAITS } from './kinds'
-import { parse } from './rich'
+import { TRAITS, pixelKey } from './kinds'
+import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
+import { blendOf } from '../engine/types'
 import { pageHtml } from './pageHtml'
 import type { PageBoard, PageItem } from './pageHtml'
 
@@ -81,7 +82,12 @@ async function dataUri(blob: Blob): Promise<string> {
  * from, so it falls back to the still that was kept when it was brought in.
  * Without that, every video on every nested board would come out blank. */
 async function sourceFor(item: Item): Promise<ImageBitmap | null> {
-  const keys = [item.media, item.poster].filter(Boolean) as string[]
+  /* Which file holds the pixels is a question with one answer, asked in one
+     place: a document's own file is a PDF and a model's is a .glb, and neither
+     is something createImageBitmap can read. The other address is kept as a
+     fallback rather than dropped, because a record written by an older version
+     may not name the one this expects. */
+  const keys = [...new Set([pixelKey(item), item.media, item.poster].filter(Boolean) as string[])]
   if (item.kind === 'video') {
     const el = document.querySelector(`.card[data-id="${item.id}"] video`) as HTMLVideoElement | null
     if (el && el.videoWidth) {
@@ -113,9 +119,12 @@ const spansToHtml = (spans: Span[]) =>
       if (s.code) out = `<code>${out}</code>`
       if (s.b) out = `<b>${out}</b>`
       if (s.i) out = `<i>${out}</i>`
-      /* Only the schemes a document should be able to send you to. */
-      if (s.href && /^https?:\/\//i.test(s.href)) {
-        out = `<a href="${esc(s.href)}" target="_blank" rel="noreferrer noopener">${out}</a>`
+      /* Only the schemes a document should be able to send you to. The rule
+         itself lives in rich.ts, because the card on the board has to apply
+         exactly the same one. */
+      const href = safeHref(s.href)
+      if (href) {
+        out = `<a href="${esc(href)}" target="_blank" rel="noreferrer noopener">${out}</a>`
       }
       return out
     })
@@ -168,6 +177,11 @@ async function toPageItem(item: Item, onPicture: () => void): Promise<PageItem |
     tag: item.tag || null,
     pick: item.pick || null,
     color: item.color || '',
+    /* The effect and the tone are baked into the picture on the way out.
+       These two are about how a card sits with the ones under it, so there is
+       nothing to bake them into and they are carried instead. */
+    op: item.fx?.op ?? 100,
+    mix: blendOf(item.fx?.mix),
   }
 
   /* Compared by kind rather than through the trait guards, which narrow an

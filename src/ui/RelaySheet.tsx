@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 import {
   DEFAULT_URL, connect, disconnect, relayThere, relayToken, relayUrl, setRelayToken, setRelayUrl, useRelay,
 } from '../mcp/bridge'
@@ -26,6 +27,7 @@ export function RelaySheet({ onClose }: { onClose: () => void }) {
   const [more, setMore] = useState(false)
 
   useEffect(holdKeys, [])
+  const dialog = useDialog(onClose)
 
   const look = async (at = url) => {
     setFound('asking')
@@ -52,11 +54,10 @@ export function RelaySheet({ onClose }: { onClose: () => void }) {
   return (
     <div className="sheet-veil" onPointerDown={onClose}>
       <div
+        ref={dialog}
         className="sheet gen-sheet"
+        aria-label="Connect to Claude"
         onPointerDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-        }}
       >
         <h3>Connect to Claude</h3>
 

@@ -38,7 +38,9 @@ export interface CommandActions {
   pickFiles: () => void
   importBoard: () => void
   exportBoard: () => void
+  writeSketch: (at: { x: number; y: number }) => void
   exportPictures: (ids: string[]) => void
+  exportModels: (ids: string[]) => void
   pullColours: (ids: string[]) => void
   keepInFolder: () => void
   copyToFolder: () => void
@@ -49,6 +51,8 @@ export interface CommandActions {
   focusSearch: () => void
   fit: (onlySelection: boolean) => void
   say: (text: string) => void
+  vary: () => void
+  shuffle: () => void
   exportPoster: (as: 'png' | 'pdf') => void
   gather: () => void
   compare: () => void
@@ -77,6 +81,12 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('add.board', 'Board inside this one', 'Add', () => a.addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
     cmd('add.link', 'Link or video URL', 'Add', () => a.askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
     cmd('add.draw', 'Draw a picture from a prompt', 'Add', () => a.draw(), { hint: KEYS.draw.hint, keywords: 'ai generate image imagine gemini imagen prompt make' }),
+    /* The other way to make a picture that was not there before, and the one
+       that costs nothing to run again. */
+    cmd('add.sketch', 'Write a sketch that draws a card', 'Add', () => a.writeSketch(at()), {
+      hint: KEYS.sketch.hint,
+      keywords: 'code javascript js generative draw canvas program pattern procedural creative coding',
+    }),
 
     cmd('edit.undo', 'Undo', 'Edit', () => store.undo(), { hint: KEYS.undo.hint }),
     cmd('edit.redo', 'Redo', 'Edit', () => store.redo(), { hint: KEYS.redo.hint }),
@@ -132,6 +142,12 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('arrange.spready', 'Space the selection out down', 'Arrange', () => store.distribute(sel(), 'y'), { disabled: a.selection.length < 3 }),
 
     cmd('out.picture', 'Export the selected pictures as PNG', 'Take out', () => a.exportPictures(sel()), { hint: KEYS.picture.hint, disabled: !some, keywords: 'png save download image' }),
+    /* A model card exports as a picture like everything else; this is the one
+       that hands back a model, wearing whatever was put on its materials. */
+    cmd('out.model', 'Export the selected model as a .glb', 'Take out', () => a.exportModels(sel()), {
+      disabled: !a.selection.some((id) => store.getItem(id)?.kind === 'model'),
+      keywords: 'glb gltf 3d model save download three',
+    }),
     /* The other way out: not a file, but an agent given the board to work on. */
     cmd('out.claude', 'Connect to Claude', 'Take out', () => a.connectClaude(), { keywords: 'mcp agent ai relay attach claude code assistant' }),
     cmd('out.board', 'Export this board and everything in it', 'Take out', () => a.exportBoard(), { hint: KEYS.export.hint, keywords: 'zip backup save download' }),
@@ -170,6 +186,16 @@ export function buildCommands(a: CommandActions): Command[] {
     }),
     cmd('in.board', 'Import a board file', 'Take out', () => a.importBoard(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
 
+    cmd('add.vary', KEYS.vary.label, 'Add', () => a.vary(), {
+      hint: KEYS.vary.hint,
+      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
+      keywords: 'variation versions explore random shuffle try twelve grid ideas different',
+    }),
+    cmd('edit.shuffle', KEYS.shuffle.label, 'Edit', () => a.shuffle(), {
+      hint: KEYS.shuffle.hint,
+      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
+      keywords: 'random chance surprise mosh roll dice try anything different',
+    }),
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
     /* The deciding itself. The show puts one thing on screen at a time, and

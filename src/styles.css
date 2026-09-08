@@ -79,6 +79,10 @@
 
   --bar-h: 52px;
   --panel-w: 320px;
+  /* The plate along the bottom of a card that carries its name. A token
+     because two things sit on that edge now: the plate itself, and the pager
+     on a document, which has to clear it. */
+  --chrome-h: 26px;
 }
 
 /* Dark is not the light theme upside down. The canvas falls further from the
@@ -129,7 +133,12 @@
 html, body, #root { height: 100%; }
 
 body {
-  background: var(--paper);
+  /* --bg, and not a name of its own. This said var(--paper) for a long time
+     and --paper has never been defined anywhere, so the declaration was
+     invalid and the page ground fell back to whatever the browser paints.
+     It hid because .viewport paints --bg itself and color-scheme kept the
+     dark theme from flashing white; it showed at the edges of an overscroll. */
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -139,6 +148,29 @@ body {
 }
 
 button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+
+/* Where the keyboard is.
+ *
+ * The board can be walked with Tab, the walk is tested, and what it lands on
+ * is announced — and none of that could be seen, because there was exactly one
+ * :focus-visible rule in this whole file and it was on the × of a board tab.
+ * Every other control fell back to whatever ring the browser draws over a
+ * surface it knows nothing about, which on the dark theme is close to nothing.
+ *
+ * :focus-visible rather than :focus, so a pressed button does not wear a ring
+ * a mouse user never asked for. The text fields are left out on purpose: each
+ * one already shows focus by lighting its own border or its wrapper's, and a
+ * ring on top of that would be saying it twice. */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+input[type='range']:focus-visible,
+input[type='color']:focus-visible,
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
 
 /* ---------- shell ---------- */
 
@@ -253,8 +285,13 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 /* A card the search excluded. It stays where it is, because where something
    sits on the board is part of how you recognise it, but it steps back and
    stops taking the pointer so only results can be picked up. */
+/* Three things fade a card, and they multiply rather than fight: what it was
+   given in the panel, whether it matches the search, and whether it has been
+   cut. Only the first is written on the card, as a number the rest multiply
+   into — an inline `opacity` would beat every rule here. */
+.card { opacity: var(--op, 1); }
 .card[data-dim] {
-  opacity: 0.16;
+  opacity: calc(var(--op, 1) * 0.16);
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -545,7 +582,7 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
 .card-chrome {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
   display: flex; align-items: center; gap: var(--s2);
-  height: 26px; padding: 0 var(--s2);
+  height: var(--chrome-h); padding: 0 var(--s2);
   border-radius: 0 0 var(--r-md) var(--r-md);
   background: color-mix(in srgb, var(--surface) 84%, transparent);
   backdrop-filter: blur(10px) saturate(1.2);
@@ -559,6 +596,18 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
 /* A card that is moving is a card you are already looking at, so the plate
    stands down for as long as the drag lasts. */
 body[data-dragging] .card-chrome { opacity: 0; }
+
+/* Framing a picture by hand: Alt says a picture can be pushed around inside
+   its card, and the plate gets out of the way for as long as it is being. */
+body[data-framable] .card:is([data-kind='image'], [data-kind='video'], [data-kind='pdf'], [data-kind='design']) {
+  cursor: grab;
+}
+body[data-framing], body[data-framing] .card { cursor: grabbing; }
+body[data-framing] .card-chrome { opacity: 0; }
+/* Turning a model is the same gesture on a different kind of thing, so it
+   looks the same and gets out of the way the same. */
+body[data-turning], body[data-turning] .card { cursor: grabbing; }
+body[data-turning] .card-chrome { opacity: 0; }
 
 /* Over a photograph a plate is the wrong instrument: it lays a pale band
    across the picture. A scrim that fades to nothing does the same job — makes
@@ -632,8 +681,8 @@ body[data-dragging] .card-chrome { opacity: 0; }
 /* A card that has been cut steps back but stays where it is: where something
    sits on a board is part of how you recognise it, and a decision you cannot
    see the consequences of is not much of a decision. */
-.card[data-pick='out'] { opacity: 0.4; }
-.card[data-pick='out']:hover, .card[data-pick='out'][data-sel] { opacity: 0.85; }
+.card[data-pick='out'] { opacity: calc(var(--op, 1) * 0.4); }
+.card[data-pick='out']:hover, .card[data-pick='out'][data-sel] { opacity: calc(var(--op, 1) * 0.85); }
 
 .card-body { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--well); }
 .card-frame { position: absolute; inset: 0; }
@@ -667,6 +716,52 @@ body[data-dragging] .card-chrome { opacity: 0; }
 /* The noise itself is set inline from src/board/grain.ts, so the card and an
    export of the card lay down the same one. */
 .grain { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; }
+
+/* ---------- documents ---------- */
+
+/* A page of a document is a picture, so it needs no styling of its own. What
+   does is the pager, and the card for a document this browser could not read.
+
+   The pager sits inside the card rather than over the board, so it moves and
+   scales with the page it belongs to, and it appears on the selected card the
+   way the video controls do: a board of reference decks should read as pages,
+   not as a wall of pagers. */
+.pager {
+  /* Above the name plate rather than behind it. Both appear on the same card
+     under the same conditions — hovered, or selected — so there is no width at
+     which one of them is not there to be cleared. */
+  position: absolute; left: 50%; bottom: calc(var(--chrome-h) + var(--s2)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px;
+  padding: 2px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--sh-2);
+  opacity: 0; transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.card:hover .pager, .pager[data-on] { opacity: 1; pointer-events: auto; }
+.pager button {
+  width: 24px; height: 22px; border-radius: var(--r-sm);
+  font-size: var(--t-lg); line-height: 1; color: var(--ink-2);
+}
+.pager button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.pager button:disabled { color: var(--disabled); cursor: default; }
+.pager span {
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--muted);
+  padding: 0 var(--s1); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+@media (pointer: coarse) {
+  /* No hover to reveal it with, so it stands on the selected card and is big
+     enough to hit. */
+  .pager { opacity: 1; pointer-events: auto; }
+  .pager button { width: 34px; height: 30px; }
+}
+
+/* A document that could not be read: encrypted, damaged, or not really a PDF.
+   The card keeps the shape of a page and says what it is, which reads as a
+   document that failed rather than as a picture that never arrived. */
+.pdf-unread { display: grid; place-items: center; }
+.pdf-unread span {
+  font: 500 var(--t-sm)/1 var(--mono); letter-spacing: 0.08em; color: var(--muted);
+}
 
 /* ---------- video ---------- */
 
@@ -815,9 +910,85 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .file-name { font-size: var(--t-sm); color: var(--muted); word-break: break-all; }
 .file-dl { font-size: var(--t-sm); color: var(--sel); margin-top: auto; }
 
-.audio-wrap { padding: 14px; display: flex; flex-direction: column; gap: 10px; height: 100%; justify-content: center; }
-.audio-title { font-size: var(--t-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.audio-wrap audio { width: 100%; }
+/* ---------- sound ----------
+
+   A track is drawn as its own waveform rather than handed to the browser's
+   player bar, which is a black box that cannot be styled and is a different
+   shape in every browser. The waveform doubles as the scrub bar: the shape
+   tells you where the quiet part is, and pressing on it is how you get there,
+   so drawing those as two separate things was drawing one thing twice. */
+
+.sound {
+  position: relative; height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s2);
+  background: var(--surface-2);
+}
+/* With a cover behind it the card needs its own ground, or the ink sits
+   straight on somebody's album art and neither can be read. */
+.sound[data-art] { background: var(--surface); }
+.sound[data-art]::after {
+  content: ''; position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.sound > * { position: relative; z-index: 1; }
+
+.sound-art {
+  position: absolute; inset: 0; z-index: 0;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+
+.sound-head { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.sound-play {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--ink); color: var(--on-ink);
+}
+.sound-play:hover { background: var(--accent); color: var(--accent-ink); }
+.sound-name {
+  flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Tall enough that a waveform is a shape rather than a line, and the whole of
+   it is the target: a scrub bar you have to hit exactly is not one. */
+.sound-wave { flex: none; height: 46px; cursor: pointer; touch-action: none; }
+.sound-wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+.sound-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+/* Bars rather than strokes, so they scale with the card in both directions. */
+.sound-svg path { stroke: none; }
+.wave-rest { fill: var(--well-2); }
+.wave-done { fill: var(--accent); }
+
+/* A file this browser would not decode. The track still plays; what is missing
+   is the picture of it, so this is the plain bar that says so. */
+.sound-flat {
+  height: 100%; border-radius: var(--r-sm); background: var(--well);
+  position: relative; overflow: hidden;
+}
+.sound-flat::after {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: var(--done, 0%);
+  background: var(--accent-wash); border-right: 2px solid var(--accent);
+}
+
+/* The card's own name plate is suppressed on a sound card. This card already
+   carries the name beside the play button, so the plate was the filename
+   written twice — and being at the bottom of the card it sat straight on top
+   of the times, which is where it was noticed. */
+.card[data-kind='audio'] .card-chrome { display: none; }
+
+.sound-time {
+  display: flex; justify-content: space-between;
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (pointer: coarse) {
+  .sound-play { width: 38px; height: 38px; }
+  .sound-wave { height: 54px; }
+}
 
 .card-label {
   background: transparent; border: none; box-shadow: none;
@@ -958,6 +1129,30 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 /* ---------- panel ---------- */
 
+/* Held down to see a card without what has been done to it. Under the tabs
+   rather than inside one, because the question it answers is the same whether
+   you are choosing an effect or moving a slider. */
+.panel-compare { padding: var(--s2) var(--s3) 0; flex: none; }
+.panel-compare button {
+  display: flex; align-items: center; gap: var(--s2); width: 100%;
+  padding: 7px var(--s2); border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface);
+  font-size: var(--t-sm); color: var(--ink-2);
+  /* A hold is a press, and a press that selects the words under it is a press
+     that leaves a blue smear behind when it ends. */
+  user-select: none; -webkit-user-select: none;
+}
+.panel-compare button:hover { border-color: var(--accent-line); color: var(--ink); }
+.panel-compare button[data-on] {
+  background: var(--accent-wash); border-color: var(--accent); color: var(--ink);
+}
+.panel-compare button span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-compare button em {
+  flex: none; font: 500 var(--t-xs)/1 var(--mono); font-style: normal; color: var(--faint);
+  border: 1px solid var(--line); border-radius: 3px; padding: 2px 5px;
+}
+.panel-compare button[data-on] em { color: var(--ink-2); border-color: var(--accent-line); }
+
 .panel {
   width: 320px; flex: none;
   background: var(--surface-2);
@@ -967,6 +1162,9 @@ body[data-dragging] .card-chrome { opacity: 0; }
 }
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }
+/* A gesture that has no other way of saying it is there, said once beside the
+   controls it replaces. Quieter than a label, because it is read once. */
+.fx-hint { color: var(--faint); font-size: var(--t-xs); line-height: 1.5; margin: -2px 0 2px; }
 
 /* Open, with nothing selected. Everything the panel would say needs a picture
    to say it about, so it stands down to a rail and hands the width back. */
@@ -1024,10 +1222,26 @@ body[data-dragging] .card-chrome { opacity: 0; }
 
 .fx-controls { display: flex; flex-direction: column; gap: 9px; }
 
-.ctl { display: grid; grid-template-columns: 74px 1fr 44px; align-items: center; gap: 8px; font-size: var(--t-sm); }
-.ctl > span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl { display: grid; grid-template-columns: 74px 1fr 46px; align-items: center; gap: 8px; font-size: var(--t-sm); }
+.ctl > span, .ctl > label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl > label { cursor: default; }
 .ctl > em { font: 400 var(--t-xs)/1.4 var(--sans); color: var(--muted); font-style: normal; text-align: right; }
 .ctl input[type='range'] { width: 100%; accent-color: var(--accent); }
+
+/* The figure beside a slider, which is a field rather than a label now.
+   Drawn as quietly as the label it replaced until it is hovered or focused,
+   so a panel of eight of these does not read as a form. */
+.ctl-num {
+  width: 100%; min-width: 0; padding: 3px 4px; text-align: right;
+  font: 400 var(--t-xs)/1.4 var(--mono); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  background: none; border: 1px solid transparent; border-radius: var(--r-sm);
+}
+.ctl-num:hover { border-color: var(--line); color: var(--ink-2); }
+.ctl-num:focus {
+  outline: none; border-color: var(--accent);
+  background: var(--surface); color: var(--ink);
+}
 .ctl-color { grid-template-columns: 74px 1fr; }
 .ctl-color input { width: 100%; height: 26px; border: 1px solid var(--line); border-radius: var(--r-sm); background: none; padding: 2px; }
 
@@ -1036,12 +1250,28 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .seg button { flex: 1; padding: 5px 4px; border-radius: var(--r-sm); font-size: var(--t-xs); color: var(--muted); }
 .seg button[data-on] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--sh-1); }
 
-.preset-row, .flip-row { display: flex; flex-wrap: wrap; gap: 5px; }
-.preset-row button, .flip-row button {
+.preset-row, .flip-row, .blend-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.preset-row button, .flip-row button, .blend-row button {
   padding: 5px 10px; border-radius: var(--r-sm); font-size: var(--t-sm);
   border: 1px solid var(--line); color: var(--muted); background: var(--surface);
 }
-.preset-row button[data-on], .flip-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.preset-row button[data-on], .flip-row button[data-on], .blend-row button[data-on] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+/* The materials a model declares. A row is a fact read off the file — its
+   name, what it is textured with, whether it was ever unwrapped — with the one
+   thing you can do about it on the end. */
+.part-list { display: flex; flex-direction: column; gap: 4px; }
+.part {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+}
+.part[data-worn] { border-color: var(--ink); }
+.part-tint { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); }
+.part-of { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.part-of b { font-size: var(--t-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.part-of em { font-style: normal; font-size: var(--t-xs); color: var(--faint); }
+.part button { padding: 4px 9px; font-size: var(--t-xs); white-space: nowrap; }
+.part button:disabled { opacity: 0.45; cursor: default; }
 
 .ghost {
   padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--line);
@@ -1173,6 +1403,7 @@ body[data-dragging] .card-chrome { opacity: 0; }
   padding: 12vh var(--s4) var(--s4);
 }
 .cmd {
+  position: relative;
   width: min(560px, 100%); max-height: 62vh;
   display: flex; flex-direction: column;
   background: var(--surface);
@@ -1181,6 +1412,18 @@ body[data-dragging] .card-chrome { opacity: 0; }
   box-shadow: var(--sh-3);
   overflow: hidden;
 }
+/* There is more below. The same screen as the plate over a photograph, used
+   as a mask over the surface colour rather than as ink: the last row dots out
+   into the box instead of fading behind glass, and it takes the theme's own
+   colour for nothing. Only there while there is somewhere to scroll to. */
+.cmd::after {
+  content: ''; position: absolute; left: 1px; right: 1px; bottom: 0; height: 38px;
+  background: var(--surface);
+  -webkit-mask: var(--screen-up) repeat-x bottom / auto 38px;
+  mask: var(--screen-up) repeat-x bottom / auto 38px;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s ease;
+}
+.cmd[data-more]::after { opacity: 1; }
 .cmd-input {
   flex: none; height: 50px; padding: 0 var(--s4);
   border: none; border-bottom: 1px solid var(--line-soft);
@@ -1315,6 +1558,62 @@ body[data-dragging] .card-chrome { opacity: 0; }
 .swatches button[data-on], .tag-row button[data-on] { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- the sketch editor ---------- */
+
+/* Wider than the other sheets because it holds two things at once: the code
+   and what the code drew. A preview that is not the size of a card is a
+   preview of something else. */
+.sheet.sketch-sheet { width: min(980px, 94vw); }
+.shelf { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.shelf > span { font-size: var(--t-xs); color: var(--faint); margin-right: 2px; }
+.shelf button {
+  padding: 4px 10px; border-radius: var(--r-sm); font-size: var(--t-xs);
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface);
+}
+.shelf button:hover { color: var(--ink); border-color: var(--ink); }
+
+.sketch-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
+.sketch-code { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sheet .sketch-code textarea {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px; line-height: 1.55; tab-size: 2;
+  min-height: 320px; resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto;
+}
+.sketch-hint { font-size: var(--t-xs); color: var(--faint); margin: 0; }
+.sketch-hint code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  background: var(--sunk); border-radius: 4px; padding: 1px 4px; margin-right: 3px;
+}
+
+.sketch-shown {
+  position: relative; width: 260px; height: 260px; border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--sunk); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.sketch-shown img { width: 100%; height: 100%; object-fit: contain; }
+.sketch-blank { width: 100%; height: 100%; background: var(--well); }
+/* A quiet corner mark rather than a spinner over the picture: the picture that
+   is there is the last one that worked, and covering it hides the thing you
+   are comparing against. */
+.sketch-running {
+  position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent, #e2341d); animation: sketch-beat 1s ease-in-out infinite;
+}
+@keyframes sketch-beat { 0%, 100% { opacity: 0.25 } 50% { opacity: 1 } }
+
+.sketch-error, .sketch-note { font-size: var(--t-xs); line-height: 1.5; margin: 0; }
+.sketch-note { color: var(--faint); }
+.sketch-error {
+  color: var(--on-ink); background: #b3261e; border-radius: var(--r-sm); padding: 7px 9px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+@media (max-width: 720px) {
+  .sketch-body { grid-template-columns: minmax(0, 1fr); }
+  .sketch-shown { width: 100%; height: 220px; }
+}
+
 .sheet-actions button { padding: 8px 16px; border-radius: var(--r-sm); font-size: var(--t-md); background: var(--ink); color: var(--on-ink); }
 .sheet-actions .ghost { background: var(--surface); color: var(--muted); }
 
@@ -1612,6 +1911,15 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   padding: 4px 6px; font-size: 12px; line-height: 1; color: var(--faint); background: none;
   border-left: 1px solid var(--line);
 }
+/* How many times a layer runs. A count rather than a slider: it is a small
+   whole number you press up through, and a slider for twelve values is a
+   slider nobody can land on. */
+.fx-layer-n {
+  padding: 0 5px; font: 500 var(--t-xs)/1 var(--mono); color: var(--faint);
+  border-left: 1px solid var(--line); align-self: stretch;
+}
+.fx-layer-n:hover { color: var(--ink); }
+.fx-layer[data-on] .fx-layer-n { color: var(--on-ink); border-left-color: var(--accent-line); }
 .fx-layer-off:hover { color: var(--warn); background: var(--hover); }
 .fx-layer-add {
   padding: 4px 9px; border-radius: var(--r-sm); border: 1px dashed var(--line);
@@ -1651,12 +1959,34 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .alarm-more:hover { color: var(--ink); }
 .app[data-panel] .alarm { right: calc(var(--panel-w) + var(--s4)); }
 
+/* The line along the bottom, which shares that edge with two other things.
+ *
+ * The zoom bar owns the bottom left corner and the item count owns the bottom
+ * right, and this used to be laid out as though neither existed: centred, up
+ * to the full width of the window, and the only one of the three with a
+ * z-index. So on a phone one dropped picture raised a message that sat on top
+ * of the zoom readout, the plus button and the theme toggle, and swallowed the
+ * presses meant for them.
+ *
+ * Two rules fix it. A width it cannot exceed, so a long message stops before
+ * the corners on a wide window; and above the bar rather than beside it on a
+ * narrow one, where there is no width at which all three fit on a line. */
 .toast {
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: var(--s3);
-  max-width: calc(100vw - 32px);
+  max-width: min(calc(100vw - 32px), 520px);
   background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: var(--r-md);
   font-size: var(--t-md); z-index: 60; box-shadow: var(--shadow);
+}
+/* Centred on the board, not on the window, so a message does not slide under
+   the panel. The count and the space alarm along this edge already do this. */
+@media (min-width: 901px) {
+  .app[data-panel] .toast { left: calc(50% - var(--panel-w) / 2); }
+}
+/* Below this the panel is an overlay and the two corner controls are close
+   enough together that nothing fits between them. The message goes above. */
+@media (max-width: 900px) {
+  .toast { bottom: 62px; }
 }
 /* The way back out of what the line is reporting. Underlined rather than
    boxed: it is a thing to press, and a button drawn on the dark strip would

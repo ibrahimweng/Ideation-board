@@ -24,6 +24,10 @@ export const KEYS = {
   link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
   /* Not cmd+D, which duplicates. A picture that did not exist before. */
   draw: { key: 'd', hint: 'D', label: 'Draw a picture from a prompt', short: 'Draw' },
+  /* W for write, and the letter was free. The other way to make a picture
+     that did not exist before, and the only one that costs nothing to run
+     again. */
+  sketch: { key: 'w', hint: 'W', label: 'Write a sketch that draws a card', short: 'Sketch' },
   effects: { key: 'e', hint: 'E', label: 'Effects panel', short: 'Effects' },
   present: { key: 'p', hint: 'P', label: 'Present the board', short: 'Present' },
   fitBoard: { key: '1', hint: '1', label: 'Fit the whole board on screen', short: 'Fit board' },
@@ -37,6 +41,15 @@ export const KEYS = {
   putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
   gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
+  /* The same letter as Put here, without the modifier — which is the pattern
+     already set by Draw and ⌘D, Export pictures and ⌘E, Add files and ⌘F. */
+  vary: { key: 'v', hint: 'V', label: 'Make twelve versions of the picture', short: 'Vary' },
+  /* The same dice as Vary, thrown in place rather than into a grid. */
+  shuffle: { key: 'r', hint: 'R', label: 'Throw a random effect at the selection', short: 'Shuffle' },
+  /* Held rather than pressed, which is why it is the only one here whose key
+     is let go of again. Backslash is what every tool that grades a picture
+     uses for this, and it is one of the few keys nothing else wanted. */
+  original: { key: '\\', hint: '\\', label: 'Hold to see it without the effect', short: 'See the original' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
   undo: { key: 'z', mod: true, hint: join(MOD, 'Z'), label: 'Undo' },
   redo: { key: 'z', mod: true, shift: true, hint: join(SHIFT, MOD, 'Z'), label: 'Redo' },

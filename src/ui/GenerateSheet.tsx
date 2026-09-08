@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useObjectURL } from '../store/media'
 import { holdKeys } from './modal'
+import { useDialog } from './dialog'
 import {
   DEFAULT_BASE, apiBase, apiKey, forgetApiKey, hasKey, maskKey, modelId, setApiBase, setApiKey, setModelId,
 } from '../ai/key'
@@ -82,6 +83,7 @@ export function GenerateSheet({ onClose, onDraw, working = [], busy }: GenerateS
   const ref = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(holdKeys, [])
+  const dialog = useDialog(onClose)
   useEffect(() => {
     if (keyed) ref.current?.focus()
   }, [keyed])
@@ -164,10 +166,11 @@ export function GenerateSheet({ onClose, onDraw, working = [], busy }: GenerateS
   return (
     <div className="sheet-veil" onPointerDown={onClose}>
       <div
+        ref={dialog}
         className="sheet gen-sheet"
+        aria-label="Draw something"
         onPointerDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             go()

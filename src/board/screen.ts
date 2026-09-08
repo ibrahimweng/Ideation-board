@@ -65,10 +65,21 @@ export function screenRamp({ from, height, ink = '#000', max = 0.9, bias = 1.35,
 }
 
 /* The two the interface uses, worked out once. Heights match the chrome they
- * sit in: a card's name plate, and the bar across a board being shown. */
+ * sit in: a card's name plate, and the bar across a board being shown.
+ *
+ * `max` was 0.97, which is not a screen at all: at that coverage the dots
+ * overlap by half their width and the held band comes out as a solid black
+ * slab with a dotted fringe above it — the exact pale band across the picture
+ * this was written to avoid, in black. Just over half is where the dots still
+ * touch but stop merging, so the photograph reads through the plate and the
+ * screen looks like a screen. The letters keep their own dark outline, which
+ * is what was really carrying their legibility all along.
+ *
+ * The bar over a board being shown is left alone: it is nearly a hundred
+ * pixels tall with a whole title in it, and it is the only thing on screen. */
 export const SCREENS = {
-  cardUp: screenRamp({ from: 'bottom', height: 38, max: 0.97, hold: 0.44, bias: 1.5 }),
-  cardDown: screenRamp({ from: 'top', height: 38, max: 0.97, hold: 0.44, bias: 1.5 }),
+  cardUp: screenRamp({ from: 'bottom', height: 38, max: 0.52, hold: 0.4, bias: 1.3 }),
+  cardDown: screenRamp({ from: 'top', height: 38, max: 0.52, hold: 0.4, bias: 1.3 }),
   presentUp: screenRamp({ from: 'bottom', height: 96, max: 0.97, hold: 0.4, bias: 1.15 }),
 }
 

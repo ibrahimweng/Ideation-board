@@ -1,3 +1,4 @@
+import { blendOf } from '../engine/types'
 import type { FxState, Layer, Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -31,6 +32,10 @@ export interface LookFx {
   warm: number
   blur: number
   grain: number
+  /* How the card sits with the ones under it. A treatment, so a look carries
+     it — unlike the framing, which belongs to the one photograph. */
+  op: number
+  mix: string
   preset: string
 }
 
@@ -57,13 +62,16 @@ export function lookFrom(fx: FxState): LookFx {
     warm: fx.warm,
     blur: fx.blur,
     grain: fx.grain,
+    op: fx.op ?? 100,
+    mix: blendOf(fx.mix),
     preset: fx.preset,
   }
 }
 
 /* True when there is anything worth saving or copying. */
 export const isPlain = (fx: LookFx) =>
-  fx.fxid === 'none' && !fx.exp && !fx.con && fx.sat === 100 && !fx.warm && !fx.blur && !fx.grain
+  fx.fxid === 'none' && !fx.exp && !fx.con && fx.sat === 100 && !fx.warm && !fx.blur && !fx.grain &&
+  (fx.op ?? 100) === 100 && blendOf(fx.mix) === 'normal'
 
 /* ---------- the saved list ---------- */
 
@@ -157,6 +165,8 @@ export function describe(fx: LookFx, effectName: string): string {
   else if (fx.warm > 20) bits.push('warm')
   else if (fx.warm < -20) bits.push('cool')
   if (fx.grain > 30) bits.push('grain')
+  if (blendOf(fx.mix) !== 'normal') bits.push(blendOf(fx.mix))
+  else if ((fx.op ?? 100) < 100) bits.push('faded')
   if (!bits.length) bits.push('Look')
   return bits.join(' ')
 }

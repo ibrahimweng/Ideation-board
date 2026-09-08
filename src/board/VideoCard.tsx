@@ -34,6 +34,8 @@ interface Props {
    * unaffected picture. */
   blocked?: boolean
   effectId: string
+  /* Times the effect runs, each pass reading the one before. */
+  n?: number
   params: Params | null
   /* Effects after the first. Passed through untouched; the card holds them and
    * the renderer applies them. */
@@ -58,7 +60,7 @@ const fmt = (s: number) => {
 }
 
 export function VideoCard({
-  id, url, effected, selected, crossOrigin, blocked, effectId, params, more, seed, w, h, filter, frame, grain,
+  id, url, effected, selected, crossOrigin, blocked, effectId, params, more, n, seed, w, h, filter, frame, grain,
 }: Props) {
   /* State rather than a ref: the canvas needs to re-render once the element
    * exists so it can start pulling frames from it. */
@@ -190,6 +192,7 @@ export function VideoCard({
               effectId={effectId}
               params={params}
               more={more}
+              n={n}
               seed={seed}
               w={w}
               h={pictureH}

@@ -646,6 +646,16 @@ means a sandboxed frame, or something that is not a browser at all.
 boundary; it is there for a machine where something else untrusted is already
 running.
 
+Worth being plain about what "loopback origins are allowed by default" means,
+because it is a trade rather than a free win. Any port counts. So while the
+relay is running, a page served from any local development server you happen to
+open in the same browser can read and rewrite every board, not only the one you
+are looking at. On a machine where you wrote or trust everything that listens on
+a port, that is the convenience it is meant to be. If that is not your machine,
+name your real origin with `--origin` and set a `--token`. One caveat on the
+token: an event stream cannot carry a header, so it travels in the query string,
+where it will show up in server logs and in a process list.
+
 `test/mcp.mjs` proves this rather than asserting it: it conjures a second origin
 with Chrome's host resolver and, from inside a real browser, tries to open the
 stream and tries to write to it. Both are refused, the relay records who it
@@ -1229,6 +1239,10 @@ npm run test:offline -- http://localhost:5173
 npm run test:reclaim -- http://localhost:5173
 npm run test:manyboards -- http://localhost:5173
 npm run test:stacked -- http://localhost:5173
+npm run test:big -- http://localhost:5173
+npm run test:pdf -- http://localhost:5173
+npm run test:audio -- http://localhost:5173
+npm run test:design -- http://localhost:5173
 npm run test:access -- http://localhost:5173
 npm run test:smoke -- http://localhost:5173
 npm run test:effects -- http://localhost:5173
@@ -1297,6 +1311,41 @@ npm run bench
 - `test:manyboards` makes a second board, checks it is really separate, and then
   does the thing an in-app switcher could never do — opens both at once in two
   browser tabs and checks that working in one does not reach into the other.
+- `test:pdf` drops a document written by hand in `test/fixtures/pdf.mjs`, three
+  pages each a different colour with its own number on it, and checks the whole
+  path: that the page really renders rather than the card falling back to a
+  filename, that it is page one by its colour rather than by a counter, that
+  turning to page two changes the picture, that one undo goes back a page, that
+  an effect runs on a page the way it does on any picture, that the document
+  itself is still in storage afterwards with `%PDF` at the front of it, and that
+  all of it comes back after a reload on the page it was left on.
+- `test:audio` drops a clip written by hand in `test/fixtures/wav.mjs` that is
+  loud, then quiet, then loud again — so "the waveform has a shape" is a thing
+  that can be asserted rather than assumed, and a test that only counted peaks
+  would pass against a flat line. It checks that the track was really decoded,
+  that the shape is that clip's and not any clip's, that the card says how long
+  it is before anybody presses anything, that play and pause work, that pressing
+  three quarters along the waveform goes three quarters into the track, that an
+  arrow key moves through it, and that it all comes back after a reload without
+  decoding again.
+- `test:design` drops a Photoshop document, a Sketch file, an Illustrator file
+  and a file only named like one, all written by hand in `test/fixtures`. Each
+  fixture has a shape chosen to catch the two ways this goes wrong quietly: the
+  Photoshop one is orange on the left and blue on the right with a dark band
+  along the bottom, so a red and blue channel swap is obvious rather than nearly
+  right and a picture read upside down is obvious rather than symmetrical. Both
+  Photoshop compressions are checked, because real documents are almost always
+  the packed one and the packing is where the arithmetic is. The Illustrator
+  file has to come out as a document with three pages, because it really is a
+  PDF; the file that is only named `.psd` has to come out as a plain file card
+  rather than as an empty one pretending to be artwork.
+- `test:big` is the only suite that works at scale. Two thousand cards, written
+  straight into IndexedDB because that is how a board that size really arrives,
+  then the questions that only have an answer at that size: does it open, is
+  only what is on screen in the page, does picking a card up block the main
+  thread, does one undo put the whole drag back and leave the other 1,999
+  alone, and does panning across all of it stall. Undo used to keep a copy of
+  the whole board per step, so this is the suite that would have noticed.
 - `test:reclaim` drops four pictures, deletes every card, and checks that the
   files are all still there — the bug, stated as a test — then clears up and
   checks the store is really smaller. Then the half that matters more: a

@@ -115,9 +115,26 @@ ok('and they are the keys the buttons claim, not a list that has drifted',
 const top = () => page.locator('.help-body').evaluate((e) => e.scrollTop)
 ok('it starts at the beginning', (await top()) < 20, `${await top()}px`)
 await page.locator('.help-nav button').last().click()
-await page.waitForTimeout(900)
+/* Waited for rather than slept through. Going to a section is a smooth scroll,
+   and the list only catches up once an observer has noticed where the scroll
+   stopped — so the two together take as long as they take, and a number chosen
+   in advance is a number that is too small on a loaded machine. This was the
+   one check in the whole suite that failed only when all of it ran at once. */
+const settled = await page
+  .waitForFunction(
+    (want) => {
+      const body = document.querySelector('.help-body')
+      const on = [...document.querySelectorAll('.help-nav button[data-on]')]
+      return !!body && body.scrollTop > 300 && !!on.length && on[on.length - 1].innerText.trim() === want
+    },
+    navs[navs.length - 1],
+    { timeout: 10000 }
+  )
+  .then(() => true)
+  .catch(() => false)
+
 ok('clicking a section in the list goes to it', (await top()) > 300, `${await top()}px`)
-ok('and the list keeps up with where you are',
+ok('and the list keeps up with where you are', settled &&
    (await page.locator('.help-nav button[data-on]').last().innerText()) === navs[navs.length - 1])
 
 fs.writeFileSync(path.join(OUT, 'help.png'), await page.screenshot())

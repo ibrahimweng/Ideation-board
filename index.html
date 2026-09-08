@@ -6,7 +6,7 @@
     <title>Ideation Board</title>
     <meta
       name="description"
-      content="Drop pictures on a board and put thirty one GPU effects on them. Nested boards, saved looks, colour palettes pulled out of your photographs, and a present mode. Everything stays on your machine."
+      content="Drop pictures on a board and put forty one GPU effects on them. Nested boards, saved looks, colour palettes pulled out of your photographs, and a present mode. Everything stays on your machine."
     />
 
     <!-- The icon, at every size something asks for it in.
@@ -28,7 +28,7 @@
     <meta property="og:title" content="Ideation Board" />
     <meta
       property="og:description"
-      content="Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine."
+      content="Drop pictures on a board and put forty one GPU effects on them. Everything stays on your machine."
     />
     <meta property="og:url" content="%SITE_URL%/" />
     <meta property="og:image" content="%SITE_URL%/og.png" />
@@ -43,15 +43,18 @@
     <meta name="twitter:title" content="Ideation Board" />
     <meta
       name="twitter:description"
-      content="Drop pictures on a board and put thirty one GPU effects on them. Everything stays on your machine."
+      content="Drop pictures on a board and put forty one GPU effects on them. Everything stays on your machine."
     />
     <meta name="twitter:image" content="%SITE_URL%/og.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..600&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <!-- The two faces are served from here, not from Google. The app's own
+         claim is that nothing leaves the machine, and a stylesheet fetched
+         from a third party to find out which font file to fetch was both the
+         one exception to that and two round trips in front of first paint.
+         src/fonts.css holds the faces; these two preloads are the files the
+         first screenful is actually set in, so the text lands in the right
+         face rather than swapping into it. -->
+    <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0d0d0f" media="(prefers-color-scheme: dark)" />
     <!-- The theme is resolved to light or dark here, before anything paints,

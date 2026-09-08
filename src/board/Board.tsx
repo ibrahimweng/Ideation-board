@@ -18,6 +18,8 @@ import { justLongPressed, noteLongPress, onLongPress } from './longpress'
 import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
+import { canFrame, reframeWheel, startReframe } from './reframe'
+import { canTurn, startTurn, turnWheel } from './turning'
 import { ThemeButton } from '../ui/ThemeButton'
 import type { MenuState, CanvasActions } from '../ui/ContextMenu'
 
@@ -101,6 +103,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   /* ---------- the visible set ---------- */
   const rectRef = useRef<Rect>({ x: 0, y: 0, w: 0, h: 0 })
   const paintedRef = useRef('')
+  /* Viewport, window size and store revision, as of the last frame that
+     actually did the work. See the note in the loop. */
+  const restRef = useRef('')
   useEffect(() => {
     let raf = 0
     let last = ''
@@ -112,11 +117,30 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
        * zoom buttons, would otherwise never move the surface. Painting here
        * when the value actually changed covers both. */
       const vk = `${v.x},${v.y},${v.z}`
-      if (vk !== paintedRef.current) {
+      const moved = vk !== paintedRef.current
+      if (moved) {
         paintedRef.current = vk
         paintTransform()
       }
+      /* Nothing has moved and nothing has changed, so the answer is the one
+       * from last frame and working it out again would produce the same set.
+       *
+       * The scan itself is cheap — a few tenths of a millisecond on a board of
+       * eight thousand — so this is not about the cost of one frame. It is that
+       * without it the loop walked every item and built two strings sixty times
+       * a second forever, on a board nobody was touching, and a tab that never
+       * goes quiet is one that keeps a laptop awake.
+       *
+       * Three things in the key, and each is a way the set can change without
+       * the other two moving. The viewport, for a pan or a zoom. The size, for
+       * a window resized while the viewport stayed put. And the store's
+       * revision, which covers everything else: a card added, deleted, dragged,
+       * tidied, undone, or moved by the relay. `touch()` sits on every write
+       * path, so there is no fourth way. */
       const { w, h } = sizeRef.current
+      const restKey = `${vk}|${w}x${h}|${store.rev}`
+      if (restKey === restRef.current) return
+      restRef.current = restKey
       noteViewportSize(w, h)
       const r = visibleRect(v, w, h, 320)
       rectRef.current = r
@@ -143,12 +167,39 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     paintTransform()
   }, [paintTransform])
 
+  /* While Alt is down, a picture says it can be pushed around. A cursor is the
+   * only way a modifier gesture ever announces itself; without one it is a
+   * feature you have to be told about. */
+  useEffect(() => {
+    const set = (on: boolean) => {
+      if (on) document.body.setAttribute('data-framable', '')
+      else document.body.removeAttribute('data-framable')
+    }
+    const down = (e: KeyboardEvent) => set(e.altKey)
+    const up = (e: KeyboardEvent) => set(e.altKey)
+    const off = () => set(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    /* A modifier held while the window goes away never sends its keyup. */
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', off)
+      set(false)
+    }
+  }, [])
+
   /* ---------- wheel: pan and zoom ---------- */
   useEffect(() => {
     const el = vpRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      /* Alt over a picture scales it inside its own card rather than moving
+         the board underneath it, and over a model goes in and out. */
+      if (turnWheel(e)) return
+      if (reframeWheel(e)) return
       const engine = getEngine()
       engine.touch()
       const v = store.peekView()
@@ -266,6 +317,22 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
     e.stopPropagation()
+
+    /* Alt and drag pushes the picture around inside its card instead of moving
+       the card. It goes first because it is the one gesture here that must not
+       raise, marquee, open a menu or take a long press: it is one card being
+       looked at, and nothing else should happen while it is. */
+    if (e.altKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
+      holdPress()
+      /* The panel follows what you are framing, but a selection you built on
+         purpose is not thrown away to do it. */
+      if (!store.isSelected(id)) store.select([id])
+      /* On a model there is no picture to push about — there is a thing, and
+         the same gesture turns it round to show the other side. */
+      if (canTurn(store.getItem(id))) startTurn(e, id)
+      else startReframe(e, id)
+      return
+    }
     /* Held still, a finger means the same as a right button. Cancelled below
        the moment the press turns into a drag. */
     let menued = false
