@@ -357,7 +357,9 @@ export default function App() {
     store.add(it)
     store.select([it.id])
     setEditing(it.id)
-    void runSketch(it.id)
+    /* Not a step of its own: the card arriving is the step, and the picture it
+     * arrives with is part of it. */
+    void runSketch(it.id, undefined, false)
   }, [])
 
   const addBoard = useCallback(async (at: { x: number; y: number }) => {

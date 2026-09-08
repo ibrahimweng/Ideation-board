@@ -3,7 +3,7 @@ import { putBlob, getBlob } from '../store/idb'
 import { ensureSource } from '../board/sources'
 import { decodeCapped, newKey } from '../store/media'
 import { drawSketch, refused, sizeFor } from '../store/sketch'
-import { feederKey } from './feeds'
+import { feederKey, refreshFeeds } from './feeds'
 import type { Item } from './types'
 import { FX_0 } from '../engine/types'
 
@@ -271,8 +271,13 @@ const trouble = new Map<string, string>()
 export const troubleWith = (id: string) => trouble.get(id) || null
 
 /* Draws a sketch card and points it at what came out. Returns the reason it
- * did not, or null if it did. */
-export async function runSketch(id: string, code?: string): Promise<string | null> {
+ * did not, or null if it did.
+ *
+ * `record` is for the callers that have already opened a step of undo before
+ * asking: throwing the dice again is one press to undo rather than two, and a
+ * card that has just been put down should be removed by the first press rather
+ * than losing only the picture it arrived with. */
+export async function runSketch(id: string, code?: string, record = true): Promise<string | null> {
   const it = store.getItem(id)
   if (!it || it.kind !== 'sketch') return 'that card is not a sketch'
   if (busy.has(id)) return null
@@ -281,7 +286,15 @@ export async function runSketch(id: string, code?: string): Promise<string | nul
     const src = code ?? it.code ?? ''
     const size = sizeFor(it.w, it.h)
     /* The card wired into this one, as a picture the sketch can read. Decoded
-     * here rather than in the worker so that a sketch never touches storage. */
+     * here rather than in the worker so that a sketch never touches storage.
+     *
+     * The map of what feeds what is built when a card asks React for it, and
+     * this runs outside React — from a right click, from the editor, from a
+     * board that has only just opened. So it is rebuilt first, which is what
+     * `refreshFeeds` is for: without it a sketch rolled from the menu on a
+     * board nothing else has looked at would be handed nothing, and would draw
+     * the picture it draws when there is no card wired in. */
+    refreshFeeds()
     let bmp: ImageBitmap | null = null
     const feed = feederKey(id)
     if (feed) {
@@ -302,7 +315,7 @@ export async function runSketch(id: string, code?: string): Promise<string | nul
     if (!still || still.kind !== 'sketch') return null
     /* One step of undo for the whole run, and the card keeps its size: the
      * picture is drawn to the card's shape rather than the other way round. */
-    store.update(id, { poster: key, code: src, nw: out.w, nh: out.h })
+    store.update(id, { poster: key, code: src, nw: out.w, nh: out.h }, record)
     return null
   } catch (e) {
     const why = e instanceof Error ? e.message : 'that sketch would not run'
@@ -321,5 +334,5 @@ export async function rollSketch(id: string): Promise<string | null> {
   if (!it || it.kind !== 'sketch') return null
   store.beginGesture(0)
   store.update(id, { roll: Math.floor(Math.random() * 1e6) }, false)
-  return runSketch(id)
+  return runSketch(id, undefined, false)
 }
