@@ -151,8 +151,14 @@ function parts(): Part[] {
             <K>{KEYS.keep.hint}</K> and press <K>{KEYS.vary.hint}</K> again: the ones you did not mark
             are replaced by twelve bred from the ones you did. Press it on a single version to go
             further into that one. The whole round is one press of undo, and{' '}
-            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from. It works
-            on a sound as well — see <strong>Sound</strong> below.
+            <K>{KEYS.original.hint}</K> shows all twelve as the picture they started from.
+          </p>
+          <p>
+            A sound, a sketch and a model each get twelve of their own, because the thing worth
+            having twelve of is whatever makes that card what it is: the chain a sound is run
+            through, the throw a sketch was drawn on, the place a model is seen from. Same key,
+            same grid, same one press of undo — see <strong>Sound</strong>, <strong>Sketches</strong>{' '}
+            and <strong>Models</strong> below.
           </p>
           <p>
             Every effect in the stack carries a <strong>×1</strong> beside its name. Press it and
@@ -231,8 +237,14 @@ function parts(): Part[] {
             into it — that card&rsquo;s picture, so a sketch can read a photograph and become
             another way to treat one. It runs on its own, away from the board, and is stopped after
             a few seconds: a loop with no end in it costs you a card rather than the tab. What it
-            draws is a picture like any other, so it takes the effects, exports, and can be varied
-            twelve ways.
+            draws is a picture like any other, so it takes the effects and exports like one.
+          </p>
+          <p>
+            <K>{KEYS.vary.hint}</K> is <strong>Roll again</strong> twelve times at once: twelve
+            drawings from the same code, laid out under the card so you can compare throws instead
+            of remembering them. Marking one and pressing again keeps it and re-throws the rest —
+            it protects what you found rather than steering where to look next, because two seeds
+            one apart are two unrelated pictures and there is nothing in between to breed.
           </p>
         </>
       ),
@@ -247,8 +259,15 @@ function parts(): Part[] {
             model, not a grey rectangle with three letters on it. Hold <K>Alt</K> and drag it to
             turn it round, <K>Alt</K> and scroll to move in and out; where you leave it is where it
             is next time you open the board. From there it is a picture like any other — every
-            effect works on it, it exports, it gives up its colours to the palette, and{' '}
-            <K>{KEYS.vary.hint}</K> gives you twelve of it.
+            effect works on it, it exports, and it gives up its colours to the palette.
+          </p>
+          <p>
+            <K>{KEYS.vary.hint}</K> photographs it from twelve places: a circuit round the object
+            rather than twelve angles at random, most of them a little above it, one or two low,
+            and a few in close — because one of the twelve being a detail is worth more than a
+            twelfth view of the whole. Keep the ones worth keeping and press again and the next
+            twelve come from near those, which is what &ldquo;more like that one&rdquo; means for a
+            camera.
           </p>
           <p>
             <strong>Adjust</strong> lists the materials the file declares, what each one is

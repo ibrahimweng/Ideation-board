@@ -1,12 +1,11 @@
 import { store } from './store'
-import { VARIANTS, gridUnder } from './variations'
 import { SOUNDS, SOUND_BY_ID } from '../store/sound'
 import type { SoundLayer } from '../store/sound'
 import { chainOf, isSound, treatSound } from './sounds'
 import { isColor, isEnum } from '../engine/types'
 import type { Params } from '../engine/types'
-import { KEYS } from '../ui/shortcuts'
-import type { Item } from './types'
+import { runGrid } from './varyGrid'
+import type { Dice, VaryResult } from './varyGrid'
 
 /* ---------------------------------------------------------------------------
  * Twelve of a sound.
@@ -178,33 +177,13 @@ export function batchOfChains(count: number, parents: SoundLayer[][] = []): Soun
 
 /* ---------------------------------------------------------------------------
  * The batch on the board.
+ *
+ * Everything about the grid itself — the twelve places, the keepers, the holes
+ * they leave, one press of undo — is in varyGrid.ts and shared with the other
+ * three media. What is here is what makes a sound's twelve different from a
+ * picture's: the dice above, the cost below, and the one refusal.
  * ------------------------------------------------------------------------- */
 
-interface Batch {
-  source: string
-  ids: (string | null)[]
-  places: { x: number; y: number }[]
-}
-
-let batch: Batch | null = null
-
-export function forgetSoundBatch() {
-  batch = null
-}
-
-function working(sel: string[]): boolean {
-  if (!batch || sel.length < 2) return false
-  const mine = new Set(batch.ids.filter((id): id is string => !!id))
-  return sel.every((id) => mine.has(id))
-}
-
-export interface VaryResult {
-  made: number
-  say: string
-}
-
-/* Renders a batch in order. One decode is shared by all of them, so what this
- * costs is the graph work rather than the file. */
 /* Whether there is anything on the card to hear. The peaks are normalised to
  * the loudest thing in the sound, so a quiet render still draws a full
  * waveform and only true silence reads as silence — which is exactly the case
@@ -212,11 +191,13 @@ export interface VaryResult {
 const audible = (id: string): boolean =>
   (store.getItem(id)?.peaks || []).filter((v) => v > 2).length > 4
 
+/* Renders a batch in order — browsers hold their noses at about six audio
+ * contexts — sharing one decode of the source, which is the slow part. */
 async function renderAll(ids: string[]): Promise<void> {
   for (const id of ids) {
-    /* Not recorded: `variantsOf` already opened the step this belongs to, and a
-       round that took thirteen presses of undo to take back would be a grid
-       nobody would risk making. */
+    /* Not recorded: the exchange that put these on the board already opened
+       the step this belongs to, and a round that took thirteen presses of undo
+       to take back would be a grid nobody would risk making. */
     await treatSound(id, undefined, false)
     /* A square of the grid spent on nothing is worse than one spent on a bad
      * idea. There are several ways to roll silence — a low pass under the
@@ -228,75 +209,25 @@ async function renderAll(ids: string[]): Promise<void> {
   }
 }
 
-/* What a variant card starts as: the chain, and no memory of the render it was
- * copied from. Without the second half every card in the grid plays the sound
- * the source was playing until its own render lands, which is twelve cards
- * lying about themselves for a second and a half. */
-const asVariant = (chain: SoundLayer[]): Partial<Item> => ({ chain, heard: undefined })
-
-export async function varySound(): Promise<VaryResult> {
-  const sel = store.getSelection()
-
-  /* ---- another round on the batch already on the board ---- */
-  if (working(sel) && batch) {
-    const live = batch.ids.map((id) => (id && store.getItem(id) ? id : null))
-    const keepers = live.filter((id) => id && store.getItem(id)?.pick === 'in') as string[]
-    const drop = live.filter((id): id is string => !!id && !keepers.includes(id))
-    if (!drop.length) {
-      return { made: 0, say: 'Every one of them is marked kept. Unmark some to make room.' }
-    }
-    const parents = keepers.map((id) => chainOf(store.getItem(id)))
-    const chains = batchOfChains(drop.length, parents)
-    const free: number[] = []
-    live.forEach((id, i) => { if (!id || !keepers.includes(id)) free.push(i) })
-    const place = chains.map((chain, n) => ({ patch: asVariant(chain), ...batch!.places[free[n]] }))
-    const made = store.variantsOf(batch.source, drop, place)
-    if (!made.length) return { made: 0, say: 'Nothing to vary.' }
-    const next = live.slice()
-    made.forEach((id, n) => { next[free[n]] = id })
-    batch = { ...batch, ids: next }
-    store.select(next.filter((id): id is string => !!id))
-    await renderAll(made)
-    return {
-      made: made.length,
-      say: keepers.length
-        ? `${made.length} more, bred from the ${keepers.length} you kept.`
-        : `${made.length} more.`,
-    }
-  }
-
-  /* ---- a fresh batch under one card ---- */
-  if (sel.length !== 1) {
-    return { made: 0, say: sel.length ? 'Pick one sound to make versions of.' : 'Pick a sound first.' }
-  }
-  const it = store.getItem(sel[0])
-  if (!isSound(it)) return { made: 0, say: 'Only a sound has versions of this kind.' }
-
-  /* The one refusal. Twelve renders of a long track is more storage than
-   * anybody pressing a key meant to spend, and the answer is in the panel. */
-  if ((it.secs || 0) > VARY_MAX_SECS) {
-    return {
-      made: 0,
-      say: `That is ${Math.round(it.secs || 0)} seconds long. Trim it under ${VARY_MAX_SECS} first — twelve copies of a long one would fill the browser.`,
-    }
-  }
-
-  const previous = batch && batch.ids.includes(it.id)
-    ? batch.ids.filter((id): id is string => !!id && id !== it.id && !!store.getItem(id))
-    : []
-
-  const places = gridUnder(it)
-  const chains = batchOfChains(VARIANTS)
-  const made = store.variantsOf(it.id, previous, chains.map((chain, n) => ({ patch: asVariant(chain), ...places[n] })))
-  if (!made.length) return { made: 0, say: 'Nothing to vary.' }
-  batch = { source: it.id, ids: made, places }
-  store.select(made)
-  await renderAll(made)
-  return {
-    made: made.length,
-    say: `${made.length} versions. Mark the ones worth keeping with ${KEYS.keep.hint}, then press ${KEYS.vary.hint} again.`,
-  }
+const dice: Dice<SoundLayer[]> = {
+  noun: 'sound',
+  /* Twelve renders of a long track is more storage than anybody pressing a key
+   * meant to spend, and the answer is in the panel: Trim is the first effect
+   * in the list precisely because a moment is what you want twelve of. */
+  refuse: (it) =>
+    (it.secs || 0) > VARY_MAX_SECS
+      ? `That is ${Math.round(it.secs || 0)} seconds long. Trim it under ${VARY_MAX_SECS} first — twelve copies of a long one would fill the browser.`
+      : null,
+  batch: (_source, count, parents) => batchOfChains(count, parents),
+  /* No memory of the render it was copied from: without that, every card in
+   * the grid plays the sound the source was playing until its own render
+   * lands, which is twelve cards lying about themselves for a second. */
+  patch: (chain) => ({ chain, heard: undefined }),
+  read: (it) => chainOf(it),
+  render: renderAll,
 }
+
+export const varySound = (): Promise<VaryResult> => runGrid(dice, (it) => isSound(it))
 
 /* The same dice, thrown in place: a new treatment on the sounds that are
  * selected, without a grid. */
@@ -311,9 +242,3 @@ export async function shuffleSound(): Promise<VaryResult> {
     say: sel.length === 1 ? 'Shuffled. Press again for another.' : `Shuffled ${sel.length}.`,
   }
 }
-
-/* Whether the selection is sounds, which is how the one key knows which dice
- * to throw. A mixed selection is a picture question: the grid works on one
- * card at a time and the sound half would only refuse. */
-export const soundsSelected = (sel: string[]): boolean =>
-  sel.length > 0 && sel.every((id) => isSound(store.getItem(id)))

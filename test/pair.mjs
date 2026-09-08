@@ -231,6 +231,51 @@ check('the wire is still there after a reload', (await wires().count()) === 1)
 const back = await halves()
 check('and the card is still reading through it', !!back && back.shaded, JSON.stringify(back))
 
+/* ---------- and a variation is wired the same way ---------- */
+
+/* Latent until a sketch made it visible: twelve variations of a card running a
+   two-picture effect had nothing wired into them, so every one of them fell
+   back to reading itself — which looks like the effect failing rather than
+   like a wire that was never copied.
+
+   Last, because twelve cards appearing pulls the view out to hold them and
+   undo puts the board back without putting the view back — rightly, since
+   undo is about the board — so everything that needs a card where it was has
+   to have happened already. */
+await select(FLAT)
+await page.keyboard.press('v')
+await page.waitForTimeout(4000)
+const fanned = await page.evaluate(async ({ src, feeder }) => {
+  const db = await new Promise((res) => { const r = indexedDB.open('ideation.board.db'); r.onsuccess = () => res(r.result) })
+  const all = await new Promise((res) => {
+    const t = db.transaction('boards', 'readonly')
+    const r = t.objectStore('boards').getAll()
+    r.onsuccess = () => res(r.result || [])
+    r.onerror = () => res([])
+  })
+  const items = all.flatMap((b) => b.items || [])
+  /* Neither the card it came from nor the one feeding it: both were on the
+     board before the key was pressed. */
+  const kids = items.filter((i) => i.kind === 'image' && i.id !== src && i.id !== feeder)
+  const edges = items.filter((i) => i.kind === 'edge')
+  return {
+    kids: kids.length,
+    fed: kids.filter((k) => edges.some((e) => e.to === k.id)).length,
+    /* And all from the one card that was feeding the original. */
+    sources: new Set(edges.map((e) => e.from)).size,
+  }
+}, { src: FLAT, feeder: SPLIT })
+check('every variation of a wired card is wired the same way',
+  fanned.kids > 0 && fanned.fed === fanned.kids, `${fanned.fed} of ${fanned.kids} fed`)
+check('and all of them from the one card that was feeding it', fanned.sources === 1,
+  `${fanned.sources} sources`)
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(2000)
+check('and undoing the round takes those wires with it',
+  (await wires().count()) === 1, `${await wires().count()} wires left`)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

@@ -456,6 +456,26 @@ export class BoardStore {
       this.order.push(id)
       made.push(id)
     }
+    /* A card wired into the source is wired into every variant too.
+     *
+     * Without this a variation quietly stops being a variation: a sketch whose
+     * code reads the card wired to it comes back twelve times with nothing to
+     * read, and a picture running a two-picture effect falls back to reading
+     * itself. Both look like the feature failing rather than like a wire that
+     * was never copied.
+     *
+     * Only wires arriving at the source: one going out of it says something
+     * about the card it points at, which the variants have nothing to do
+     * with. */
+    const feeds = [...this.items.values()].filter((w) => isWire(w) && w.to === sourceId && w.from)
+    for (const id of made) {
+      for (const w of feeds) {
+        const wire = freshId()
+        this.put(wire, { id: wire, kind: 'edge', x: 0, y: 0, w: 0, h: 0, z: ++this.topZ, from: w.from, to: id, fx: { ...FX_0 }, tag: null })
+        this.noteOrder()
+        this.order.push(wire)
+      }
+    }
     this.pingOrder()
     this.touch()
     return made

@@ -609,6 +609,110 @@ check('showing what it was left showing',
   !!nowStage && Math.abs(nowStage.yaw - wasStage.yaw) < 1 && Math.abs(nowStage.dist - wasStage.dist) < 0.01,
   `${JSON.stringify(wasStage)} then ${JSON.stringify(nowStage)}`)
 
+/* ---------- twelve of it ---------- */
+
+/* Pressing V on a model gave twelve treatments of one camera angle, because a
+   model card has pixels and pixels get the picture dice. The thing worth
+   having twelve of is the model, seen from twelve places — so the dice it gets
+   now are the camera's.
+
+   Three things make that true rather than merely different: twelve real
+   renders, twelve angles that go round the object instead of landing wherever
+   randomness put them, and twelve pictures that are not the same picture. */
+
+const models = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res) => {
+      const r = indexedDB.open('ideation.board.db')
+      r.onsuccess = () => res(r.result)
+    })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const r = t.objectStore('boards').getAll()
+      r.onsuccess = () => res(r.result || [])
+      r.onerror = () => res([])
+    })
+    return all
+      .flatMap((b) => b.items || [])
+      .filter((i) => i.kind === 'model')
+      .map((i) => ({ id: i.id, stage: i.stage, poster: i.poster }))
+  })
+
+const [SOURCE] = await models()
+await page.locator(`.card[data-id="${SOURCE.id}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await page.keyboard.press('v')
+
+/* Twelve three.js renders on a software rasteriser take as long as they take,
+   so this waits for the work rather than for a number of seconds. */
+let shot = []
+for (let i = 0; i < 60; i++) {
+  await page.waitForTimeout(2000)
+  shot = (await models()).filter((m) => m.id !== SOURCE.id)
+  if (shot.length === 12 && shot.every((m) => m.poster && m.poster !== SOURCE.poster)) break
+}
+check('twelve of the model, each photographed for itself',
+  shot.length === 12 && shot.every((m) => m.poster && m.poster !== SOURCE.poster),
+  `${shot.length} cards, ${shot.filter((m) => m.poster && m.poster !== SOURCE.poster).length} rendered`)
+
+/* Sorted round the circle, the distance from each angle to the next. Twelve
+   even shares of the turn, nudged, cannot leave a gap much wider than one
+   share; twelve random angles almost always do, and that gap is the half of
+   the object nobody got a look at. */
+const round = shot
+  .map((m) => ((((m.stage.yaw - SOURCE.stage.yaw) % 360) + 360) % 360))
+  .sort((a, b) => a - b)
+const gaps = round.map((a, i) => (i ? a - round[i - 1] : a + 360 - round[round.length - 1]))
+check('and they go round it, a share of the turn each, not wherever chance put them',
+  gaps.length === 12 && gaps.every((g) => g > 8 && g < 52),
+  `${Math.round(Math.min(...gaps))}° to ${Math.round(Math.max(...gaps))}° apart`)
+
+/* Angles differing is a fact about numbers. Pictures differing is the fact
+   worth having, so the renders themselves are read back and compared. */
+const looks = await page.evaluate(async (keys) => {
+  const db = await new Promise((res) => {
+    const r = indexedDB.open('ideation.board.db')
+    r.onsuccess = () => res(r.result)
+  })
+  const get = (key) =>
+    new Promise((res) => {
+      const t = db.transaction('blobs', 'readonly')
+      const r = t.objectStore('blobs').get(key)
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => res(null)
+    })
+  const out = []
+  for (const key of keys) {
+    const blob = await get(key)
+    if (!blob) { out.push('missing'); continue }
+    const bmp = await createImageBitmap(blob)
+    const c = document.createElement('canvas')
+    c.width = 16
+    c.height = 16
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.clearRect(0, 0, 16, 16)
+    cx.drawImage(bmp, 0, 0, 16, 16)
+    bmp.close()
+    const d = cx.getImageData(0, 0, 16, 16).data
+    let sig = ''
+    for (let i = 0; i < d.length; i += 4) {
+      sig += d[i + 3] < 128 ? '.' : String.fromCharCode(97 + ((d[i] + d[i + 1] * 2 + d[i + 2] * 3) % 26))
+    }
+    out.push(sig)
+  }
+  return out
+}, shot.map((m) => m.poster))
+check('and twelve different pictures, not one picture twelve times',
+  new Set(looks).size === 12, `${new Set(looks).size} distinct`)
+
+fs.writeFileSync(path.join(OUT, 'model-twelve.png'), await page.screenshot())
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(2500)
+check('and the whole round is one press of undo',
+  (await models()).length === 1, `${(await models()).length} models left`)
+
 /* ---------- something only named like one ---------- */
 
 await page.keyboard.press('Control+a')

@@ -64,9 +64,10 @@ export interface CommandActions {
   clipped: number
 }
 
-/* What the dice can be thrown at. A picture varies by what is drawn on it and
- * a sound by what it is run through; both are treatments, and the two keys
- * that roll one work on either. */
+/* What the dice can be thrown at. Four media have them now — a picture varies
+ * by what is drawn on it, a sound by what it is run through, a sketch by its
+ * throw, a model by where the camera stands — and the last two already carry
+ * pixels, so this is the two that do not. */
 const variable = (i?: Item | null): boolean => hasPixels(i) || isSound(i)
 
 export function buildCommands(a: CommandActions): Command[] {
@@ -200,17 +201,18 @@ export function buildCommands(a: CommandActions): Command[] {
     }),
     cmd('in.board', 'Import a board file', 'Take out', () => a.importBoard(), { hint: KEYS.import.hint, keywords: 'zip open restore' }),
 
-    /* A sound has versions too now, so what these two work on is anything with
-       a treatment rather than anything with pixels. */
+    /* Four media have versions now, so what these two work on is anything with
+       a treatment rather than anything with pixels — and which dice get thrown
+       is decided when the key is pressed, in state/varying.ts. */
     cmd('add.vary', KEYS.vary.label, 'Add', () => a.vary(), {
       hint: KEYS.vary.hint,
       disabled: !a.selection.some((id) => variable(store.getItem(id))),
-      keywords: 'variation versions explore random shuffle try twelve grid ideas different sound audio',
+      keywords: 'variation versions explore random shuffle try twelve grid ideas different sound audio sketch model angle',
     }),
     cmd('edit.shuffle', KEYS.shuffle.label, 'Edit', () => a.shuffle(), {
       hint: KEYS.shuffle.hint,
       disabled: !a.selection.some((id) => variable(store.getItem(id))),
-      keywords: 'random chance surprise mosh roll dice try anything different sound audio',
+      keywords: 'random chance surprise mosh roll dice try anything different sound audio sketch model angle',
     }),
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
