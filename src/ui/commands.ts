@@ -169,7 +169,7 @@ export function buildCommands(a: CommandActions): Command[] {
     /* The one export that is meant for somebody else rather than for you. The
        zip is a backup and is useless without this app; this opens anywhere. */
     cmd('out.page', 'Save as a page anyone can open', 'Take out', () => a.exportHtml(), {
-      keywords: 'html web page share send give link standalone single file offline browser',
+      keywords: 'html web page share send give link standalone single file offline browser audio sound',
     }),
     /* Deleting a card never deleted its picture, and deleting the card that
        stood for a board never deleted the board. So the store only ever grew.

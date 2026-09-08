@@ -639,6 +639,10 @@ export default function App() {
       download(out.blob, out.name)
       const bits = [out.cards === 1 ? '1 card' : `${out.cards} cards`]
       if (out.boards > 1) bits.push(`${out.boards} boards`)
+      /* Said because it is the one thing in the file that can be got wrong
+         quietly: a sound too long for a page is left out, and the card says so
+         on the page rather than only here. */
+      if (out.sounds) bits.push(out.sounds === 1 ? '1 sound' : `${out.sounds} sounds`)
       setBusy({ text: `Exported ${out.name} — ${bits.join(', ')}, ${saySize(out.bytes)}` })
       window.setTimeout(() => setBusy(null), 4200)
     } catch (err) {

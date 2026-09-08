@@ -18,6 +18,7 @@ import { chromium } from 'playwright'
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
+import { wavBase64 } from './fixtures/wav.mjs'
 
 const BASE = process.argv[2] || 'http://localhost:5173'
 const OUT = process.env.OUT_DIR || path.join(process.cwd(), '.smoke')
@@ -178,6 +179,56 @@ await page.waitForTimeout(1800)
    clicking them, here or in the page it becomes. */
 await dragCard('board', 0, -330)
 
+/* ---------- and a sound, treated ---------- */
+
+/* Every other card in this file is a picture of what was on the board. A sound
+   is the one that has to still do something, and a treated sound is the one
+   that has to still do the right something: what the card plays is the render,
+   not the file that was dropped, and a page that quietly hands over the
+   original is a page that lies about the work.
+
+   Dropped in the far corner, because in the page these cards are laid out
+   where the board put them and a play button under another card cannot be
+   pressed. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
+await page.evaluate(async (b64) => {
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  const dt = new DataTransfer()
+  dt.items.add(new File([arr], 'reference.wav', { type: 'audio/wav' }))
+  const ev = new DragEvent('drop', { bubbles: true, cancelable: true, clientX: 1140, clientY: 800 })
+  Object.defineProperty(ev, 'dataTransfer', { value: dt })
+  document.querySelector('.viewport').dispatchEvent(ev)
+}, wavBase64())
+await page.waitForSelector('.card[data-kind="audio"]', { timeout: 20000 })
+await page.waitForTimeout(1800)
+await page.locator('.card[data-kind="audio"]').click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(700)
+if (!(await page.locator('.snd-pick').count())) {
+  await page.locator('.tool-mode').click()
+  await page.waitForTimeout(700)
+}
+/* Reverse, because it is the treatment whose result can be told from the
+   original by measuring rather than by looking: the clip is loud at the start
+   and quiet at the end, and afterwards it is the other way round. */
+await page.locator('.snd-pick', { hasText: 'Reverse' }).first().click()
+await page.waitForTimeout(4000)
+const treated = await page.evaluate(async () => {
+  const db = await new Promise((res) => { const r = indexedDB.open('ideation.board.db'); r.onsuccess = () => res(r.result) })
+  const all = await new Promise((res) => {
+    const t = db.transaction('boards', 'readonly')
+    const r = t.objectStore('boards').getAll()
+    r.onsuccess = () => res(r.result || [])
+    r.onerror = () => res([])
+  })
+  const it = all.flatMap((b) => b.items || []).find((i) => i.kind === 'audio')
+  return { heard: !!it?.heard, peaks: (it?.peaks || []).length }
+})
+ok('setup: the sound is on the board and treated', treated.heard && treated.peaks > 100,
+   JSON.stringify(treated))
+
 /* ---------- take it out ---------- */
 /* The real gesture, through the command list, and the real file the browser
    would have written to disk. */
@@ -228,7 +279,7 @@ ok('the board is named at the top', (await reader.locator('#top h1').innerText()
 ok('and is not named twice', (await reader.locator('#crumbs button').count()) === 0)
 
 const cards = await reader.locator('#world .c').count()
-ok('every card is there', cards === 5, `${cards} cards`)
+ok('every card is there', cards === 6, `${cards} cards`)
 ok('and the line drawn between two of them came too',
    (await reader.locator('#wires path').count()) === 1,
    `${await reader.locator('#wires path').count()} wires`)
@@ -263,6 +314,93 @@ ok('the note is text you can read and select, not a picture of text',
 ok('and its formatting survived', (await reader.locator('#world .note h1').count()) === 1 &&
    (await reader.locator('#world .note li').count()) === 2)
 fs.writeFileSync(path.join(OUT, 'sendable.png'), await reader.screenshot())
+
+/* ---------- the sound is in there, and it is the treated one ---------- */
+
+const snd = reader.locator('#world .audio')
+ok('the sound came too, as a card that plays rather than a name in a box',
+   (await snd.count()) === 1, `${await snd.count()} sound cards`)
+/* Read through the document rather than through a locator, so a page with no
+   sound card in it reports that and carries on instead of waiting thirty
+   seconds for an element that is never coming. */
+const sndSrc = await reader.evaluate(() =>
+  document.querySelector('#world .audio audio')?.getAttribute('src') || '')
+ok('with the sound itself inside the file, like every picture',
+   /^data:audio\//.test(sndSrc), sndSrc.slice(0, 24) || 'nothing')
+
+/* The waveform, drawn from the peaks the card on the board was drawing from —
+   so a treatment that changed the shape of the sound changed the shape of this
+   too. Reversed, the tall bars are at the end. */
+const bars = await reader.evaluate(() => {
+  const p = document.querySelector('#world .audio path')
+  if (!p) return null
+  const out = []
+  for (const m of (p.getAttribute('d') || '').matchAll(/M[\d.]+ ([\d.]+)H[\d.]+V([\d.]+)/g)) {
+    out.push(parseFloat(m[2]) - parseFloat(m[1]))
+  }
+  return out
+})
+const loudIn = (list, from, to) => {
+  const cut = list.slice(Math.floor(list.length * from), Math.floor(list.length * to))
+  return cut.reduce((a, b) => a + b, 0) / Math.max(1, cut.length)
+}
+ok('drawn as the waveform it had on the board, not as a name',
+   !!bars && bars.length > 100, `${bars ? bars.length : 0} bars`)
+ok('and it is the treated shape: reversed, the loud end is the end',
+   !!bars && loudIn(bars, 0.8, 1) > loudIn(bars, 0, 0.2) * 1.5,
+   `${bars ? loudIn(bars, 0, 0.2).toFixed(3) : '?'} at the start, ${bars ? loudIn(bars, 0.8, 1).toFixed(3) : '?'} at the end`)
+
+/* And the samples themselves, decoded out of the page. This is the check the
+   whole section is for: a page that carried the file that was dropped rather
+   than the render would pass everything above and be wrong. */
+const heard = await reader.evaluate(async () => {
+  const el = document.querySelector('#world .audio audio')
+  if (!el) return null
+  const b64 = (el.getAttribute('src') || '').split(',')[1] || ''
+  const bin = atob(b64)
+  const u8 = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+  const ctx = new AudioContext()
+  const buf = await ctx.decodeAudioData(u8.buffer)
+  const d = buf.getChannelData(0)
+  const rms = (from, to) => {
+    let s = 0
+    const a = Math.floor(d.length * from)
+    const b = Math.floor(d.length * to)
+    for (let i = a; i < b; i++) s += d[i] * d[i]
+    return Math.sqrt(s / Math.max(1, b - a))
+  }
+  await ctx.close()
+  return { secs: buf.duration, start: rms(0, 0.2), end: rms(0.8, 1) }
+})
+ok('the sound in the page really decodes, in a browser that has never seen the app',
+   !!heard && heard.secs > 1 && heard.secs < 4, heard ? `${heard.secs.toFixed(2)}s` : 'no')
+ok('and what it decodes to is the treated render, not the file that was dropped',
+   !!heard && heard.end > heard.start * 2,
+   heard ? `${heard.start.toFixed(4)} at the start, ${heard.end.toFixed(4)} at the end` : 'no')
+
+/* Pressing play has to play. Everything else here is a claim about bytes; this
+   is the claim about the card. */
+const button = snd.locator('.sndplay')
+const pressable = (await button.count()) === 1
+if (pressable) {
+  await button.click()
+  await reader.waitForTimeout(1200)
+}
+const played = await reader.evaluate(() => {
+  const el = document.querySelector('#world .audio audio')
+  return el ? { at: el.currentTime, paused: el.paused } : null
+})
+ok('and pressing play plays it', !!played && played.at > 0.2,
+   played ? `${played.at.toFixed(2)}s in, ${played.paused ? 'paused' : 'playing'}` : 'no player')
+if (pressable) {
+  await button.click()
+  await reader.waitForTimeout(400)
+}
+ok('and pressing it again stops it',
+   await reader.evaluate(() => document.querySelector('#world .audio audio')?.paused === true))
+
+
 
 /* ---------- the effect came with it ---------- */
 /* The picture in the page has to be the picture that was on the card, effect
@@ -347,7 +485,7 @@ await reader2.goto('file://' + file2, { waitUntil: 'load' })
 await reader2.waitForTimeout(1200)
 ok('a note that looks like markup does not break the page or run',
    (await reader2.evaluate(() => window.__broke)) === undefined &&
-   (await reader2.locator('#world .c').count()) === 6,
+   (await reader2.locator('#world .c').count()) === 7,
    `${await reader2.locator('#world .c').count()} cards`)
 ok('and it is shown as the words somebody typed',
    (await reader2.locator('#world').innerText()).includes('</script>'),

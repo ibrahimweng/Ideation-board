@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_CHAIN, SOUNDS, SOUND_BY_ID, soundDefaults, soundGroups } from '../../src/store/sound'
+import {
+  MAX_CHAIN, SOUNDS, SOUND_BUDGET, SOUND_BY_ID, SOUND_MAX, clock, roomForSound, soundDefaults, soundGroups,
+} from '../../src/store/sound'
 import { isColor, isEnum } from '../../src/engine/types'
 
 /* The list, and the numbers on it.
@@ -91,5 +93,63 @@ describe('the length of a chain', () => {
      is another full render of the sound. */
   it('is capped at the same four the pictures allow', () => {
     expect(MAX_CHAIN).toBe(4)
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * What a page will carry.
+ *
+ * The encoding is a browser job and is checked in test/sendable.mjs, by taking
+ * the file the app makes into a browser that has never seen the app and
+ * decoding the sound back out of it. What is here is the rule that decides
+ * which sounds go in at all — arithmetic, and the sentence a card shows when
+ * the answer is no.
+ * ------------------------------------------------------------------------- */
+
+describe('what a page will carry', () => {
+  const MB = 1024 * 1024
+
+  it('takes a sound that fits', () => {
+    expect(roomForSound(200 * 1024, 0, 4)).toBeNull()
+    expect(roomForSound(SOUND_MAX, 0, 60)).toBeNull()
+  })
+
+  it('and refuses one that is most of the page on its own', () => {
+    expect(roomForSound(SOUND_MAX + 1, 0, 200)).toMatch(/too long/)
+  })
+
+  /* The reason is written for whoever opens the page. They cannot go and trim
+     it, so it says what is true about the card rather than what went wrong. */
+  it('saying how long the one it would not carry was', () => {
+    expect(roomForSound(9 * MB, 0, 185)).toContain('3:05')
+    expect(roomForSound(9 * MB, 0, 45)).toContain('0:45')
+  })
+
+  it('and stops once the page has had its share', () => {
+    expect(roomForSound(1 * MB, SOUND_BUDGET - 2 * MB, 20)).toBeNull()
+    expect(roomForSound(1 * MB, SOUND_BUDGET, 20)).toMatch(/small/)
+  })
+
+  /* Half a dozen short treatments is the case this exists for: twelve
+     variations of a moment should all be in there. */
+  it('so a grid of short ones all fit and a wall of long ones does not', () => {
+    let spent = 0
+    let carried = 0
+    for (let i = 0; i < 12; i++) {
+      const bytes = 400 * 1024
+      if (!roomForSound(bytes, spent, 9)) { spent += bytes; carried++ }
+    }
+    expect(carried).toBe(12)
+    expect(SOUND_BUDGET).toBeGreaterThan(spent)
+  })
+
+  it('and the clock reads as a clock', () => {
+    expect(clock(0)).toBe('0:00')
+    expect(clock(9)).toBe('0:09')
+    expect(clock(60)).toBe('1:00')
+    expect(clock(614)).toBe('10:14')
+    /* Whatever it is handed, because it is handed a card's own number. */
+    expect(clock(-4)).toBe('0:00')
+    expect(clock(NaN)).toBe('0:00')
   })
 })
