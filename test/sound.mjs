@@ -237,6 +237,112 @@ check('a treated sound comes back after a reload', after?.chain.length === 2, (a
 check('still playing the render rather than the file', after?.heard === stacked.heard)
 check('and still drawing it', JSON.stringify(after.peaks) === JSON.stringify(stacked.peaks))
 
+/* ---------- twelve of it ---------- */
+
+/* The grid was the best thing on the picture side and sound had none of it.
+   Twelve renders rather than twelve looks, so this is the one place where
+   what a variation costs is worth checking as well as what it is. */
+const board = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open('ideation.board.db')
+      r.onsuccess = () => res(r.result)
+      r.onerror = () => rej(r.error)
+    })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const r = t.objectStore('boards').getAll()
+      r.onsuccess = () => res(r.result || [])
+      r.onerror = () => res([])
+    })
+    const items = all.flatMap((b) => b.items || []).filter((i) => i.kind === 'audio')
+    return items.map((i) => ({
+      id: i.id,
+      chain: (i.chain || []).map((l) => l.fxid).join('+'),
+      heard: !!i.heard,
+      pick: i.pick || null,
+      peaks: (i.peaks || []).join(','),
+      x: i.x,
+      y: i.y,
+    }))
+  })
+
+await page.locator('.card[data-kind="audio"]').first().click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(600)
+const wasOne = await board()
+await page.keyboard.press('v')
+/* Twelve renders in order. Generous, because this is the one key on the board
+   that does real work rather than scheduling it. */
+await page.waitForTimeout(26000)
+
+const twelve = await board()
+const kids = twelve.filter((i) => !wasOne.some((w) => w.id === i.id))
+check('one press makes twelve versions of a sound', kids.length === 12, `${kids.length} made`)
+check('and every one of them was rendered', kids.every((k) => k.heard), `${kids.filter((k) => k.heard).length} of 12`)
+check('each with a treatment of its own', kids.every((k) => k.chain), kids.map((k) => k.chain).join(' '))
+/* Twelve versions that come out the same is a worse answer than one version. */
+check('and they are not twelve of the same thing',
+  new Set(kids.map((k) => k.chain)).size >= 9, `${new Set(kids.map((k) => k.chain)).size} distinct chains`)
+/* The waveform is the thing you scan before you listen to any of them, so it
+   is the thing that has to differ. */
+check('drawn differently, so the grid can be read before it is heard',
+  new Set(kids.map((k) => k.peaks)).size >= 10, `${new Set(kids.map((k) => k.peaks)).size} distinct waveforms`)
+/* A variation you cannot hear is a square of the grid spent on nothing. */
+check('and none of them is too short to hear',
+  kids.every((k) => k.peaks.split(',').filter((v) => Number(v) > 2).length > 4),
+  kids.map((k) => k.peaks.split(',').filter((v) => Number(v) > 2).length).join(' '))
+check('laid out four across and three down',
+  new Set(kids.map((k) => k.x)).size === 4 && new Set(kids.map((k) => k.y)).size === 3,
+  `${new Set(kids.map((k) => k.x)).size} × ${new Set(kids.map((k) => k.y)).size}`)
+/* Some of them stack a second effect, which is where a gate into a reverb
+   comes from. Asked as a rate would flake; asked of the whole batch it is a
+   fact about this batch. */
+check('and a stacked pair carries both, in order',
+  kids.filter((k) => k.chain.includes('+')).every((k) => k.chain.split('+').length === 2),
+  kids.filter((k) => k.chain.includes('+')).map((k) => k.chain).join(' ') || 'none paired this time')
+
+fs.writeFileSync(path.join(OUT, 'sound-twelve.png'), await page.screenshot())
+
+/* The whole round is one press, not thirteen. A grid you cannot cheaply throw
+   away is a grid nobody will risk making — and every render writes to the card,
+   so this is the check that keeps twelve of those from being twelve steps. */
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(2500)
+check('and the whole round is one press of undo', (await board()).length === 1,
+  `${(await board()).length} sounds left`)
+
+/* ---------- and it refuses what it cannot afford ---------- */
+
+await page.keyboard.press('Control+a')
+await page.keyboard.press('Delete')
+await page.waitForTimeout(800)
+await page.evaluate(async (b64) => {
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  const dt = new DataTransfer()
+  dt.items.add(new File([arr], 'long.wav', { type: 'audio/wav' }))
+  const ev = new DragEvent('drop', { bubbles: true, cancelable: true, clientX: 520, clientY: 400 })
+  Object.defineProperty(ev, 'dataTransfer', { value: dt })
+  document.querySelector('.viewport').dispatchEvent(ev)
+}, wavBase64({ secs: 45 }))
+await page.waitForSelector('.card[data-kind="audio"]', { timeout: 20000 })
+await page.waitForTimeout(2000)
+
+await page.locator('.card[data-kind="audio"]').first().click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(600)
+await page.keyboard.press('v')
+await page.waitForTimeout(3000)
+/* Twelve renders of a long track is half a gigabyte in a browser that keeps
+   everything you own inside one quota. Refusing is right; refusing without
+   saying what to do instead is not. */
+check('a long sound is not varied twelve ways', (await board()).length === 1,
+  `${(await board()).length} sounds on the board`)
+const told = await page.locator('.said').textContent().catch(() => '')
+check('and it says to trim it first, which is the first effect in the list',
+  /trim/i.test(told), told)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

@@ -1,7 +1,6 @@
 import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
-import type { FxState } from '../engine/types'
 import { cloneBoard } from './boards'
 import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
 import { alignTo, clearGround, distributeAlong, gatherInto, tidyOnto } from './arrange'
@@ -437,8 +436,14 @@ export class BoardStore {
    * copies point at the same picture rather than at twelve copies of it.
    *
    * `pick` is deliberately cleared. A variation inherits everything else from
-   * the card it came from, but not a decision that was made about that card. */
-  variantsOf(sourceId: string, drop: string[], place: { fx: FxState; x: number; y: number }[]): string[] {
+   * the card it came from, but not a decision that was made about that card.
+   *
+   * What a variation differs by is the caller's business, which is why it
+   * arrives as a patch rather than as a look. A picture varies by its effect
+   * and its tone; a sound varies by the chain it is run through and has to
+   * forget the render it inherited, or twelve cards would all play the one
+   * sound they were copied from. */
+  variantsOf(sourceId: string, drop: string[], place: { patch: Partial<Item>; x: number; y: number }[]): string[] {
     const src = this.items.get(sourceId)
     if (!src || (!drop.length && !place.length)) return []
     this.snapshot()
@@ -446,7 +451,7 @@ export class BoardStore {
     const made: string[] = []
     for (const p of place) {
       const id = freshId()
-      this.put(id, { ...src, id, x: p.x, y: p.y, z: ++this.topZ, pick: null, fx: p.fx })
+      this.put(id, { ...src, id, x: p.x, y: p.y, z: ++this.topZ, pick: null, ...p.patch })
       this.noteOrder()
       this.order.push(id)
       made.push(id)

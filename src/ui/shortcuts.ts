@@ -43,9 +43,9 @@ export const KEYS = {
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
   /* The same letter as Put here, without the modifier — which is the pattern
      already set by Draw and ⌘D, Export pictures and ⌘E, Add files and ⌘F. */
-  vary: { key: 'v', hint: 'V', label: 'Make twelve versions of the picture', short: 'Vary' },
+  vary: { key: 'v', hint: 'V', label: 'Make twelve versions of it', short: 'Vary' },
   /* The same dice as Vary, thrown in place rather than into a grid. */
-  shuffle: { key: 'r', hint: 'R', label: 'Throw a random effect at the selection', short: 'Shuffle' },
+  shuffle: { key: 'r', hint: 'R', label: 'Throw a random treatment at the selection', short: 'Shuffle' },
   /* Held rather than pressed, which is why it is the only one here whose key
      is let go of again. Backslash is what every tool that grades a picture
      uses for this, and it is one of the few keys nothing else wanted. */

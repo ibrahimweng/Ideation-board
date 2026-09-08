@@ -312,7 +312,7 @@ export function batchOfLooks(source: FxState, count: number, parents: FxState[] 
 
 /* The same gap the tidy command uses, so a batch looks like something the
  * board laid out rather than something dropped on it. */
-const GAP = 24
+export const GAP = 24
 
 interface Batch {
   source: string
@@ -328,7 +328,8 @@ export function forgetBatch() {
   batch = null
 }
 
-function gridUnder(it: Item): { x: number; y: number }[] {
+/* Exported because a sound varies into the same grid. One gap, one shape. */
+export function gridUnder(it: Item): { x: number; y: number }[] {
   const out: { x: number; y: number }[] = []
   for (let i = 0; i < VARIANTS; i++) {
     out.push({
@@ -373,7 +374,7 @@ export function vary(): VaryResult {
      * fills the holes rather than starting a new row. */
     const free: number[] = []
     live.forEach((id, i) => { if (!id || !keepers.includes(id)) free.push(i) })
-    const place = looks.map((fx, n) => ({ fx, ...batch!.places[free[n]] }))
+    const place = looks.map((fx, n) => ({ patch: { fx }, ...batch!.places[free[n]] }))
     const made = store.variantsOf(batch.source, drop, place)
     if (!made.length) return { made: 0, say: 'Nothing to vary.' }
     const next = live.slice()
@@ -403,7 +404,7 @@ export function vary(): VaryResult {
 
   const places = gridUnder(it)
   const looks = batchOfLooks(it.fx, VARIANTS)
-  const made = store.variantsOf(it.id, previous, looks.map((fx, n) => ({ fx, ...places[n] })))
+  const made = store.variantsOf(it.id, previous, looks.map((fx, n) => ({ patch: { fx }, ...places[n] })))
   if (!made.length) return { made: 0, say: 'Nothing to vary.' }
   batch = { source: it.id, ids: made, places }
   store.select(made)
