@@ -1,3 +1,4 @@
+import { ISF_EFFECTS } from './isfEffects'
 import type { EffectSpec, FxState } from './types'
 
 /* Control constructors. N = numeric slider, C = colour, E = enum/segmented. */
@@ -731,6 +732,11 @@ export const EFFECTS: EffectSpec[] = [
       return vec4(mix(src.rgb, col, p4), src.a); }`
   }
 ]
+
+/* And the ones written as ISF and translated on the way in. Appended rather
+ * than woven in, so the file above stays the list of effects written here and
+ * this stays the list of effects that came from somewhere else. */
+EFFECTS.push(...ISF_EFFECTS)
 
 export const BY_ID: Record<string, EffectSpec> = EFFECTS.reduce(
   (m, e) => ((m[e.id] = e), m),
