@@ -332,6 +332,9 @@ function show(id, keepView) {
       a.addEventListener('play', () => { play.textContent = '\u275A\u275A'; play.setAttribute('aria-label', 'Pause') })
       a.addEventListener('pause', () => { play.textContent = '\u25B6'; play.setAttribute('aria-label', 'Play') })
       a.addEventListener('ended', () => { a.currentTime = 0; draw() })
+      /* Both halves of the press. The click is the button's; the pointerdown
+         would otherwise reach the stage and start a drag of the whole board. */
+      play.addEventListener('pointerdown', (e) => e.stopPropagation())
       play.addEventListener('click', (e) => {
         e.stopPropagation()
         /* One at a time. A board of twelve variations of a sound, all playing

@@ -57,7 +57,6 @@ export interface PageResult {
 const SCALE = 2
 const MAX_EDGE = 1400
 
-
 /* The colour a label is made with, which is to say the one nobody picked. */
 const LABEL_INK = '#111114'
 
