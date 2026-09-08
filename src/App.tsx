@@ -31,7 +31,7 @@ import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
 import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
-import { vary } from './state/variations'
+import { shuffle, vary } from './state/variations'
 import { describeSweep, sweep } from './store/reclaim'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
@@ -498,6 +498,12 @@ export default function App() {
        nothing about it is told nothing about the feature. */
     setSpoken(r.say)
     if (r.made) fitToBoard(true)
+  }, [say])
+
+  const shuffleNow = useCallback(() => {
+    const r = shuffle()
+    say(r.say)
+    setSpoken(r.say)
   }, [say])
 
   /* Curating ends in gathering: what survived, in a place of its own with a
@@ -1047,6 +1053,7 @@ export default function App() {
         gather,
         compare,
         vary: varyNow,
+        shuffle: shuffleNow,
         takeAway,
         putHere: () => void putHere(centreOfView()),
         clipped: clippedCount,
@@ -1060,7 +1067,7 @@ export default function App() {
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink,
       exportBoard, exportPictures, exportSheet, pullColours, keepInFolder, copyToFolder,
-      gather, compare, varyNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
+      gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
   )
@@ -1091,6 +1098,7 @@ export default function App() {
     gather,
     compare,
     vary: varyNow,
+    shuffle: shuffleNow,
   })
 
   /* ---------- paste ---------- */

@@ -402,3 +402,32 @@ export function vary(): VaryResult {
     say: `${made.length} versions. Mark the ones worth keeping with ${KEYS.keep.hint}, then press ${KEYS.vary.hint} again.`,
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * And the same dice, thrown in place.
+ *
+ * The grid is for deciding between twelve. This is for when you do not want to
+ * decide anything — you want the picture to be something else, now, and to
+ * keep pressing until it is interesting. Mosh has one button that does this
+ * and it is the cheapest ideation mechanic anybody has ever built.
+ *
+ * It is also the fastest way anyone finds out what the other thirty effects
+ * do, which is worth more than the effect list ever was.
+ * ------------------------------------------------------------------------- */
+
+export function shuffle(): VaryResult {
+  const sel = store.getSelection().filter((id) => hasPixels(store.getItem(id)))
+  if (!sel.length) return { made: 0, say: 'Pick a picture to shuffle.' }
+  /* A different effect each, rather than the same one on all of them: several
+   * cards shuffled together is a row of alternatives, not a set. */
+  const ids = spreadOfEffects(sel.length)
+  store.beginGesture(0)
+  sel.forEach((id, i) => {
+    const cur = store.getItem(id)
+    if (cur) store.update(id, { fx: rollLook(cur.fx, ids[i]) }, false)
+  })
+  return {
+    made: sel.length,
+    say: sel.length === 1 ? 'Shuffled. Press again for another.' : `Shuffled ${sel.length}.`,
+  }
+}

@@ -67,6 +67,7 @@ export interface KeyActions {
   gather: () => void
   compare: () => void
   vary: () => void
+  shuffle: () => void
 }
 
 export function useShortcuts(a: KeyActions) {
@@ -191,6 +192,9 @@ export function useShortcuts(a: KeyActions) {
       /* Twelve versions of the picture, to decide between. Pressed again on
          the batch it made, it breeds from whichever of them were kept. */
       if (k === KEYS.vary.key) { e.preventDefault(); a.vary(); return }
+      /* The same dice thrown in place, for when you do not want to decide
+         between twelve, you just want it to be something else. */
+      if (k === KEYS.shuffle.key) { e.preventDefault(); a.shuffle(); return }
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {

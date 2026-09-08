@@ -39,6 +39,11 @@ float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
 vec2 rot(vec2 v, float a){ float s=sin(a), c=cos(a); return vec2(v.x*c-v.y*s, v.x*s+v.y*c); }
 float unit(){ return uRes.y/420.0; }
+/* A coordinate folded back on itself instead of clamped. Reading past the edge
+   of a picture has to give something, and a mirrored tile gives a continuation
+   rather than the smear of stretched edge pixels that clamping gives — which
+   matters for anything that bends the coordinates a long way. */
+vec2 mirror(vec2 v){ return abs(fract(v*0.5)*2.0 - 1.0); }
 const float BM[64] = float[64](
  0.,32.,8.,40.,2.,34.,10.,42., 48.,16.,56.,24.,50.,18.,58.,26.,
  12.,44.,4.,36.,14.,46.,6.,38., 60.,28.,52.,20.,62.,30.,54.,22.,

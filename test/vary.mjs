@@ -118,10 +118,23 @@ const spoke = () => page.evaluate(() => document.querySelector('.toast span')?.t
 const heard = () => page.evaluate(() => document.querySelector('.said')?.textContent || '')
 
 /* The board says how many things are on it, which is the only count that is
-   not confused by the cards outside the window never being drawn. */
+   not confused by the cards outside the window never being drawn.
+ *
+ * `settles` waits for it to arrive at a number rather than reading it once:
+ * twelve cards appearing is several renders, and asking twice in one assertion
+ * can catch two different answers. */
 const onBoard = async () => {
   const t = await page.locator('.stats').innerText()
   return Number((t.match(/(\d+)\s+items?/) || [])[1] || 0)
+}
+const settles = async (want, ms = 6000) => {
+  const until = Date.now() + ms
+  let n = await onBoard()
+  while (n !== want && Date.now() < until) {
+    await page.waitForTimeout(150)
+    n = await onBoard()
+  }
+  return n
 }
 
 await page.keyboard.press('v')
@@ -129,7 +142,7 @@ await page.waitForTimeout(900)
 const said = await spoke()
 await page.waitForTimeout(3000)
 
-check('one press makes twelve more', (await onBoard()) === 13, `${await onBoard()} on the board`)
+check('one press makes twelve more', (await settles(13)) === 13, `${await onBoard()} on the board`)
 check('and a reader is told too, since twelve cards appearing is worth saying',
   /mark|keep/i.test(await heard()), await heard())
 check('and says what to do with them', /mark|keep/i.test(said), said.replace(/\n/g, ' '))
@@ -208,10 +221,10 @@ check('and all of them below the card they came from',
 await page.evaluate(() => document.activeElement?.blur())
 await page.keyboard.press('Control+z')
 await page.waitForTimeout(900)
-check('one undo takes the whole round away', (await onBoard()) === 1, `${await onBoard()} on the board`)
+check('one undo takes the whole round away', (await settles(1)) === 1, `${await onBoard()} on the board`)
 await page.keyboard.press('Control+Shift+z')
 await page.waitForTimeout(2500)
-check('and one redo brings it back', (await onBoard()) === 13, `${await onBoard()} on the board`)
+check('and one redo brings it back', (await settles(13)) === 13, `${await onBoard()} on the board`)
 
 /* ---------- the second round breeds from what was kept ---------- */
 
@@ -242,7 +255,7 @@ await page.waitForTimeout(900)
 const round2 = await spoke()
 await page.waitForTimeout(2800)
 
-check('a second round leaves the count where it was', (await onBoard()) === 13, `${await onBoard()} on the board`)
+check('a second round leaves the count where it was', (await settles(13)) === 13, `${await onBoard()} on the board`)
 check('and says it bred from the ones that were kept', /kept/i.test(round2), round2.replace(/\n/g, ' '))
 
 const stillThere = await Promise.all(keepers.map((id) => one(id)))
@@ -293,7 +306,7 @@ check('one of them can be singled out',
 await page.keyboard.press('v')
 await page.waitForTimeout(3500)
 check('choosing one of them and pressing again clears the other eleven away',
-  (await onBoard()) === 14, `${await onBoard()} on the board`)
+  (await settles(14)) === 14, `${await onBoard()} on the board`)
 /* Read out of what the board saved rather than off the screen: the view has
    moved to the new twelve, and a card outside the window is never drawn. */
 const left = await page.evaluate(async () => {
@@ -322,7 +335,7 @@ await page.waitForTimeout(800)
 const nothing = await spoke()
 check('with nothing selected it asks for a picture rather than doing nothing',
   /pick a picture/i.test(nothing), nothing.replace(/\n/g, ' '))
-check('and made nothing', (await onBoard()) === 14, `${await onBoard()} on the board`)
+check('and made nothing', (await settles(14)) === 14, `${await onBoard()} on the board`)
 
 await page.keyboard.press('n')
 await page.waitForSelector('.card[data-kind="note"]', { timeout: 8000 })
@@ -340,10 +353,53 @@ const total = await onBoard()
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForSelector('.card[data-kind="image"]', { timeout: 15000 })
 await page.waitForTimeout(2500)
-check('the whole grid is there after a reload', (await onBoard()) === total, `${await onBoard()} of ${total}`)
+check('the whole grid is there after a reload', (await settles(total)) === total, `${await onBoard()} of ${total}`)
 const back = (await looks()).filter((c) => c.id !== source)
 check('with the treatments it had', back.filter((c) => c.shaded).length >= 10,
   `${back.filter((c) => c.shaded).length} shaded`)
+
+/* ---------- the same dice, thrown in place ---------- */
+
+/* The grid is for deciding between twelve. Shuffle is for when you do not want
+   to decide anything: you want the picture to be something else, now. */
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+/* The whole board on screen first: a card outside the window is never drawn,
+   and by now the view is sitting on the newest grid. */
+await page.keyboard.press('1')
+await page.waitForTimeout(1200)
+await page.locator(`.card[data-id="${source}"]`).click({ position: { x: 6, y: 6 } })
+await page.waitForTimeout(400)
+check('the card it all came from can be got back to',
+  (await page.locator(`.card[data-id="${source}"][data-sel]`).count()) === 1)
+const plain = await one(source)
+const held = await onBoard()
+await page.keyboard.press('r')
+await page.waitForTimeout(2500)
+const rolled = await one(source)
+check('shuffle puts something on the card it was pressed on',
+  rolled.shaded && !plain.shaded, JSON.stringify(rolled))
+check('and makes nothing new, because it is not a grid',
+  (await settles(held)) === held, `${await onBoard()} of ${held}`)
+
+const first = treatment(rolled)
+await page.keyboard.press('r')
+await page.waitForTimeout(2500)
+check('pressing it again gives something else', treatment(await one(source)) !== first,
+  `${first} -> ${treatment(await one(source))}`)
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(900)
+check('and each throw is one press of undo', treatment(await one(source)) === first,
+  treatment(await one(source)))
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+await page.keyboard.press('r')
+await page.waitForTimeout(600)
+check('with nothing selected it asks for a picture', /pick a picture/i.test(await spoke()), await spoke())
 
 check('no page errors', errors.length === 0, errors.join(' | '))
 

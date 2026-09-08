@@ -50,6 +50,7 @@ export interface CommandActions {
   fit: (onlySelection: boolean) => void
   say: (text: string) => void
   vary: () => void
+  shuffle: () => void
   exportPoster: (as: 'png' | 'pdf') => void
   gather: () => void
   compare: () => void
@@ -175,6 +176,11 @@ export function buildCommands(a: CommandActions): Command[] {
       hint: KEYS.vary.hint,
       disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
       keywords: 'variation versions explore random shuffle try twelve grid ideas different',
+    }),
+    cmd('edit.shuffle', KEYS.shuffle.label, 'Edit', () => a.shuffle(), {
+      hint: KEYS.shuffle.hint,
+      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
+      keywords: 'random chance surprise mosh roll dice try anything different',
     }),
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
