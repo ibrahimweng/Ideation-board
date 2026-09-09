@@ -46,6 +46,7 @@ export interface CommandActions {
   exportSounds: (ids: string[]) => void
   pullColours: (ids: string[]) => void
   depthOf: (ids: string[]) => void
+  sharpenDepth: (ids: string[]) => void
   keepInFolder: () => void
   copyToFolder: () => void
   forgetFolder: () => void
@@ -222,6 +223,13 @@ export function buildCommands(a: CommandActions): Command[] {
     cmd('add.depth', 'Make a depth map of the picture', 'Add', () => a.depthOf(sel()), {
       disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
       keywords: 'depth distance 3d z parallax displace fog relight bokeh depth of field far near',
+    }),
+    /* And the same map again, from a model rather than from three cues. Only
+       offered on a map, because it is the map it replaces — and named so that
+       the download it may cost is not a surprise. */
+    cmd('add.depth.model', 'Work out the depth map properly (downloads a model once)', 'Add', () => a.sharpenDepth(sel()), {
+      disabled: !a.selection.some((id) => !!store.getItem(id)?.depthOf),
+      keywords: 'depth model onnx accurate better sharpen redo distance ai monocular',
     }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
     /* The deciding itself. The show puts one thing on screen at a time, and

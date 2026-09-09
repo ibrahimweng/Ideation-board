@@ -5,6 +5,8 @@ import { decodeCapped, newKey } from '../store/media'
 import { getEngine } from '../engine/client'
 import { hasPixels, pixelKey } from './kinds'
 import { FX_0 } from '../engine/types'
+import { modelDepth, modelKept } from './depthModel'
+import type { Say } from './depthModel'
 import type { Item } from './types'
 
 /* ---------------------------------------------------------------------------
@@ -124,6 +126,7 @@ export async function makeDepth(id: string): Promise<string | null> {
     w: Math.round(still.w),
     h: Math.round(still.h),
     name: nameFor(still),
+    depthOf: id,
     media,
     mime: TYPE,
     nw: canvas.width,
@@ -138,5 +141,63 @@ export async function makeDepth(id: string): Promise<string | null> {
   store.add(made)
   store.connect(made.id, id)
   store.select([made.id])
+  return null
+}
+
+/* ---------------------------------------------------------------------------
+ * The same map, guessed by something that has seen photographs.
+ * ------------------------------------------------------------------------- */
+
+export const isDepth = (i?: Item | null): i is Item => !!i && !!i.depthOf && !!i.media
+
+/* Whether pressing it would download anything, so the button can say so. */
+export const modelIsHere = modelKept
+
+/* Runs the real model over the picture a map was made from and puts the answer
+ * on the same card. The map is replaced rather than added beside, because the
+ * wires already point at this card and a better map is the same map — anybody
+ * who wanted both can duplicate it first. */
+export async function sharpenDepth(id: string, say: Say): Promise<string | null> {
+  const map = store.getItem(id)
+  if (!isDepth(map)) return 'that card is not a depth map'
+  const from = map.depthOf ? store.getItem(map.depthOf) : null
+  if (!canDepth(from)) return 'the picture this was made from is not on the board any more'
+  const file = await getBlob(pixelKey(from)!)
+  if (!file) return 'that picture could not be read'
+  const src = await decodeCapped(file)
+  if (!src) return 'that picture could not be read'
+
+  let out: ImageBitmap | null = null
+  try {
+    out = await modelDepth(src, map.nw || CAP, map.nh || CAP, say)
+  } catch (e) {
+    src.close()
+    return e instanceof Error ? e.message : 'the depth model could not be run'
+  }
+  src.close()
+  if (!out) return 'the depth model gave nothing back'
+
+  const canvas = document.createElement('canvas')
+  canvas.width = out.width
+  canvas.height = out.height
+  canvas.getContext('2d')?.drawImage(out, 0, 0)
+  out.close()
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, TYPE))
+  if (!blob) return 'that depth map could not be saved'
+
+  const media = newKey('dep')
+  await putBlob(media, blob)
+  const bmp = await decodeCapped(blob)
+  if (bmp) {
+    getEngine().putSource(media, bmp)
+    markReady(media)
+  } else {
+    void ensureSource(media, blob)
+  }
+  const still = store.getItem(id)
+  if (!still) return null
+  /* The one the engine guessed is left for the sweep, like every other
+   * picture this board replaces. */
+  store.update(id, { media, nw: canvas.width, nh: canvas.height, mime: TYPE })
   return null
 }

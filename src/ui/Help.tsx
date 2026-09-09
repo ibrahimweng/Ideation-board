@@ -176,6 +176,17 @@ function parts(): Part[] {
             effect on the list, or draw one yourself and use that instead.
           </p>
           <p>
+            It is a guess and it has one particular failure: it reads brightness, so a dark near
+            thing against a bright far one comes out backwards.{' '}
+            <strong>Work out the depth map properly</strong> runs a real depth model instead — one
+            that has seen a few million photographs and knows what a face, a doorway and a horizon
+            are. The first press fetches it, about twenty-five megabytes, and this browser keeps it
+            afterwards so every press after that is offline and quick. It replaces the map in place,
+            so everything already wired to it follows. Nothing is waiting on it either way: the
+            guessed map is there from the first press, and if the download cannot be reached the
+            card says so and keeps the map it had.
+          </p>
+          <p>
             The map is wired into the picture it came from, which is how four effects read it.{' '}
             <strong>Parallax</strong> moves the near things and holds the far ones,{' '}
             <strong>Depth of field</strong> keeps one plane sharp and softens either side of it,{' '}
@@ -421,8 +432,9 @@ function parts(): Part[] {
         <>
           <p>
             Everything above still works, because none of it needed a network in the first place.
-            The two things that do are drawing pictures and playing a video you linked to rather
-            than dropped. When a new version of the app is available you are told, and it is put
+            The three things that do are drawing pictures, playing a video you linked to rather than
+            dropped, and the first press of <strong>Work out the depth map properly</strong> — after
+            which that one works offline too, because the model stays in this browser. When a new version of the app is available you are told, and it is put
             in when you say so rather than under you mid-sentence.
           </p>
         </>

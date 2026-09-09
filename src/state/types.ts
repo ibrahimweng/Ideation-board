@@ -107,6 +107,12 @@ export interface Item {
    *
    * The cover inside the file, where it has one, is a real picture and is kept
    * under `poster` like any other still. */
+  /* The picture a depth map was made from. On the map, not on the picture:
+   * one picture can have several maps and they are ordinary cards, so what
+   * makes one a depth map is that it remembers what it is of — which is also
+   * what lets it be made again, better, by something that has seen a few
+   * million photographs. */
+  depthOf?: string
   peaks?: number[]
   secs?: number
   /* The shape of the file that was dropped, kept for the compare key.

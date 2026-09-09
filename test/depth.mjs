@@ -204,6 +204,96 @@ check('with a real spread between the nearest and the furthest',
 
 fs.writeFileSync(path.join(OUT, 'depth-map.png'), await page.screenshot())
 
+/* ---------- and the same map, worked out properly ---------- */
+
+/* The map above is three cues and a blur, and it is wrong in one particular
+   way that no weighting fixes: it reads brightness, so a dark near thing
+   against a bright far one comes out backwards. A model that has seen a few
+   million photographs does not have that failure — and costs a download the
+   size of a film, which is why it is a second press and not the first.
+
+   What is checked here is the half that does not need the network: that the
+   map knows what it was made from, that the offer is only made on a map, and
+   that when nothing can be fetched it says so, names what it could not get,
+   and leaves the map that was already there alone. That last one is the whole
+   safety of it — a depth map that quietly turned into noise because a download
+   was cut off would be worse than no button. */
+
+const held = (id) =>
+  page.evaluate(async (id) => {
+    const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const q = t.objectStore('boards').getAll()
+      q.onsuccess = () => res(q.result || [])
+      q.onerror = () => res([])
+    })
+    const it = all.flatMap((b) => b.items || []).find((i) => i.id === id)
+    return it ? { depthOf: it.depthOf || null, media: it.media || null } : null
+  }, id)
+
+const before = await held(DEPTH_ID)
+check('the map remembers the picture it was made from, which is what lets it be made again',
+  before?.depthOf === SCENE_ID, JSON.stringify(before?.depthOf))
+
+/* Nothing may leave this browser. Both addresses are refused, which is the
+   same thing that happens on a train. */
+const asked = []
+await page.route('**/*', (route) => {
+  const url = route.request().url()
+  if (/jsdelivr|huggingface/i.test(url)) {
+    asked.push(url)
+    return route.abort()
+  }
+  return route.continue()
+})
+
+const spoke = () => page.evaluate(() => document.querySelector('.toast span')?.textContent || '')
+
+await page.locator(`.card[data-id="${DEPTH_ID}"]`).click()
+await page.waitForTimeout(500)
+await page.keyboard.press('Control+k')
+await page.waitForSelector('.cmd', { timeout: 5000 })
+await page.keyboard.type('depth map properly')
+await page.waitForTimeout(600)
+const offered = await page.locator('.cmd-row').first().innerText()
+check('the command list offers to work it out properly, and says it is a download',
+  /properly/i.test(offered) && /download/i.test(offered), offered.replace(/\n/g, ' ').slice(0, 90))
+await page.keyboard.press('Enter')
+await page.waitForTimeout(6000)
+
+const said = await spoke()
+check('with nothing reachable it says so, and names what it could not get',
+  /could not be (loaded|fetched)/i.test(said) && /https?:\/\//.test(said), said.slice(0, 120))
+const kept = await held(DEPTH_ID)
+check('and the map that was already there is untouched',
+  !!kept && kept.media === before?.media, `${before?.media} then ${kept?.media}`)
+
+/* And it is greyed out on things that are not maps: a picture has no map to
+   work on, and a button that would refuse is worse than one that is plainly
+   not for you. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+await page.locator(`.card[data-id="${SCENE_ID}"]`).click({ position: { x: 30, y: 30 } })
+await page.waitForTimeout(500)
+const holding = await page.evaluate(() =>
+  [...document.querySelectorAll('.card[data-sel]')].map((c) => c.dataset.id))
+check('setup: the picture is what is selected now',
+  holding.length === 1 && holding[0] === SCENE_ID, holding.join(', '))
+await page.keyboard.press('Control+k')
+await page.waitForSelector('.cmd', { timeout: 5000 })
+await page.keyboard.type('depth map properly')
+await page.waitForTimeout(600)
+const row = page.locator('.cmd-row', { hasText: 'properly' }).first()
+check('and it is offered but not pressable on a picture, which has no map to work on',
+  (await row.count()) === 1 && (await row.isDisabled()),
+  `${await row.count()} rows, ${(await row.count()) ? ((await row.isDisabled()) ? 'greyed out' : 'pressable') : '-'}`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+await page.unroute('**/*')
+
+
+
 /* ---------- the four that read one ---------- */
 
 /* A guessed map is a guess, so the effects are not checked against one. They
