@@ -1529,7 +1529,8 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 ## Tests
 
 Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
-are fifty-six suites driving a real browser, and take about half an hour.
+are fifty-seven suites driving a real browser, and take about half an hour —
+1,517 checks, last measured at 32.9 minutes.
 
 ```bash
 npm test            # types, then 597 unit tests — a few seconds
