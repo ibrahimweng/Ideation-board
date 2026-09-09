@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { Boundary } from './app/Boundary'
 import { installScreens } from './board/screen'
 import { goOffline } from './app/offline'
 /* Before the stylesheet, so the faces are declared by the time anything asks
@@ -21,6 +22,8 @@ goOffline()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Boundary>
+      <App />
+    </Boundary>
   </StrictMode>
 )

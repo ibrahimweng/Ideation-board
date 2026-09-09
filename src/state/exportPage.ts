@@ -2,7 +2,7 @@ import type { Item } from './types'
 import { boardTree } from './boards'
 import { getBlob } from '../store/idb'
 import { renderCardPicture } from './exportImage'
-import { TRAITS, pixelKey } from './kinds'
+import { pixelKey, traitsOf } from './kinds'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
@@ -218,7 +218,7 @@ async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
    * Item to an Item and leave every branch after them typed as nothing. */
   if (item.kind === 'edge') return { ...base, from: item.from || '', to: item.to || '' }
 
-  if (TRAITS[item.kind].pixels || item.kind === 'embed') {
+  if (traitsOf(item.kind).pixels || item.kind === 'embed') {
     const src = await sourceFor(item)
     if (src) {
       const scale = Math.min(SCALE, MAX_EDGE / Math.max(base.w, base.h))

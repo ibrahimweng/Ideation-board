@@ -17,7 +17,7 @@ import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
-import { canShade, hasPixels, isStill, pixelKey } from '../state/kinds'
+import { canShade, hasPixels, isStill, pixelKey, isKnownKind } from '../state/kinds'
 import { nextPage, prevPage } from '../state/pages'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
@@ -423,6 +423,20 @@ export const Card = memo(function Card({
                   Download
                 </a>
               )}
+            </div>
+          )}
+
+          {/* A card from further along than this build.
+              Drawn rather than skipped, and named for what it is: a record can
+              arrive from a newer build through another tab or an imported
+              board, and a card that silently is not there reads as work that
+              has been lost. This one can be moved, selected and deleted like
+              any other, and says why it cannot be opened. */}
+          {!isKnownKind(it.kind) && (
+            <div className="file-card">
+              <span className="file-ext">?</span>
+              <span className="file-name">{it.name || 'A card this version does not know'}</span>
+              <span className="file-why">Made by a newer version of the app</span>
             </div>
           )}
         </div>
