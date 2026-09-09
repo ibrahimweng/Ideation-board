@@ -20,7 +20,7 @@ card.
 | `isfEffects.ts` | The handful written as ISF, so the translator is exercised by the running board rather than only by its tests |
 | `glyphs.ts` | The characters the ASCII effect spends, as shapes rather than as text in whatever font had loaded |
 | `types.ts` | Shared types, the blend modes, the quality levels and the size limits |
-| `gl.ts` | The renderer, which owns the WebGL2 context |
+| `gl.ts` | The renderer, which owns the WebGL2 context — and notices when it is taken away |
 | `worker.ts` | The worker that owns the renderer |
 | `protocol.ts` | The messages between the page and the worker |
 | `scheduler.ts` | The queue of pending work |

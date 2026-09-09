@@ -132,7 +132,9 @@ export function coverUv(sw: number, sh: number, w: number, h: number): Cover {
 }
 
 export class Renderer {
-  readonly ok: boolean
+  /* Was readonly, and that was the assumption worth breaking: a context is not
+   * only given or refused at birth, it can be taken away afterwards. */
+  ok: boolean
   private cv: AnyCanvas
   private gl!: GL
   private progs: Record<string, Program> = {}
@@ -160,6 +162,9 @@ export class Renderer {
   private warmQ: string[] | null = null
   private w = 0
   private h = 0
+  /* Told when the context goes, so whoever owns this renderer can decide what
+   * to do about it. Set by the worker; nothing else needs it. */
+  onLost: (() => void) | null = null
 
   constructor(canvas: AnyCanvas) {
     this.cv = canvas
@@ -179,6 +184,26 @@ export class Renderer {
     this.ok = !!gl
     if (!gl) return
     this.gl = gl
+
+    /* A context can be taken away after it is given.
+     *
+     * A GPU process that crashes, a driver that updates under a running tab, a
+     * machine switching graphics chips: the context goes and every call on it
+     * becomes a silent no-op that neither throws nor returns an error. Nothing
+     * here noticed, so effects simply stopped working until the page was
+     * reloaded, with nothing said and every card still showing whatever it had
+     * painted last — which looks exactly like a board that is working.
+     *
+     * Refusing the default is what leaves the door open for the browser to
+     * hand a context back at all. What is done with the news is the caller's:
+     * in the worker it throws this renderer away, and the next frame asked for
+     * builds another. */
+    const lost = (e: Event) => {
+      e.preventDefault()
+      this.ok = false
+      this.onLost?.()
+    }
+    ;(canvas as unknown as EventTarget).addEventListener?.('webglcontextlost', lost)
 
     this.pext = gl.getExtension('KHR_parallel_shader_compile')
     this.vao = gl.createVertexArray()!
@@ -528,6 +553,14 @@ export class Renderer {
    * null for live video so the frame is uploaded rather than cached. */
   render(source: Source, srcW: number, srcH: number, key: string | null, job: RenderJob, second?: Second | null): boolean {
     if (!this.ok || !source) return false
+    /* Asked rather than assumed: the event arrives a turn later than the loss
+     * itself, so a job already in the queue would otherwise draw into nothing
+     * and report success. */
+    if (this.gl.isContextLost()) {
+      this.ok = false
+      this.onLost?.()
+      return false
+    }
     const gl = this.gl
     /* Four thousand and ninety six rather than two thousand: nothing on the
      * board asks for more than fifteen hundred, but an export asks for the

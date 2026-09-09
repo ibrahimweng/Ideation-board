@@ -28,6 +28,11 @@ function boot() {
   if (renderer) return renderer
   try {
     renderer = new Renderer(new OffscreenCanvas(256, 256))
+    /* Thrown away rather than repaired. Every program, texture and buffer it
+     * held died with the context, so there is nothing to keep — and the next
+     * message boots another, which re-uploads from `sources` on demand. That
+     * is the same path a cold start takes, and it is a path that works. */
+    if (renderer) renderer.onLost = () => { renderer = null }
   } catch {
     renderer = null
   }

@@ -1542,7 +1542,7 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 ## Tests
 
 Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
-are fifty-nine suites driving a real browser, and take about half an hour.
+are sixty suites driving a real browser, and take about half an hour.
 
 ```bash
 npm test            # types, then 611 unit tests — a few seconds
@@ -1654,6 +1654,7 @@ npm run test:undoboards -- http://localhost:5173
 npm run test:undelete -- http://localhost:5173
 npm run test:nospace -- http://localhost:5173
 npm run test:mirror -- http://localhost:5173
+npm run test:context -- http://localhost:5173
 npm run test:ascii -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
@@ -1773,6 +1774,17 @@ two against a server it starts itself.
   one is why it exists: the message written for it could not be reached, so a
   backup that had just stopped working reported itself as one that was never
   set up.
+- `test:context` takes the graphics context away from under a working board —
+  a GPU process crashing, a driver updating under a running tab — and checks
+  the board carries on. It matters because of how that fails rather than how
+  often it happens: every call on a lost context is a silent no-op that neither
+  throws nor returns an error, so a board that has stopped rendering goes on
+  looking exactly like one that has not, until somebody reloads. The context
+  lives in the worker and is on no global, so the suite catches it on the way
+  out of `getContext` and loses it with the platform's own
+  `WEBGL_lose_context` — a real loss, not a simulated one. The check that
+  matters is that a different effect afterwards paints a different picture;
+  before this, it painted the same bytes exactly, twice over.
 - `test:offline` makes a board, cuts the network at the browser, and opens the
   app again: it has to start, and the work has to be there — in a reloaded tab
   and in a fresh one, which is what an installed app is. Then the two things
