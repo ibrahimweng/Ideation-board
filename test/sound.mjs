@@ -4,7 +4,7 @@
  *   node test/sound.mjs http://localhost:4173
  *
  * A sound card drew its own waveform and played, and that was the whole of it.
- * On a board where a photograph takes sixty-four treatments and can be varied
+ * On a board where a photograph takes sixty-nine treatments and can be varied
  * twelve ways, sound was the one medium you could only look at.
  *
  * The checks are about the three things that make a treatment real rather than

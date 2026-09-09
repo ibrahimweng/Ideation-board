@@ -4,7 +4,7 @@ import type { Control, Params } from '../engine/types'
  * Sound is for sound design.
  *
  * An audio card played and drew its own waveform, and that was all it did. On
- * a board where a photograph can be taken through sixty-four treatments and
+ * a board where a photograph can be taken through sixty-nine treatments and
  * varied twelve ways, a sound was the one medium you could only look at.
  *
  * So a sound gets the same shape a picture has: a chain of effects, rendered,

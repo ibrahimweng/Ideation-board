@@ -40,7 +40,7 @@ import type { FxState, Layer, Params } from '../engine/types'
  *
  * ## Breadth first
  *
- * Twelve effects picked at random from sixty-four would quite often be five
+ * Twelve effects picked at random from sixty-nine would quite often be five
  * blurs. So the picks go round the groups in turn — one from Print, one from
  * Grid, one from Type, one from Distort — which is the cheapest possible
  * stand-in for the "perceptually different" the 1997 paper had to compute.
