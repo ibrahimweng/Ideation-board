@@ -319,6 +319,14 @@ function parts(): Part[] {
             together, <K>{KEYS.fitBoard.hint}</K> fits the whole board on screen and{' '}
             <K>{KEYS.fitSelection.hint}</K> fits what you have selected.
           </p>
+          <p>
+            It searches what a card is <em>made of</em> as well as what it is called, which is what
+            you need on a board where a dozen cards have the same name. Type an effect and you get
+            the cards running it, stacked ones included; type <strong>gate</strong> and you get the
+            sound that was run through one; type a word from a sketch&rsquo;s code and you get that
+            drawing out of forty. A model answers to its materials and to what they are textured
+            with.
+          </p>
         </>
       ),
     },
