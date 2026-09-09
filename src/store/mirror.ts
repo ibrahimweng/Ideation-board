@@ -252,8 +252,14 @@ export function copySoon(rootId: string, delay = 4000) {
 
 export function describeMirror(s: MirrorState): string {
   if (!s.supported) return 'This browser cannot keep a copy in a folder'
-  if (!s.folder) return 'No folder chosen — the only copy of this work is in this browser'
+  /* Ahead of the no-folder line, because losing the folder is one of the ways
+   * to end up without one — and the sentence written for that case says why
+   * and what to do about it. Read the other way round, a permission that had
+   * lapsed mid-copy came back as "No folder chosen", which is true, reads like
+   * you never chose one, and buries the only remedy. The error is cleared at
+   * the start of every copy, so it is never a stale one showing here. */
   if (s.error) return s.error
+  if (!s.folder) return 'No folder chosen — the only copy of this work is in this browser'
   if (s.busy) return `Copying to ${s.folder}…`
   if (!s.at) return `Copying to ${s.folder} when the board settles`
   const mins = Math.round((Date.now() - s.at) / 60000)

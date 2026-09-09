@@ -1114,15 +1114,25 @@ applying one would have quietly dropped the rest. **Export and the poster**
 render the card again at full size, and would have written out a picture that is
 not the one on the board. Both carry the stack now.
 
-### One thing it does not promise
+### What it promises, and what it does not
 
-Two renders of the same card are not guaranteed to be identical to the pixel
-across a page load, and never were. The ASCII effect draws its glyph atlas once
-when the engine starts, from `ui-monospace, "JetBrains Mono", …`, so which font
-had resolved by that moment is baked into it. A single ASCII effect does not
-survive a pixel comparison across a reload either. It is a real inconsistency,
-it predates stacking, and it is worth fixing on its own rather than inside
-something else.
+Two renders of the same card on the same machine are identical to the pixel,
+and that is checked rather than hoped for: `test/ascii.mjs` renders a board,
+reloads the page, and compares a hash of the painted card — twice over.
+
+It is worth saying because it used to be false, and this section used to say
+so. The ASCII effect built its glyph atlas from `ui-monospace, "JetBrains
+Mono", …` when the engine started, so which of those faces had resolved by that
+moment was baked into the picture: the same board came back looking different
+after a reload and two machines never agreed. The glyphs are drawn as shapes
+now, and the same suite renders the board again in a page that cannot draw text
+at all to prove nothing is reading a font. Everything random is seeded from the
+card's own id, so grain and dithering do not crawl between renders either.
+
+What is still not promised is the same picture on somebody else's machine. A
+different driver and a different rasteriser will not agree to the last bit,
+which is why the check compares a render against its own reload rather than
+against a picture kept in the repository.
 
 ## Getting the room back
 
@@ -1244,7 +1254,10 @@ than one machine, backed up, and outside the browser that made it. Nothing here
 talks to a server.
 
 It is a copy, not a synchronisation. Nothing is ever read back out of the
-folder, and two browsers pointed at one folder will overwrite each other.
+folder, and two browsers pointed at one folder will overwrite each other. `test/mirror.mjs`
+drives all of it against a folder that lives in memory, including the part
+that matters most: a permission that lapses has to stop the copying and say
+so, rather than leaving you believing there is a backup.
 Conflict resolution is the hard part of syncing and this deliberately does not
 attempt it — saying so is better than pretending otherwise.
 
@@ -1529,11 +1542,10 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 ## Tests
 
 Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
-are fifty-seven suites driving a real browser, and take about half an hour —
-1,517 checks, last measured at 32.9 minutes.
+are fifty-nine suites driving a real browser, and take about half an hour.
 
 ```bash
-npm test            # types, then 597 unit tests — a few seconds
+npm test            # types, then 611 unit tests — a few seconds
 npm run test:all    # the above, then a build, then every browser suite
 ```
 
@@ -1556,7 +1568,8 @@ and spaces them out and joins them, what each kind of card can do, which fields
 on a card name another card, which boards are projects, what twelve variations
 of a picture, a sound, a sketch and a model come out as, what a sound chain
 does to a buffer, where a model's camera ends up, what a material on it is
-wearing, and what happens when the disk runs out.
+wearing, what the folder copy says about itself, how a download arriving in
+pieces is put back together, and what happens when the disk runs out.
 
 The variation tests are the ones worth copying the shape of. A dice roll can
 only be judged over thousands of draws, so they assert rates rather than
@@ -1634,17 +1647,21 @@ npm run test:sound -- http://localhost:5173
 npm run test:model -- http://localhost:5173
 npm run test:sketch -- http://localhost:5173
 npm run test:depth -- http://localhost:5173
+npm run test:help -- http://localhost:5173
+npm run test:findall -- http://localhost:5173
+npm run test:sendable -- http://localhost:5173
+npm run test:undoboards -- http://localhost:5173
+npm run test:undelete -- http://localhost:5173
+npm run test:nospace -- http://localhost:5173
+npm run test:mirror -- http://localhost:5173
+npm run test:ascii -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
 ```
 
-A few suites have no script of their own and are run through the runner by
-name, which works for any of them:
-
-```bash
-node scripts/browser-tests.mjs help findall sendable ascii
-node scripts/browser-tests.mjs undoboards undelete nospace
-```
+Every suite the runner knows has a script of its own, and the runner takes any
+of them by name too — `node scripts/browser-tests.mjs vary depth` runs those
+two against a server it starts itself.
 
 - `test:ui` drives every control on the board, which is 43 checks covering the
   toolbar, selection, dragging, resizing, undo, the effects panel, the editor
@@ -1742,6 +1759,20 @@ node scripts/browser-tests.mjs undoboards undelete nospace
   picture still on a board, one written moments ago, and one taken away with
   Cut must all survive a sweep, and the Cut one has to come back with its
   picture intact.
+- `test:mirror` is about the folder copy, which is the app's whole answer to
+  "the only copy of my work is in one browser" and had no test at all. A folder
+  picker cannot be opened headlessly, so `showDirectoryPicker` is replaced with
+  a folder that lives in memory and counts what is written to it — everything
+  on this side of that is the real thing. It checks that the folder ends up
+  holding a board.json that really parses, the media beside it and a note
+  saying what it is; that a picture already written is never written again,
+  which is what stops a board of two hundred photographs rewriting all of them
+  every time a card moves; that a change waits for the board to settle rather
+  than being written the moment it is made; and that a permission which lapses
+  mid-copy stops the copying, says so, and says what to do about it. That last
+  one is why it exists: the message written for it could not be reached, so a
+  backup that had just stopped working reported itself as one that was never
+  set up.
 - `test:offline` makes a board, cuts the network at the browser, and opens the
   app again: it has to start, and the work has to be there — in a reloaded tab
   and in a fresh one, which is what an installed app is. Then the two things
@@ -1929,29 +1960,35 @@ node scripts/browser-tests.mjs undoboards undelete nospace
   from: that it is grey, because distance has no colour; that the near half of
   a picture built to be near at the bottom comes out lighter than the far half;
   and that the four effects which read it read it, by handing them a map with a
-  known shape and measuring what they did.
-- `help` says the handful of things you cannot deduce from a button, and its
+  known shape and measuring what they did. It also runs the real model's whole
+  path, which two addresses on the open internet would otherwise leave
+  unexecuted: the test serves the runtime and the weights itself, and
+  everything between them is the app's own code. What that buys is the two
+  mistakes a wrong version would make plausibly rather than obviously — a
+  picture handed over interleaved or normalised wrongly, and a map that comes
+  back inside out, which looks exactly like a map.
+- `test:help` says the handful of things you cannot deduce from a button, and its
   suite is about the page being reachable, readable and escapable. The quietest
   check again matters most: while it is open the board's own keys must do
   nothing, because a help page that adds a note to the board behind it is worse
   than no help page.
-- `findall` puts a note in another project and checks it turns up, that the row
+- `test:findall` puts a note in another project and checks it turns up, that the row
   says which project before you commit to it, and that picking it lands you on
   the card with the tabs and the address following.
-- `sendable` takes the page the app exports, opens it in a browser that has
+- `test:sendable` takes the page the app exports, opens it in a browser that has
   never seen this app with the network off, and checks the board is there.
-- `undoboards` checks that stepping into a nested board and coming back leaves
+- `test:undoboards` checks that stepping into a nested board and coming back leaves
   the undo history where it was, that redo survives the same trip, and that a
   board's undo only ever undoes that board.
-- `undelete` deletes a project and puts it back, checking it is properly gone
+- `test:undelete` deletes a project and puts it back, checking it is properly gone
   from the row and from search in the meantime, that it comes back under its own
   ids in its own place, and that its pictures are still there because the sweep
   waited.
-- `nospace` makes every write fail on purpose, from before the app has started,
+- `test:nospace` makes every write fail on purpose, from before the app has started,
   and checks the whole chain says so — the highest-consequence path in the app
   and the one where a regression is invisible in ordinary use, since with a disk
   that is not full none of it ever runs.
-- `ascii` checks the three things drawing the glyphs as shapes had to buy,
+- `test:ascii` checks the three things drawing the glyphs as shapes had to buy,
   after a font stack meant the same board came back looking different from one
   reload to the next and two machines never agreed.
 - `test:load` fills a board with images, applies an effect to all of them and
