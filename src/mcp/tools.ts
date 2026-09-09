@@ -3,6 +3,7 @@ import { store } from '../state/store'
 import { labelItem, noteItem, sectionItem, addUrl } from '../state/ingest'
 import { hasPixels, wordsField } from '../state/kinds'
 import { runSketch, sketchItem } from '../state/sketches'
+import { diceFor, shuffleAny, varyAny } from '../state/varying'
 import { drawMany, picturesFrom } from '../state/generate'
 import { fitToBoard, viewportSize } from '../state/walk'
 import { allBoards } from '../store/idb'
@@ -95,7 +96,7 @@ export const notePath = (p: { id: string; name: string }[]) => {
 
 export type ToolName =
   | 'get_board' | 'list_boards' | 'add_card' | 'draw_image' | 'update_card' | 'move_card'
-  | 'delete_cards' | 'connect_cards' | 'arrange' | 'select_cards' | 'fit_view'
+  | 'delete_cards' | 'connect_cards' | 'arrange' | 'select_cards' | 'fit_view' | 'make_versions'
 
 type Args = Record<string, unknown>
 
@@ -248,6 +249,44 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     if (!list.length) throw new Error('None of those are on this board.')
     store.remove(list)
     return { removed: list.length }
+  },
+
+  /* Twelve of it.
+   *
+   * The central gesture of the board and the one thing an agent could not
+   * reach: everything else here adds a card or moves one, and this is the verb
+   * that makes alternatives to choose between — which is what the board is
+   * for. Told what to vary rather than what to make, because the dice belong
+   * to the medium: a sound varies by what it is run through, a sketch by its
+   * throw, a model by where the camera stands, a picture by what is drawn on
+   * it, and the app already answers that question in one place. */
+  async make_versions(a) {
+    const list = Array.isArray(a.ids) ? ids(a.ids) : []
+    const missing = list.filter((id) => !store.getItem(id))
+    if (missing.length) throw new Error(`No card ${missing[0]} on this board. Ids come from get_board.`)
+    if (list.length) store.select(list)
+    const sel = store.getSelection()
+    if (!sel.length) throw new Error('Nothing is selected, and nothing was named. Pass ids.')
+    const dice = diceFor(sel)
+    const inPlace = str(a.how) === 'in place'
+    /* What is on the board before, so what arrives can be named afterwards.
+     * The grid itself returns a count; an agent needs the cards. */
+    const was = new Set(store.getOrder())
+    const r = inPlace ? await shuffleAny() : await varyAny()
+    /* Nothing made is not a quiet no. The message says which — one card at a
+     * time, a sound too long, every square already kept — and an agent that
+     * reads it can do the thing it says. */
+    if (!r.made) throw new Error(r.say)
+    const made = inPlace
+      ? sel
+      : store.getOrder().filter((id) => !was.has(id) && store.getItem(id)?.kind !== 'edge')
+    return {
+      made: r.made,
+      dice,
+      how: inPlace ? 'in place' : 'twelve underneath',
+      said: r.say,
+      cards: made.map((id) => store.getItem(id)).filter((i): i is Item => !!i).map(describe),
+    }
   },
 
   connect_cards(a) {

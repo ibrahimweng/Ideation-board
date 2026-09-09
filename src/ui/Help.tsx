@@ -379,6 +379,12 @@ function parts(): Part[] {
             the way of making a hundred of them. Code from an agent runs exactly where your own
             does: alone, with nothing to reach, and stopped after a few seconds.
           </p>
+          <p>
+            And it can press <K>{KEYS.vary.hint}</K> for you. Which dice get thrown is not something
+            it chooses — a sound varies by what it is run through and a model by where the camera
+            stands, whoever asked — so &ldquo;twelve of that one&rdquo; means the same thing said by
+            an agent as pressed by you, and lands in the same grid for you to mark up.
+          </p>
         </>
       ),
     },

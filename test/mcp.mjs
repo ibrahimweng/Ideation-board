@@ -145,7 +145,9 @@ relay.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initia
 
 const list = await rpc('tools/list')
 const names = (list.result?.tools || []).map((t) => t.name)
-ok('and offers the board as tools', names.length === 11 && names.includes('get_board') && names.includes('draw_image'), names.join(', '))
+ok('and offers the board as tools',
+   names.length === 12 && names.includes('get_board') && names.includes('draw_image') && names.includes('make_versions'),
+   names.join(', '))
 ok('every tool says what its arguments are',
    (list.result?.tools || []).every((t) => t.inputSchema?.type === 'object' && t.description?.length > 40))
 
@@ -346,6 +348,64 @@ ok('a sketch with no code is refused, and says what a sketch is handed',
 r = await call('update_card', { id: noteId, code: 'ctx.fillRect(0,0,w,h)' })
 ok('and code on a card that is not a sketch is refused',
    r.isError && /only a sketch/i.test(r.text), r.text.slice(0, 80))
+
+/* ---------- twelve of it ---------- */
+
+/* Everything else here adds a card or moves one. This is the verb that makes
+   alternatives to choose between, which is what the board is for, and it was
+   the one gesture an agent could not reach.
+
+   Checked on the sketch, because a sketch varies by its throw: twelve cards
+   that are twelve different drawings, which is a claim about the pictures
+   rather than about the count. */
+
+r = await call('make_versions', { ids: [sketchId] })
+await page.waitForTimeout(3000)
+ok('Claude can ask for twelve versions of a card',
+   !r.isError && r.json?.made === 12 && r.json?.cards?.length === 12,
+   r.text.slice(0, 100))
+ok('and is told which dice were thrown, because it did not choose them',
+   r.json?.dice === 'sketch', String(r.json?.dice))
+const twelve = (r.json?.cards || []).map((c) => c.id)
+ok('and gets the cards back rather than only a number',
+   twelve.length === 12 && twelve.every((id) => typeof id === 'string' && id !== sketchId))
+
+/* Twelve drawings, not one drawing twelve times. Read off the board, because
+   the count is the easy half. */
+const drawn = await page.evaluate(async (ids) => {
+  const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+  const all = await new Promise((res) => {
+    const t = db.transaction('boards', 'readonly')
+    const q = t.objectStore('boards').getAll()
+    q.onsuccess = () => res(q.result || [])
+    q.onerror = () => res([])
+  })
+  const by = new Map(all.flatMap((b) => b.items || []).map((i) => [i.id, i]))
+  const mine = ids.map((id) => by.get(id)).filter(Boolean)
+  return {
+    rolls: new Set(mine.map((i) => i.roll)).size,
+    drew: mine.filter((i) => i.poster).length,
+    code: new Set(mine.map((i) => i.code)).size,
+  }
+}, twelve)
+ok('twelve different throws of the same code', drawn.rolls === 12 && drawn.code === 1,
+   `${drawn.rolls} throws, ${drawn.code} program`)
+ok('and every one of them was really drawn', drawn.drew === 12, `${drawn.drew} of 12`)
+
+/* The other way of throwing: no new cards, the ones you name change. */
+const roomBefore = (await cards()).length
+r = await call('make_versions', { ids: [sketchId], how: 'in place' })
+await page.waitForTimeout(2500)
+ok('and can throw the same dice without making anything',
+   !r.isError && (await cards()).length === roomBefore, r.text.slice(0, 90))
+
+/* Nothing made is not a quiet no: the message says which of several reasons,
+   and an agent that reads it can do the thing it says. */
+r = await call('make_versions', { ids: [noteId] })
+ok('a card with no versions says so, in words that name what does',
+   r.isError && /picture|sound|sketch|model|vary/i.test(r.text), r.text.slice(0, 100))
+r = await call('make_versions', { ids: ['i_nosuchcard'] })
+ok('and a card that is not there is said plainly', r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 
 /* ---------- arranging and looking ---------- */
 r = await call('arrange', { how: 'tidy' })

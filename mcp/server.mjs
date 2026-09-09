@@ -223,6 +223,34 @@ const TOOLS = [
     },
   },
   {
+    name: 'make_versions',
+    description:
+      'Twelve versions of one card, laid out underneath it. The gesture this board is built around: ' +
+      'it makes alternatives to choose between rather than one more thing. What varies belongs to the ' +
+      'medium and you do not choose it — a picture by the effect drawn on it, a sound by what it is run ' +
+      'through, a sketch by its throw, a model by where the camera stands. Name one card. Press it ' +
+      'again on a card out of the twelve to go further into that one, or on the whole batch after the ' +
+      'person has marked keepers to breed from those. Sounds, sketches and models are really rendered, ' +
+      'so a batch of those takes a while.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The card to vary, from get_board. Omit to use whatever the person has selected.',
+        },
+        how: {
+          type: 'string',
+          enum: ['twelve underneath', 'in place'],
+          description:
+            'Twelve underneath is the grid, and the default. In place throws the same dice on the cards ' +
+            'themselves without making any — for when the person wants another go rather than a choice.',
+        },
+      },
+    },
+  },
+  {
     name: 'fit_view',
     description: 'Move the view so the whole board, or just what is selected, is on screen.',
     inputSchema: { type: 'object', properties: { selection: { type: 'boolean', description: 'True for the selection only.' } } },
