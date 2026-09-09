@@ -167,6 +167,35 @@ function parts(): Part[] {
             because a card has to look the same next time you open it.
           </p>
           <p>
+            <strong>Make a depth map of the picture</strong>, in the command list or the right-click
+            menu, guesses how far away everything in a photograph is and puts the answer on the
+            board as a card of its own. It is a guess, from the three things a person reads before
+            they have thought about it — what carries fine detail is near, what is washed out and
+            pale is far, and the bottom of the frame is usually the floor. It costs nothing and
+            arrives at once, and because it is a card you can look at it, correct it with any
+            effect on the list, or draw one yourself and use that instead.
+          </p>
+          <p>
+            It is a guess and it has one particular failure: it reads brightness, so a dark near
+            thing against a bright far one comes out backwards.{' '}
+            <strong>Work out the depth map properly</strong> runs a real depth model instead — one
+            that has seen a few million photographs and knows what a face, a doorway and a horizon
+            are. The first press fetches it, about twenty-five megabytes, and this browser keeps it
+            afterwards so every press after that is offline and quick. It replaces the map in place,
+            so everything already wired to it follows. Nothing is waiting on it either way: the
+            guessed map is there from the first press, and if the download cannot be reached the
+            card says so and keeps the map it had.
+          </p>
+          <p>
+            The map is wired into the picture it came from, which is how four effects read it.{' '}
+            <strong>Parallax</strong> moves the near things and holds the far ones — sideways, or
+            forwards into the picture, or both,{' '}
+            <strong>Depth of field</strong> keeps one plane sharp and softens either side of it,{' '}
+            <strong>Fog</strong> pushes air into the distance, and <strong>Relight</strong> reads
+            the map as a surface and lights the picture from somewhere it never was. One map can
+            drive as many pictures as you wire it into.
+          </p>
+          <p>
             Three effects read <em>two</em> pictures — <strong>Displace</strong>,{' '}
             <strong>Stencil</strong> and <strong>Through</strong>. Drag a line from one card to
             another and the card at the start of the line is the second picture: a texture pushed
@@ -202,6 +231,13 @@ function parts(): Part[] {
             the card back on it, because it was there the whole time.{' '}
             <strong>Export the selected sound</strong> in the command list hands you what the card
             plays, as a WAV.
+          </p>
+          <p>
+            Hold <K>{KEYS.original.hint}</K> and you hear the file you dropped, and the card draws
+            its shape — the same key that shows a picture without its effect. It keeps your place
+            in the track and keeps playing, so it is an A against a B rather than a trip back to
+            the start. Let go and the treatment is there again; nothing was taken off and nothing
+            has to be put back.
           </p>
           <p>
             <K>{KEYS.vary.hint}</K> works on a sound too: twelve versions underneath, each run
@@ -275,8 +311,15 @@ function parts(): Part[] {
             so about itself, and this reads it. Draw a line from another card to the model and you
             can hand that card to a material: press <strong>Wear</strong> and the model comes back
             with your picture on it, which is the shortest route there is from a reference to the
-            thing you are designing. It takes the card <em>as it looks</em> — the effect on it, the
-            tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
+            thing you are designing. What the picture becomes is up to you — <strong>Colour</strong>{' '}
+            is the surface, <strong>Roughness</strong> makes it matte where the picture is light,{' '}
+            <strong>Glow</strong> lights it in that shape, <strong>Relief</strong> raises it as if
+            the picture were pressed in, and <strong>Cut-out</strong> puts holes where it is dark.
+            One material can wear several at once, and each comes off on its own.
+          </p>
+          <p>
+            Whichever slot it lands in, it takes the card <em>as it looks</em> — the effect on it,
+            the tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
             picture taken at the moment you press it rather than a live link, so press{' '}
             <strong>Again</strong> after working on the card.
           </p>
@@ -312,6 +355,14 @@ function parts(): Part[] {
             together, <K>{KEYS.fitBoard.hint}</K> fits the whole board on screen and{' '}
             <K>{KEYS.fitSelection.hint}</K> fits what you have selected.
           </p>
+          <p>
+            It searches what a card is <em>made of</em> as well as what it is called, which is what
+            you need on a board where a dozen cards have the same name. Type an effect and you get
+            the cards running it, stacked ones included; type <strong>gate</strong> and you get the
+            sound that was run through one; type a word from a sketch&rsquo;s code and you get that
+            drawing out of forty. A model answers to its materials and to what they are textured
+            with.
+          </p>
         </>
       ),
     },
@@ -333,7 +384,9 @@ function parts(): Part[] {
             editing, which is the same trade every picture in the file already makes. A sound over
             about a minute, or one arriving after the page has had its share, is named and placed
             and says on the card why it is not playable — better than a play button that does
-            nothing. The zip below still has all of them at full length.
+            nothing. The zip below still has all of them at full length. The waveform in the page is
+            the scrub bar, as it is here, and takes the keyboard the same way: <K>Tab</K> to it,
+            arrows to move through the track, <K>Space</K> to play.
           </p>
           <p>
             <K>{KEYS.export.hint}</K> is the backup, and the one that <em>can</em> be read back in
@@ -356,6 +409,20 @@ function parts(): Part[] {
             that has ever known what is on your board — so an agent can read it, add cards, move
             things and draw pictures without your work leaving this browser.
           </p>
+          <p>
+            It can also write you a sketch, which is the more useful of the two. A drawn picture
+            costs money and takes ten seconds and is one picture; a sketch is code, so it arrives at
+            once, throws itself again on <K>{KEYS.shuffle.hint}</K>, and gives you twelve on{' '}
+            <K>{KEYS.vary.hint}</K> — ask for a grid, a field, a type specimen, and what you get is
+            the way of making a hundred of them. Code from an agent runs exactly where your own
+            does: alone, with nothing to reach, and stopped after a few seconds.
+          </p>
+          <p>
+            And it can press <K>{KEYS.vary.hint}</K> for you. Which dice get thrown is not something
+            it chooses — a sound varies by what it is run through and a model by where the camera
+            stands, whoever asked — so &ldquo;twelve of that one&rdquo; means the same thing said by
+            an agent as pressed by you, and lands in the same grid for you to mark up.
+          </p>
         </>
       ),
     },
@@ -366,8 +433,9 @@ function parts(): Part[] {
         <>
           <p>
             Everything above still works, because none of it needed a network in the first place.
-            The two things that do are drawing pictures and playing a video you linked to rather
-            than dropped. When a new version of the app is available you are told, and it is put
+            The three things that do are drawing pictures, playing a video you linked to rather than
+            dropped, and the first press of <strong>Work out the depth map properly</strong> — after
+            which that one works offline too, because the model stays in this browser. When a new version of the app is available you are told, and it is put
             in when you say so rather than under you mid-sentence.
           </p>
         </>

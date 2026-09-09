@@ -2,9 +2,28 @@
  * Ported verbatim from the original engine: the GLSL is correct and worth keeping.
  * Only the surrounding plumbing changed. */
 
+/* The one triangle every pass is drawn with.
+ *
+ * `uFlip` is the difference between drawing onto the canvas and drawing into a
+ * buffer for the next pass to read, and it exists because those two are not
+ * the same way up.
+ *
+ * A canvas is presented with clip +y at the top. A texture is uploaded with
+ * v=0 at the picture's top row. Render into a framebuffer and the two
+ * disagree: the fragment drawn at clip +y lands in the framebuffer's *last*
+ * row, so the texture the next pass reads is upside down. One effect never
+ * noticed, because it draws straight to the canvas; the blur never noticed,
+ * because it is separable and two passes flip back; and a card with two
+ * effects on it came out upside down, which is what this is here to stop.
+ *
+ * The flip is applied to the position and not to vUv, so `uv` means the same
+ * thing in every pass — the place on the card, y downwards — whether that pass
+ * is the last one or not. An effect that reads uv.y as a direction would
+ * otherwise mean the opposite of itself depending on what was stacked after
+ * it. */
 export const VERT = `#version 300 es
-in vec2 aPos; out vec2 vUv;
-void main(){ vUv = vec2(aPos.x*0.5+0.5, 0.5-aPos.y*0.5); gl_Position = vec4(aPos,0.0,1.0); }`
+in vec2 aPos; uniform float uFlip; out vec2 vUv;
+void main(){ vUv = vec2(aPos.x*0.5+0.5, 0.5-aPos.y*0.5); gl_Position = vec4(aPos.x, aPos.y*uFlip, 0.0, 1.0); }`
 
 /* Separable gaussian used by the blur-backed effects. */
 export const BLUR = `#version 300 es

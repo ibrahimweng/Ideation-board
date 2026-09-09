@@ -379,13 +379,20 @@ export const Card = memo(function Card({
           )}
 
           {it.kind === 'audio' && (
+            /* The compare key on a sound is the file it was given, played and
+               drawn. Every other medium here drops its effect while the key is
+               held; a sound is the one where that question — what did it sound
+               like before — is asked oftener than any other, and the only
+               answer the board had was to take the chain off and put it back,
+               which is two presses of undo and a lost train of thought. */
             <AudioCard
-              url={heardUrl || url}
+              url={(plain ? url : heardUrl || url)}
               name={it.name || 'Sound'}
               art={artUrl}
-              peaks={it.peaks || []}
+              peaks={(plain ? it.dry || it.peaks : it.peaks) || []}
               secs={it.secs || 0}
               selected={selected}
+              plain={plain}
             />
           )}
 

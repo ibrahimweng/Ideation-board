@@ -9,6 +9,7 @@ import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
 import { canShade, isGradeable, pixelKey } from '../state/kinds'
 import { DIST, PITCH, stageOf, takeOffSkin, treatSkin, turnTo, wearSkin } from '../state/staging'
+import { SLOTS, SLOT_BY_ID, dressOf, slotName } from '../state/skins'
 import {
   addSoundLayer, chainOf, clearSound, dropSoundLayer, isSound, setSoundEffect, setSoundParam, treating,
 } from '../state/sounds'
@@ -641,6 +642,12 @@ const partWhat = (p: Part): string => {
 
 function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: string) => void }) {
   const stage = stageOf(it)
+  /* Which slot each material's buttons are pointed at. Not on the card: it is
+     where you are looking rather than anything about the model, and a board
+     that remembered it would be a board that came back a week later with a
+     picker set to something you have forgotten choosing. */
+  const [pick, setPick] = useState<Record<string, string>>({})
+  const worn = dressOf(it)
   /* Which effect Treat would run, and whether there is one at all. */
   const spec = BY_ID[it.fx.fxid] || BY_ID.none
   const effected = hasEffect(it.fx)
@@ -677,17 +684,50 @@ function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: str
             Set the card back to Original afterwards to see the model with one material treated
             rather than a treated picture of it.
           </p>
+          <p className="fx-hint">
+            What the card becomes is up to you. <b>Colour</b> is the picture on the surface;{' '}
+            <b>Roughness</b> makes it matte where the picture is light and glossy where it is dark;{' '}
+            <b>Glow</b> lights the surface in its shape; <b>Relief</b> raises it as if the picture
+            were pressed in; <b>Cut-out</b> puts holes where it is dark. One material can wear
+            several at once.
+          </p>
           <ul className="part-list">
             {parts.map((p) => {
-              const worn = it.skins?.[p.name]
+              const dressed = worn[p.name] || {}
+              const slot = pick[p.name] || 'colour'
+              const here = dressed[slot]
               const unwrapped = !p.uv.includes(-1)
+              const which = SLOT_BY_ID[slot]
+              /* Only where the file declares one. A material with no roughness
+                 of its own has nothing for Treat to run over, and a button
+                 that would always refuse is worse than no button. */
+              const treatable = !!which?.reads && p.maps.includes(which.reads)
+              /* What this material has on already, said in the row rather than
+                 hidden behind the picker: a model wearing three pictures in
+                 three slots should not look like a model wearing one. */
+              const on = Object.keys(dressed).map(slotName)
               return (
-                <li key={p.name} className="part" data-worn={worn ? '' : undefined}>
+                <li key={p.name} className="part" data-worn={on.length ? '' : undefined}>
                   <i className="part-tint" style={{ background: p.tint }} aria-hidden="true" />
                   <span className="part-of">
                     <b>{p.name}</b>
-                    <em>{partWhat(p)}</em>
+                    <em>{on.length ? `wearing ${on.join(', ').toLowerCase()} \u00b7 ${partWhat(p)}` : partWhat(p)}</em>
                   </span>
+                  {/* Which of the material's slots the card lands in. Colour is
+                      the answer nine times in ten and is the default; the other
+                      four are the tenth, and each says what it does, because
+                      none of them is guessable from its name. */}
+                  <select
+                    className="part-slot"
+                    aria-label={`What the card becomes on ${p.name}`}
+                    title={which?.what}
+                    value={slot}
+                    onChange={(e) => setPick((was) => ({ ...was, [p.name]: e.target.value }))}
+                  >
+                    {SLOTS.map((s) => (
+                      <option key={s.id} value={s.id}>{dressed[s.id] ? `${s.name} \u00b7 on` : s.name}</option>
+                    ))}
+                  </select>
                   {/* Wear stays there once something is worn, because pressing
                       it again is how a material catches up with a card that
                       has been worked on since. */}
@@ -696,16 +736,16 @@ function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: str
                         with a picture of its own can have the effect this card
                         is set to run over that picture, rather than only
                         having a different picture put on top of it. */}
-                    {p.maps.includes('colour') && (
+                    {treatable && (
                       <button
                         className="ghost"
                         disabled={!effected || !unwrapped}
                         title={
                           !effected
                             ? 'Choose an effect on the Effect tab first, then put it on a material.'
-                            : `Run ${spec.name} over the texture ${p.name} came with`
+                            : `Run ${spec.name} over the ${which.name.toLowerCase()} ${p.name} came with`
                         }
-                        onClick={() => void treatSkin(it.id, p.name).then((why) => why && say(why))}
+                        onClick={() => void treatSkin(it.id, p.name, slot).then((why) => why && say(why))}
                       >
                         Treat
                       </button>
@@ -718,16 +758,18 @@ function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: str
                           ? `${p.name} has no UVs, so a picture has nowhere to sit on it.`
                           : !fed
                             ? 'Wire a card into this one first.'
-                            : worn
-                              ? `Put the wired card on ${p.name} again, as it looks now`
-                              : `Put the wired card on ${p.name}, as it looks now`
+                            : `${here ? 'Put the wired card on again' : 'Put the wired card on'} as ${p.name}'s ${which?.name.toLowerCase()} \u2014 ${which?.what.toLowerCase()}`
                       }
-                      onClick={() => void wearSkin(it.id, p.name)}
+                      onClick={() => void wearSkin(it.id, p.name, slot).then((why) => why && say(why))}
                     >
-                      {worn ? 'Again' : 'Wear'}
+                      {here ? 'Again' : 'Wear'}
                     </button>
-                    {!!worn && (
-                      <button className="ghost" onClick={() => void takeOffSkin(it.id, p.name)}>
+                    {!!here && (
+                      <button
+                        className="ghost"
+                        title={`Take the ${which?.name.toLowerCase()} off ${p.name}`}
+                        onClick={() => void takeOffSkin(it.id, p.name, slot)}
+                      >
                         Take off
                       </button>
                     )}

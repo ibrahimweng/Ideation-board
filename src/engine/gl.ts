@@ -489,6 +489,10 @@ export class Renderer {
     if (pr.failed || !pr.u) return flat
     gl.useProgram(pr.p)
     gl.uniform1i(pr.u.uTex!, 0)
+    /* Every blur pass writes into a buffer, so every one of them is drawn the
+     * buffer's way up. Two passes used to cancel each other out and arrive at
+     * the right answer by luck; this arrives at it on purpose. */
+    if (pr.u.uFlip) gl.uniform1f(pr.u.uFlip, -1)
     gl.activeTexture(gl.TEXTURE0)
 
     const passes = Math.max(1, Math.min(4, Math.round(radius / ds / 4)))
@@ -634,6 +638,9 @@ export class Renderer {
     if (pr.u.uBlurScale) gl.uniform2f(pr.u.uBlurScale, bl.sx, bl.sy)
     if (pr.u.uBlurOff) gl.uniform2f(pr.u.uBlurOff, bl.ox, bl.oy)
 
+    /* Onto the canvas, or into a buffer for the next pass — and the two are
+     * not the same way up. See VERT. */
+    if (pr.u.uFlip) gl.uniform1f(pr.u.uFlip, into ? -1 : 1)
     gl.bindFramebuffer(gl.FRAMEBUFFER, into ? into.fb : null)
     gl.viewport(0, 0, w, h)
     gl.activeTexture(gl.TEXTURE0)

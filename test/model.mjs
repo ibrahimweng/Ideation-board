@@ -57,6 +57,19 @@ await page.evaluate(() => {
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1500)
 
+/* What one material is wearing in one slot.
+ *
+ * Two shapes, because a board written before a material could wear anything
+ * but its colour kept one address per material and meant the colour by it.
+ * Both are read here for the same reason the app reads both: those boards
+ * exist and they still say what they always said. */
+const wornAt = (skins, material, slot = 'colour') => {
+  const v = skins?.[material]
+  if (!v) return null
+  if (typeof v === 'string') return slot === 'colour' ? v : null
+  return v[slot] || null
+}
+
 /* ---------- dropping one ---------- */
 
 const dropFile = (bytes, name, type, at = { x: 620, y: 430 }) =>
@@ -157,7 +170,11 @@ const saved = () =>
     const it = items.find((i) => i.kind === 'model')
     if (!it) return null
     const file = await read('blobs', it.media)
-    const wornKey = it.skins ? Object.values(it.skins)[0] : null
+    /* The first thing worn anywhere, whatever slot it is in. Written out
+       rather than shared with the helper above because this half runs inside
+       the page. */
+    const first = Object.values(it.skins || {})[0]
+    const wornKey = typeof first === 'string' ? first : first ? Object.values(first)[0] : null
     const worn = wornKey ? await read('blobs', wornKey) : null
     return {
       parts: it.parts,
@@ -322,7 +339,7 @@ await page.waitForTimeout(4000)
 
 const worn1 = await halves()
 const read1 = await saved()
-check('the model comes back wearing it', !!read1?.skins?.Shell, JSON.stringify(read1?.skins))
+check('the model comes back wearing it', !!wornAt(read1?.skins, 'Shell'), JSON.stringify(read1?.skins))
 check('on the material it was given to, and not the other one',
   worn1.left !== null && worn1.right !== null &&
   (Math.abs(worn1.left - worn0.left) > 40) !== (Math.abs(worn1.right - worn0.right) > 40),
@@ -422,7 +439,8 @@ const skin = () =>
       r.onerror = () => res([])
     })
     const it = all.flatMap((b) => b.items || []).find((i) => i.kind === 'model')
-    const key = it?.skins?.Shell
+    const v = it?.skins?.Shell
+    const key = typeof v === 'string' ? v : v?.colour
     if (!key) return null
     const blob = await get('blobs', key)
     if (!blob) return null
@@ -521,6 +539,111 @@ fs.writeFileSync(path.join(OUT, 'model-treated.png'), await page.screenshot())
 check('a material with no texture of its own is not offered it',
   (await page.locator('.part').nth(1).locator('button', { hasText: 'Treat' }).count()) === 0)
 
+/* ---------- worn as something other than colour ---------- */
+
+/* A glTF declares seven kinds of map and names them all on the card. The board
+   could write to exactly one: whatever you handed a material became its
+   colour, which is the right answer nine times in ten and the wrong one the
+   tenth. A scan of paper as roughness is a matte patch on a gloss shell; a
+   photograph as glow is a screen built into the object.
+
+   Glow is the one to measure, because it is the one that cannot be faked by
+   the colour slot: emissive light is added to the surface whatever the lamps
+   are doing, so the render gets brighter. Read off the render rather than off
+   the card, since the card carries its own effect and that is not what
+   changed. */
+
+const lit = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+    const get = (key) =>
+      new Promise((res) => {
+        const t = db.transaction('blobs', 'readonly')
+        const q = t.objectStore('blobs').get(key)
+        q.onsuccess = () => res(q.result)
+        q.onerror = () => res(null)
+      })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const q = t.objectStore('boards').getAll()
+      q.onsuccess = () => res(q.result || [])
+      q.onerror = () => res([])
+    })
+    const it = all.flatMap((b) => b.items || []).find((i) => i.kind === 'model')
+    if (!it?.poster) return null
+    const blob = await get(it.poster)
+    if (!blob) return null
+    const bmp = await createImageBitmap(blob)
+    const c = document.createElement('canvas')
+    c.width = 96
+    c.height = 96
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.clearRect(0, 0, 96, 96)
+    cx.drawImage(bmp, 0, 0, 96, 96)
+    bmp.close()
+    const d = cx.getImageData(0, 0, 96, 96).data
+    let sum = 0
+    let n = 0
+    for (let i = 0; i < d.length; i += 4) {
+      /* Only the object. The background is transparent and counting it would
+         move the answer whenever the object got smaller rather than brighter. */
+      if (d[i + 3] < 128) continue
+      sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+      n++
+    }
+    return n ? { lum: Math.round(sum / n), pixels: n } : null
+  })
+
+/* Off, so this starts from a model wearing nothing at all. */
+const off = page.locator('.part').first().locator('button', { hasText: 'Take off' })
+if (await off.count()) {
+  await off.click()
+  await page.waitForTimeout(3500)
+}
+const slots = await page.locator('.part').first().locator('.part-slot option').allInnerTexts()
+check('a material says what a card can be worn as, not only that it can be worn',
+  slots.length === 5 && /colour/i.test(slots[0]), slots.join(', '))
+
+const bare = await lit()
+await page.locator('.part').first().locator('.part-slot').selectOption('glow')
+await page.waitForTimeout(300)
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
+await page.waitForTimeout(4500)
+const glowing = await lit()
+check('a card worn as glow really reaches the renderer',
+  !!bare && !!glowing && glowing.lum > bare.lum + 10,
+  `${bare?.lum} then ${glowing?.lum}`)
+check('and the card records which slot it went in',
+  !!wornAt((await saved())?.skins, 'Shell', 'glow'), JSON.stringify((await saved())?.skins))
+check('and nothing landed in the colour slot',
+  !wornAt((await saved())?.skins, 'Shell', 'colour'), JSON.stringify((await saved())?.skins))
+
+fs.writeFileSync(path.join(OUT, 'model-glow.png'), await page.screenshot())
+
+/* One material, two pictures. The point of naming the slot is that they do not
+   have to replace each other. */
+await page.locator('.part').first().locator('.part-slot').selectOption('colour')
+await page.waitForTimeout(300)
+await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
+await page.waitForTimeout(4500)
+const two = (await saved())?.skins
+check('one material can wear two of them at once',
+  !!wornAt(two, 'Shell', 'glow') && !!wornAt(two, 'Shell', 'colour') &&
+    wornAt(two, 'Shell', 'glow') !== wornAt(two, 'Shell', 'colour'),
+  JSON.stringify(two))
+
+/* And taking one off takes that one off. */
+await page.locator('.part').first().locator('.part-slot').selectOption('glow')
+await page.waitForTimeout(300)
+await page.locator('.part').first().locator('button', { hasText: 'Take off' }).click()
+await page.waitForTimeout(3500)
+const one = (await saved())?.skins
+check('taking one off leaves the other on',
+  !wornAt(one, 'Shell', 'glow') && !!wornAt(one, 'Shell', 'colour'), JSON.stringify(one))
+/* Back on the slot everything below this expects. */
+await page.locator('.part').first().locator('.part-slot').selectOption('colour')
+await page.waitForTimeout(300)
+
 /* Back to a worn card for the trip out of the browser below. */
 await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
 await page.waitForTimeout(600)
@@ -583,8 +706,8 @@ const came = await saved()
 check('and comes back still wearing what it was given',
   !!came?.skins && Object.keys(came.skins).length === 1, JSON.stringify(came?.skins))
 check('with the picture itself, renamed like everything else in the file',
-  (came?.wornBytes || 0) > 0 && came.skins.Shell !== worn?.skins?.Shell,
-  `${came?.wornBytes} bytes, ${worn?.skins?.Shell} then ${came?.skins?.Shell}`)
+  (came?.wornBytes || 0) > 0 && wornAt(came.skins, 'Shell') !== wornAt(worn?.skins, 'Shell'),
+  `${came?.wornBytes} bytes, ${wornAt(worn?.skins, 'Shell')} then ${wornAt(came.skins, 'Shell')}`)
 
 /* Back to the board that was made here, for the last of the checks. */
 await page.evaluate(() => {

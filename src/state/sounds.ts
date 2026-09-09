@@ -105,7 +105,13 @@ export async function treatSound(id: string, chain?: SoundLayer[], record = true
 
     const still = store.getItem(id)
     if (!isSound(still)) return null
-    store.update(id, { heard: key, chain: given, peaks: peaksFrom(out), secs: out.duration }, record)
+    /* Written once and then left alone. This is the shape of the file the card
+     * was given, which is what the compare key draws — and computing it again
+     * on every render would be reading the whole track to arrive at the answer
+     * already on the card. A sound treated before this existed picks it up on
+     * its next render; one that was never treated has it in `peaks` already. */
+    const dry = still.dry ?? peaksFrom(src)
+    store.update(id, { heard: key, chain: given, peaks: peaksFrom(out), secs: out.duration, dry }, record)
     return null
   } catch (e) {
     return e instanceof Error ? e.message : 'that could not be rendered'

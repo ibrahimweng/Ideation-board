@@ -126,6 +126,8 @@ const plain = await fingerprint(plainShot)
 
 const flat = []
 const same = []
+const near = []
+const tight = []
 const unchanged = []
 const seen = []
 
@@ -140,13 +142,35 @@ for (const name of names) {
   if (name !== 'Original' && dist(fp, plain) < 3) unchanged.push(name)
   for (const prev of seen) {
     if (prev.name === 'Original' || name === 'Original') continue
-    if (dist(fp, prev.fp) < 2) same.push(`${name}=${prev.name}`)
+    const d = dist(fp, prev.fp)
+    if (d < 2) same.push(`${name}=${prev.name}`)
+    /* One step further out than identical, and no further.
+       
+       Two effects that differ by a hair pass this on one machine and fail on
+       the next: Parallax and Displace — a shift by brightness at forty-four
+       pixels and one at forty-five — sat at exactly two here and were called
+       identical on the runner. So two is the number to refuse.
+       
+       Not three. Ripple and Concentric land there, and they are a water
+       displacement and a polar pixelation: different effects that a twelve by
+       eight fingerprint cannot tell apart, which is a limit of the measure
+       rather than a fault in the list. A margin wide enough to catch them is a
+       margin that fails on effects nobody should have to change. */
+    else if (d < 3) near.push(`${name}~${prev.name} (${d})`)
+    /* And the closest few either way, said out loud whether or not anything
+       failed. A pair drifting towards each other on a machine nobody here runs
+       is the thing that gets found out on a runner, and printing the margin
+       every time is how it gets found out before that. */
+    tight.push({ pair: `${name}~${prev.name}`, d })
   }
   seen.push({ name, fp })
 }
 
 check('every effect paints something of its own', unchanged.length === 0, unchanged.join(', ') || 'none unchanged')
 check('no two effects paint the same picture', same.length === 0, same.join(', ') || 'all distinct')
+check('and none of them is one step away from another', near.length === 0,
+  near.join(', ') ||
+    'closest: ' + tight.sort((a, b) => a.d - b.d).slice(0, 3).map((t) => `${t.pair} (${t.d})`).join(', '))
 check('none of them paints a flat colour', flat.length === 0, flat.join(', ') || 'all have detail')
 
 /* ---------- the one that used to give up in the shadows ---------- */

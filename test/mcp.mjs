@@ -145,7 +145,9 @@ relay.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initia
 
 const list = await rpc('tools/list')
 const names = (list.result?.tools || []).map((t) => t.name)
-ok('and offers the board as tools', names.length === 11 && names.includes('get_board') && names.includes('draw_image'), names.join(', '))
+ok('and offers the board as tools',
+   names.length === 12 && names.includes('get_board') && names.includes('draw_image') && names.includes('make_versions'),
+   names.join(', '))
 ok('every tool says what its arguments are',
    (list.result?.tools || []).every((t) => t.inputSchema?.type === 'object' && t.description?.length > 40))
 
@@ -285,6 +287,126 @@ r = await call('draw_image', { prompt: 'x', from: ['i_nosuchcard'] })
 ok('and a card that is not there is said plainly rather than quietly ignored',
    r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 
+/* ---------- code that draws, rather than a drawing ---------- */
+
+/* The other way to put a picture here spends the person's money and takes ten
+   seconds. A sketch costs nothing, arrives at once, and is a way of making a
+   hundred pictures rather than one — the person can throw it again on a key and
+   get twelve of it on another. So the useful thing to hand an agent is not a
+   picture but the code for one.
+
+   Checked by reading the pixels, because "a card appeared" and "the code ran"
+   are different claims and only the second one is the feature. */
+
+const paint = (id, hex) =>
+  `ctx.fillStyle = '${hex}'\nctx.fillRect(0, 0, w, h)\n/* ${id} */`
+
+const inkOf = (kind) =>
+  page.evaluate((kind) => {
+    const el = document.querySelector(`.card[data-kind="${kind}"] img.media, .card[data-kind="${kind}"] canvas.media`)
+    if (!el) return null
+    const c = document.createElement('canvas')
+    c.width = 32
+    c.height = 32
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(el, 0, 0, 32, 32)
+    const d = cx.getImageData(8, 8, 16, 16).data
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++ }
+    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) }
+  }, kind)
+
+r = await call('add_card', { kind: 'sketch', text: 'Field', code: paint('one', '#1030c0'), x: 1200, y: 200 })
+await page.waitForTimeout(2500)
+const sketchId = r.json?.id
+ok('Claude can put code on the board and it says whether the code ran',
+   !r.isError && r.json?.kind === 'sketch' && r.json?.drew === true, r.text.slice(0, 140))
+ok('and the card is named what it was called', r.json?.name === 'Field', r.json?.name)
+const blue = await inkOf('sketch')
+ok('and the picture on the card is what the code drew',
+   !!blue && blue.b > 120 && blue.b > blue.r + 60, JSON.stringify(blue))
+
+/* Written blind, code comes back wrong. The error is worth more than the card
+   at that point, so it goes in the answer rather than being left on screen for
+   somebody who is not looking. */
+r = await call('add_card', { kind: 'sketch', code: 'nothingAtAll()', x: 1200, y: 700 })
+await page.waitForTimeout(2500)
+ok('code that does not run comes back saying so, rather than as a blank card',
+   !r.isError && r.json?.drew === false && /nothingAtAll|not defined/i.test(String(r.json?.trouble || '')),
+   JSON.stringify(r.json?.trouble))
+
+/* And the fix goes back the same way, which is what makes it a loop. */
+r = await call('update_card', { id: sketchId, code: paint('two', '#c03010') })
+await page.waitForTimeout(2500)
+ok('and the fix can be sent to the same card', !r.isError && r.json?.drew === true, r.text.slice(0, 120))
+const red = await inkOf('sketch')
+ok('which redraws it', !!red && red.r > 120 && red.r > red.b + 60, JSON.stringify(red))
+
+r = await call('add_card', { kind: 'sketch', x: 0, y: 0 })
+ok('a sketch with no code is refused, and says what a sketch is handed',
+   r.isError && /ctx, w, h, rand, img, seed/.test(r.text), r.text.slice(0, 100))
+r = await call('update_card', { id: noteId, code: 'ctx.fillRect(0,0,w,h)' })
+ok('and code on a card that is not a sketch is refused',
+   r.isError && /only a sketch/i.test(r.text), r.text.slice(0, 80))
+
+/* ---------- twelve of it ---------- */
+
+/* Everything else here adds a card or moves one. This is the verb that makes
+   alternatives to choose between, which is what the board is for, and it was
+   the one gesture an agent could not reach.
+
+   Checked on the sketch, because a sketch varies by its throw: twelve cards
+   that are twelve different drawings, which is a claim about the pictures
+   rather than about the count. */
+
+r = await call('make_versions', { ids: [sketchId] })
+await page.waitForTimeout(3000)
+ok('Claude can ask for twelve versions of a card',
+   !r.isError && r.json?.made === 12 && r.json?.cards?.length === 12,
+   r.text.slice(0, 100))
+ok('and is told which dice were thrown, because it did not choose them',
+   r.json?.dice === 'sketch', String(r.json?.dice))
+const twelve = (r.json?.cards || []).map((c) => c.id)
+ok('and gets the cards back rather than only a number',
+   twelve.length === 12 && twelve.every((id) => typeof id === 'string' && id !== sketchId))
+
+/* Twelve drawings, not one drawing twelve times. Read off the board, because
+   the count is the easy half. */
+const drawn = await page.evaluate(async (ids) => {
+  const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+  const all = await new Promise((res) => {
+    const t = db.transaction('boards', 'readonly')
+    const q = t.objectStore('boards').getAll()
+    q.onsuccess = () => res(q.result || [])
+    q.onerror = () => res([])
+  })
+  const by = new Map(all.flatMap((b) => b.items || []).map((i) => [i.id, i]))
+  const mine = ids.map((id) => by.get(id)).filter(Boolean)
+  return {
+    rolls: new Set(mine.map((i) => i.roll)).size,
+    drew: mine.filter((i) => i.poster).length,
+    code: new Set(mine.map((i) => i.code)).size,
+  }
+}, twelve)
+ok('twelve different throws of the same code', drawn.rolls === 12 && drawn.code === 1,
+   `${drawn.rolls} throws, ${drawn.code} program`)
+ok('and every one of them was really drawn', drawn.drew === 12, `${drawn.drew} of 12`)
+
+/* The other way of throwing: no new cards, the ones you name change. */
+const roomBefore = (await cards()).length
+r = await call('make_versions', { ids: [sketchId], how: 'in place' })
+await page.waitForTimeout(2500)
+ok('and can throw the same dice without making anything',
+   !r.isError && (await cards()).length === roomBefore, r.text.slice(0, 90))
+
+/* Nothing made is not a quiet no: the message says which of several reasons,
+   and an agent that reads it can do the thing it says. */
+r = await call('make_versions', { ids: [noteId] })
+ok('a card with no versions says so, in words that name what does',
+   r.isError && /picture|sound|sketch|model|vary/i.test(r.text), r.text.slice(0, 100))
+r = await call('make_versions', { ids: ['i_nosuchcard'] })
+ok('and a card that is not there is said plainly', r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
+
 /* ---------- arranging and looking ---------- */
 r = await call('arrange', { how: 'tidy' })
 await page.waitForTimeout(600)
@@ -303,7 +425,7 @@ r = await call('move_card', { id: 'i_nosuchcard', x: 0, y: 0 })
 ok('a card that is not there is said plainly, not guessed at',
    r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 r = await call('add_card', { kind: 'sculpture' })
-ok('and so is a kind of card that does not exist', r.isError && /note, label, section or link/.test(r.text), r.text.slice(0, 80))
+ok('and so is a kind of card that does not exist', r.isError && /note, label, section, link or sketch/.test(r.text), r.text.slice(0, 80))
 
 /* ---------- deleting is one step of undo ---------- */
 const before = (await cards()).length

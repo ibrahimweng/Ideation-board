@@ -400,6 +400,60 @@ if (pressable) {
 ok('and pressing it again stops it',
    await reader.evaluate(() => document.querySelector('#world .audio audio')?.paused === true))
 
+/* A page is read by whoever it was sent to, and the one control on it that
+   does something should not be the one thing on it a keyboard cannot work. The
+   board's own waveform is a slider with arrow keys; this is the same waveform.
+*/
+const wave = snd.locator('.sndwave')
+/* Put back to a known state first. Everything above played and scrubbed this
+   track, and a check that reads a position it did not set is a check that
+   passes on what the last one left behind. */
+const rewind = () =>
+  reader.evaluate(() => {
+    const a = document.querySelector('#world .audio audio')
+    a.pause()
+    a.currentTime = 0
+  })
+const now = () => reader.evaluate(() => document.querySelector('#world .audio audio').currentTime)
+const onWave = () => reader.evaluate(() => document.activeElement?.classList.contains('sndwave') === true)
+
+ok('the waveform says what it is to a reader who cannot see it',
+   (await wave.getAttribute('role')) === 'slider' && !!(await wave.getAttribute('aria-valuetext')),
+   `${await wave.getAttribute('role')}, ${await wave.getAttribute('aria-valuetext')}`)
+
+await rewind()
+await wave.focus()
+ok('and it can be reached with the keyboard', await onWave())
+
+const said = await wave.getAttribute('aria-valuetext')
+await reader.keyboard.press('ArrowRight')
+await reader.waitForTimeout(300)
+const walked = await now()
+ok('the arrow keys move through the track, from wherever it was',
+   (await onWave()) && walked > 0.4, `0s then ${walked.toFixed(2)}s`)
+ok('and the value it reports moves with it',
+   (await wave.getAttribute('aria-valuetext')) !== said,
+   `${said} then ${await wave.getAttribute('aria-valuetext')}`)
+
+/* Put somewhere in the middle by hand, so this asks about Home rather than
+   about whether the arrow above worked. */
+await reader.evaluate(() => { document.querySelector('#world .audio audio').currentTime = 1.2 })
+await reader.keyboard.press('Home')
+await reader.waitForTimeout(200)
+ok('and Home goes back to the start', (await now()) === 0, `1.2s then ${(await now()).toFixed(2)}s`)
+
+/* Paused, at the start, with the waveform holding the keyboard — so a page
+   where the waveform is not a control cannot pass this by leaving the focus on
+   the play button. */
+await rewind()
+await wave.focus()
+await reader.keyboard.press(' ')
+await reader.waitForTimeout(400)
+ok('and space plays it from there',
+   (await onWave()) && (await reader.evaluate(() => !document.querySelector('#world .audio audio').paused)))
+await reader.keyboard.press(' ')
+await reader.waitForTimeout(300)
+
 
 
 /* ---------- the effect came with it ---------- */

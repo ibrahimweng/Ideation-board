@@ -42,7 +42,12 @@ export interface Item {
    * without parsing the model again. */
   parts?: { name: string; maps: string[]; uv: number[]; tint: string }[]
   /* Material name -> the media key of a card being worn as its colour map. */
-  skins?: Record<string, string>
+  /* What each material is wearing: material name, then the slot, then the
+   * address of the picture. A plain address where the slot should be is a
+   * board written before a material could wear anything but its colour, and
+   * means exactly that — see state/skins.ts, which is the only place that
+   * reads either shape. */
+  skins?: Record<string, string | Record<string, string>>
   /* A sound card's chain of effects, and what came out of running it. `media`
    * is always the file that was dropped and is never written over, so taking
    * the chain off is the card pointing back at what it always had rather than
@@ -102,8 +107,21 @@ export interface Item {
    *
    * The cover inside the file, where it has one, is a real picture and is kept
    * under `poster` like any other still. */
+  /* The picture a depth map was made from. On the map, not on the picture:
+   * one picture can have several maps and they are ordinary cards, so what
+   * makes one a depth map is that it remembers what it is of — which is also
+   * what lets it be made again, better, by something that has seen a few
+   * million photographs. */
+  depthOf?: string
   peaks?: number[]
   secs?: number
+  /* The shape of the file that was dropped, kept for the compare key.
+   *
+   * `peaks` follows the treatment — that is the point of it, a gate that chops
+   * a track to pieces has to look chopped from across the room. Which leaves
+   * nothing to draw when somebody asks what it looked like before, so the
+   * untreated shape is kept beside it and never written over. */
+  dry?: number[]
 }
 
 export interface Board {
