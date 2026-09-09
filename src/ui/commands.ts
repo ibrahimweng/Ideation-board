@@ -45,6 +45,7 @@ export interface CommandActions {
   exportModels: (ids: string[]) => void
   exportSounds: (ids: string[]) => void
   pullColours: (ids: string[]) => void
+  depthOf: (ids: string[]) => void
   keepInFolder: () => void
   copyToFolder: () => void
   forgetFolder: () => void
@@ -215,6 +216,13 @@ export function buildCommands(a: CommandActions): Command[] {
       keywords: 'random chance surprise mosh roll dice try anything different sound audio sketch model angle',
     }),
     cmd('add.colours', 'Pull the colours out of the picture', 'Add', () => a.pullColours(sel()), { disabled: !a.selection.some((id) => hasPixels(store.getItem(id))), keywords: 'palette swatch colour color hex sample' }),
+    /* The map, as a card. Everything that reads one is already here — Displace
+       has read the wired card's brightness since wires meant anything — and
+       what was missing was the picture worth reading. */
+    cmd('add.depth', 'Make a depth map of the picture', 'Add', () => a.depthOf(sel()), {
+      disabled: !a.selection.some((id) => hasPixels(store.getItem(id))),
+      keywords: 'depth distance 3d z parallax displace fog relight bokeh depth of field far near',
+    }),
     cmd('view.present', `Present ${what}`, 'View', () => a.setPresenting(true), { hint: KEYS.present.hint, keywords: 'slideshow full screen show demo' }),
     /* The deciding itself. The show puts one thing on screen at a time, and
        when you are choosing the question is what the other one looked like. */

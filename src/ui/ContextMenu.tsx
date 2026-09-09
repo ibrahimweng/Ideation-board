@@ -45,12 +45,13 @@ interface Props {
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
   onPullColours: (ids: string[]) => void
+  onDepth: (ids: string[]) => void
   onGather: () => void
   onTakeAway: () => void
   canvas: CanvasActions
 }
 
-export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onPullColours, onGather, onTakeAway, canvas }: Props) {
+export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onPullColours, onDepth, onGather, onTakeAway, canvas }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ x: menu.x, y: menu.y })
   /* Held in a ref so the listeners below can attach once and stay attached.
@@ -162,6 +163,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
             clip={clip}
             onExportPictures={onExportPictures}
             onPullColours={onPullColours}
+            onDepth={onDepth}
             onGather={onGather}
             onTakeAway={onTakeAway}
             run={run}
@@ -209,7 +211,7 @@ function CanvasMenu({
 
 function CardMenu({
   ids, first, many, anySection, anyInSection, currentTag, currentPick, movable, pictures, targets, graded, clip,
-  run, onOpenEditor, onExportPictures, onPullColours, onGather, onTakeAway,
+  run, onOpenEditor, onExportPictures, onPullColours, onDepth, onGather, onTakeAway,
 }: {
   ids: string[]
   first: Item
@@ -227,6 +229,7 @@ function CardMenu({
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
   onPullColours: (ids: string[]) => void
+  onDepth: (ids: string[]) => void
   onGather: () => void
   onTakeAway: () => void
 }) {
@@ -264,6 +267,9 @@ function CardMenu({
           {/* Half of what a moodboard is about is colour, and until now the
               colour was locked inside the photographs. */}
           <button onClick={run(() => onPullColours(pictures))}>Pull the colours out</button>
+          {/* And the other thing locked inside a photograph: how far away
+              everything in it is. */}
+          <button onClick={run(() => onDepth(pictures))}>Make a depth map</button>
           <button onClick={run(() => onExportPictures(pictures))}>
             {pictures.length > 1 ? `Export ${pictures.length} as PNG` : 'Export as PNG'} <em>⌘E</em>
           </button>

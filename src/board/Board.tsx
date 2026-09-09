@@ -44,6 +44,7 @@ interface Props {
   onOpenEditor: (id: string, mode?: 'open' | 'edit') => void
   onExportPictures: (ids: string[]) => void
   onPullColours: (ids: string[]) => void
+  onDepth: (ids: string[]) => void
   /* The two that move cards around rather than change them: gathering a
      selection into a place of its own, and taking it off this board to put on
      another. Both belong to the app, which knows where the boards are. */
@@ -54,7 +55,7 @@ interface Props {
 
 const SNAP = 8
 
-export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExportPictures, onPullColours, canvasActions }: Props) {
+export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExportPictures, onPullColours, onDepth, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
   const query = useQuery()
@@ -664,6 +665,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
           onOpenEditor={onOpenEditor}
           onExportPictures={onExportPictures}
           onPullColours={onPullColours}
+          onDepth={onDepth}
           onGather={onGather}
           onTakeAway={onTakeAway}
           canvas={canvasActions}

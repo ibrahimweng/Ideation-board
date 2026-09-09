@@ -167,6 +167,23 @@ function parts(): Part[] {
             because a card has to look the same next time you open it.
           </p>
           <p>
+            <strong>Make a depth map of the picture</strong>, in the command list or the right-click
+            menu, guesses how far away everything in a photograph is and puts the answer on the
+            board as a card of its own. It is a guess, from the three things a person reads before
+            they have thought about it — what carries fine detail is near, what is washed out and
+            pale is far, and the bottom of the frame is usually the floor. It costs nothing and
+            arrives at once, and because it is a card you can look at it, correct it with any
+            effect on the list, or draw one yourself and use that instead.
+          </p>
+          <p>
+            The map is wired into the picture it came from, which is how four effects read it.{' '}
+            <strong>Parallax</strong> moves the near things and holds the far ones,{' '}
+            <strong>Depth of field</strong> keeps one plane sharp and softens either side of it,{' '}
+            <strong>Fog</strong> pushes air into the distance, and <strong>Relight</strong> reads
+            the map as a surface and lights the picture from somewhere it never was. One map can
+            drive as many pictures as you wire it into.
+          </p>
+          <p>
             Three effects read <em>two</em> pictures — <strong>Displace</strong>,{' '}
             <strong>Stencil</strong> and <strong>Through</strong>. Drag a line from one card to
             another and the card at the start of the line is the second picture: a texture pushed

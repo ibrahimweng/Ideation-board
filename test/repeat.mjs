@@ -112,6 +112,47 @@ await page.waitForTimeout(2600)
 const once = await seen()
 check('the effect draws something', !!once && once.length > 40)
 
+/* Which way up it came out.
+ *
+ * A pass that draws into a buffer for the next one to read is not the same way
+ * up as a pass that draws onto the canvas, and for a long time nothing here
+ * said so: one effect looked right because it goes straight to the canvas, the
+ * blur looked right because it is two passes and they cancel, and a card with
+ * a second pass on it came out upside down. It hid in a suite that asked only
+ * whether the picture had changed — a flip changes it, so every check passed.
+ *
+ * The fixture is a pale rectangle up at the left and a dark red circle down at
+ * the right, so the top half and the bottom half are nothing like each other
+ * and the sign of the difference is the whole answer. */
+const halves = () =>
+  page.evaluate((cid) => {
+    const el = document.querySelector(`.card[data-id="${cid}"] canvas.media, .card[data-id="${cid}"] img.media`)
+    if (!el) return null
+    const c = document.createElement('canvas')
+    c.width = 32
+    c.height = 32
+    const x = c.getContext('2d', { willReadFrequently: true })
+    x.drawImage(el, 0, 0, 32, 32)
+    const d = x.getImageData(0, 0, 32, 32).data
+    const band = (from, to) => {
+      let sum = 0
+      let n = 0
+      for (let y = from; y < to; y++) {
+        for (let xx = 0; xx < 32; xx++) {
+          const i = (y * 32 + xx) * 4
+          sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+          n++
+        }
+      }
+      return sum / n
+    }
+    return { top: Math.round(band(0, 13)), bottom: Math.round(band(19, 32)) }
+  }, id)
+
+const up1 = await halves()
+check('and the pale half is the top one, as it is in the picture',
+  !!up1 && up1.top > up1.bottom, `${up1?.top} at the top, ${up1?.bottom} at the bottom`)
+
 const counter = page.locator('.fx-layer-n').first()
 check('the layer says how many times it runs', (await counter.innerText()).trim() === '×1',
   await counter.innerText())
@@ -125,6 +166,9 @@ await page.waitForTimeout(2600)
 const twice = await seen()
 check('running it twice says so', (await counter.innerText()).trim() === '×2', await counter.innerText())
 check('and draws something else', apart(once, twice) > 6, `${apart(once, twice)} of 96 cells differ`)
+const up2 = await halves()
+check('and comes out the same way up as one pass did',
+  !!up2 && up2.top > up2.bottom, `${up2?.top} at the top, ${up2?.bottom} at the bottom`)
 
 await counter.click()
 await page.waitForTimeout(2600)

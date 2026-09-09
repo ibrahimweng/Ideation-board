@@ -173,7 +173,11 @@ export const EFFECTS: EffectSpec[] = [
   },
 
   {
-    id: 'depth', name: 'Depth map', group: 'Map', blurKey: 'p0',
+    /* Called "Depth map" until this board could make a real one. It never was:
+     * it blurs the picture, takes its brightness and paints that through a
+     * palette, which is a false-colour map of light and not of distance. The
+     * id stays what it was, because every board ever saved says it. */
+    id: 'depth', name: 'Elevation', group: 'Map', blurKey: 'p0',
     controls: [N('p0', 'Falloff', 0, 90, 1, 34), N('p1', 'Contrast', -0.5, 3, 0.05, 0.9),
       E('p2', 'Palette', 2, PALS), N('p3', 'Bands', 0, 12, 1, 0), E('p4', 'Read', 0, ['Light = near', 'Dark = near'])],
     frag: `vec4 fx(vec2 uv){
@@ -182,6 +186,71 @@ export const EFFECTS: EffectSpec[] = [
       v = clamp((v-0.5)*(1.0+p1)+0.5, 0.0, 1.0);
       if(p3>1.5) v = floor(v*p3)/max(1.0,p3-1.0);
       return vec4(pal(int(p2+0.5), clamp(v,0.0,1.0)),1.0); }`
+  },
+  {
+    /* ---------------------------------------------------------------------
+     * Distance, guessed from one photograph.
+     *
+     * A single picture does not contain its own depth, and nothing here
+     * pretends otherwise. What it contains is the evidence a person uses
+     * before they have thought about it, and those cues are arithmetic:
+     *
+     *   - Detail. A lens has one focal plane and air has none, so what is
+     *     near carries fine texture and what is far does not. This is the
+     *     strongest cue in a photograph and the one that survives most
+     *     subjects. Measured over a neighbourhood rather than at a point,
+     *     because a single sharp difference is an edge and a field of them
+     *     is a surface — an outline map is the classic wrong answer here.
+     *
+     *   - Haze. Air between you and a thing washes out its colour and lifts
+     *     it towards the sky. Pale and flat reads as far, which is why a
+     *     mountain range is drawn in five greys.
+     *
+     *   - Ground. Photographs are taken standing up, so the bottom of the
+     *     frame is usually the floor at your feet and the middle is the
+     *     horizon. A weak prior, and weighted like one.
+     *
+     * Two things it is not. It is not a measurement, so a dark near thing
+     * against a bright far one will read wrong and no amount of weighting
+     * fixes it. And it is not the only answer this board has: the panel can
+     * hand the same picture to a real depth model, which sees what these
+     * three cues only imply. This one costs nothing and is instant, which is
+     * why it is the one that runs first.
+     * ------------------------------------------------------------------- */
+    id: 'depthfrom', name: 'Depth map', group: 'Map', blurKey: 'p0',
+    controls: [N('p0', 'Detail radius', 2, 90, 1, 24), N('p1', 'Detail', 0, 1, 0.01, 0.6),
+      N('p2', 'Haze', 0, 1, 0.01, 0.5), N('p3', 'Ground', 0, 1, 0.01, 0.3),
+      N('p4', 'Contrast', 0, 3, 0.05, 1), E('p5', 'Near is', 0, ['White', 'Black'])],
+    frag: `vec4 fx(vec2 uv){
+      vec3 bc = B(uv).rgb;
+      float lb = luma(bc);
+
+      /* Nine taps of high-frequency energy over a small disc. One difference
+         is an edge; a neighbourhood of them is a textured surface. */
+      float e = 0.0;
+      vec2 r = (2.0 + p0 * 0.35) / uRes;
+      for(int i = -1; i <= 1; i++){
+        for(int j = -1; j <= 1; j++){
+          vec2 o = vec2(float(i), float(j)) * r;
+          e += abs(luma(T(uv + o).rgb) - luma(B(uv + o).rgb));
+        }
+      }
+      float detail = clamp(e * 2.4, 0.0, 1.0);
+
+      /* Washed out and lifted towards the sky: the signature of air. */
+      float mx = max(bc.r, max(bc.g, bc.b));
+      float mn = min(bc.r, min(bc.g, bc.b));
+      float sat = mx > 0.001 ? (mx - mn) / mx : 0.0;
+      float far = clamp(lb * 0.55 + (1.0 - sat) * 0.45, 0.0, 1.0);
+
+      /* uv.y is 0 at the top of the card, so the floor is 1. */
+      float w = p1 + p2 + p3;
+      float v = w > 0.001
+        ? (detail * p1 + (1.0 - far) * p2 + uv.y * p3) / w
+        : 0.5;
+      v = clamp((v - 0.5) * (1.0 + p4) + 0.5, 0.0, 1.0);
+      if(p5 > 0.5) v = 1.0 - v;
+      return vec4(vec3(v), 1.0); }`
   },
   {
     id: 'thermal', name: 'Thermal', group: 'Map', blurKey: 'p0',
@@ -694,6 +763,118 @@ export const EFFECTS: EffectSpec[] = [
       else d = vec2(cos(radians(p2)), sin(radians(p2))) * (luma(map.rgb) - 0.5);
       vec2 push = d * p0 * 2.0 / uRes;
       return vec4(mix(T(uv).rgb, T(mirror(uv + push)).rgb, p5), 1.0); }`
+  },
+
+  /* -----------------------------------------------------------------------
+   * The four that read a depth map.
+   *
+   * Every one of them takes the wired card as distance rather than as a
+   * picture, which is the whole reason a depth map is a card here and not a
+   * hidden buffer: it can be made from a photograph, corrected by hand with
+   * any effect on the list, drawn from scratch as a sketch, or brought in
+   * from somewhere else, and all four of these read it the same way.
+   *
+   * They share three controls on purpose. `Map scale` because a map made at
+   * one size has to line up with a picture at another, `Near is` because half
+   * the world writes near as white and half as black, and `Amount` because
+   * every one of them is worth having at less than full strength.
+   * --------------------------------------------------------------------- */
+  {
+    id: 'parallax', name: 'Parallax', group: 'Pair',
+    controls: [N('p0', 'Shift', 0, 200, 1, 44, 'px'), N('p1', 'Focus', 0, 1, 0.01, 0.5),
+      N('p2', 'Direction', -180, 180, 1, 0, '°'), N('p3', 'Map scale', 0.25, 4, 0.01, 1),
+      E('p4', 'Near is', 0, ['White', 'Black']), N('p5', 'Amount', 0, 1, 0.01, 1)],
+    /* A flat photograph moved as though it had layers: what is near travels
+     * and what is far holds still, which is the cue the eye reads as space
+     * before it reads anything else.
+     *
+     * Walked three times rather than shifted once. A single step samples the
+     * map where the pixel ends up rather than where it came from, which
+     * smears every edge in the direction of travel; three passes settle on
+     * the place the depth actually agrees with, and cost three lookups. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 dir = vec2(cos(radians(p2)), sin(radians(p2))) * p0 * 2.0 / uRes;
+      vec2 p = uv;
+      for(int i = 0; i < 3; i++){
+        vec2 m = (p - 0.5) / max(0.05, p3) + 0.5;
+        float d = luma(S(mirror(m)).rgb);
+        if(p4 > 0.5) d = 1.0 - d;
+        p = uv + dir * (d - p1);
+      }
+      return vec4(mix(T(uv).rgb, T(mirror(p)).rgb, p5), 1.0); }`
+  },
+
+  {
+    id: 'dof', name: 'Depth of field', group: 'Pair', blurKey: 'p0',
+    controls: [N('p0', 'Blur', 0, 90, 1, 42), N('p1', 'Focus', 0, 1, 0.01, 0.45),
+      N('p2', 'Falloff', 0.2, 6, 0.05, 2.2), N('p3', 'Map scale', 0.25, 4, 0.01, 1),
+      E('p4', 'Near is', 0, ['White', 'Black']), N('p5', 'Amount', 0, 1, 0.01, 1)],
+    /* A fast lens, after the fact. One plane stays sharp and everything on
+     * either side of it goes, which is the difference between a photograph of
+     * a thing and a photograph of a thing among other things.
+     *
+     * Both sides of the plane, not just behind it — a lens blurs what is too
+     * close as readily as what is too far, and a depth of field that only
+     * softened the background would be a background blur wearing the name. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = (uv - 0.5) / max(0.05, p3) + 0.5;
+      float d = luma(S(mirror(m)).rgb);
+      if(p4 > 0.5) d = 1.0 - d;
+      float k = clamp(abs(d - p1) * p2, 0.0, 1.0);
+      return vec4(mix(T(uv).rgb, mix(T(uv).rgb, B(uv).rgb, k), p5), 1.0); }`
+  },
+
+  {
+    id: 'fog', name: 'Fog', group: 'Pair',
+    controls: [N('p0', 'Map scale', 0.25, 4, 0.01, 1), N('p1', 'Starts at', 0, 1, 0.01, 0.25),
+      N('p2', 'Full at', 0, 1, 0.01, 0.95), N('p3', 'Density', 0, 1, 0.01, 0.8),
+      N('p4', 'Washes out', 0, 1, 0.01, 0.6), E('p5', 'Near is', 0, ['White', 'Black']),
+      C('c0', 'Air', '#C7D3DE')],
+    /* Atmospheric perspective as a control rather than an accident. Distance
+     * takes the colour out of a thing before it takes the thing away, so the
+     * wash happens first and the air comes in over it — a fog that only
+     * blended towards grey would flatten a red roof and a green field into
+     * the same grey at the same rate, which is not what air does. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 m = (uv - 0.5) / max(0.05, p0) + 0.5;
+      float d = luma(S(mirror(m)).rgb);
+      if(p5 > 0.5) d = 1.0 - d;
+      float t = smoothstep(min(p1, p2 - 0.001), max(p2, p1 + 0.001), 1.0 - d);
+      vec3 base = T(uv).rgb;
+      vec3 pale = mix(base, vec3(luma(base)), t * p4);
+      return vec4(mix(pale, c0, t * p3), 1.0); }`
+  },
+
+  {
+    id: 'relight', name: 'Relight', group: 'Pair',
+    controls: [N('p0', 'Relief', 0, 4, 0.05, 1.6), N('p1', 'Light from', -180, 180, 1, -45, '°'),
+      N('p2', 'Height', 0, 90, 1, 40, '°'), N('p3', 'Strength', 0, 2, 0.05, 1),
+      N('p4', 'Ambient', 0, 1, 0.01, 0.35), E('p5', 'Near is', 0, ['White', 'Black']),
+      C('c0', 'Light', '#FFF3E0')],
+    /* A depth map is a height field, and a height field has a surface. The
+     * slope at each point is the difference between its neighbours, which
+     * gives a normal, and a normal plus a direction gives light — so a
+     * photograph can be lit again from somewhere it never was.
+     *
+     * The most striking of the four on anything with a shape in it, and the
+     * most obviously wrong on anything without one, which is fair: it is
+     * showing you exactly what the map claims the surface is. */
+    frag: `vec4 fx(vec2 uv){
+      vec2 t = 1.5 / uRes;
+      float s = p5 > 0.5 ? -1.0 : 1.0;
+      float dl = luma(S(uv - vec2(t.x, 0.0)).rgb) * s;
+      float dr = luma(S(uv + vec2(t.x, 0.0)).rgb) * s;
+      float du = luma(S(uv - vec2(0.0, t.y)).rgb) * s;
+      float dd = luma(S(uv + vec2(0.0, t.y)).rgb) * s;
+      vec3 n = normalize(vec3((dl - dr) * p0 * 8.0, (du - dd) * p0 * 8.0, 1.0));
+      float a = radians(p1), e = radians(p2);
+      vec3 L = normalize(vec3(cos(a) * cos(e), sin(a) * cos(e), sin(e)));
+      float lam = clamp(dot(n, L), 0.0, 1.0);
+      vec3 base = T(uv).rgb;
+      vec3 lit = base * (p4 + lam * p3 * 1.6) * mix(vec3(1.0), c0, 0.8);
+      /* A glance off the surface where it faces the light squarely. */
+      float spec = pow(lam, 22.0) * p3 * 0.35;
+      return vec4(clamp(lit + spec, 0.0, 1.0), 1.0); }`
   },
 
   {

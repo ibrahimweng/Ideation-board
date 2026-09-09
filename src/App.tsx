@@ -39,6 +39,7 @@ import { notePath } from './mcp/tools'
 import { drawMany, picturesFrom } from './state/generate'
 import { diceFor, madeToOrder, shuffleAny, varyAny } from './state/varying'
 import { describeSweep, sweep } from './store/reclaim'
+import { canDepth, makeDepth } from './state/depth'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
 import { FIRST_BOARD, boardExists, boardFromUrl, listRoots, newRoot, pointTabAt, tabOrder, trailKey, urlForBoard } from './state/roots'
@@ -890,6 +891,27 @@ export default function App() {
     say(`${made.length} colours from ${from.name || 'the picture'}`)
   }, [say])
 
+  /* A depth map of a picture, as a picture.
+   *
+   * One card at a time on purpose. Every other "do this to the selection" here
+   * is a setting; this is a render and a new card and a wire, and twelve of
+   * them from one press would be a board nobody asked for. Twelve of one is
+   * what the vary key is for, and it works on this like anything else. */
+  const depthOf = useCallback(async (ids: string[]) => {
+    const from = ids.map((id) => store.getItem(id)).find(canDepth)
+    if (!from) {
+      say('Select a picture to make a depth map of it')
+      return
+    }
+    say('Reading the distances\u2026', 6000)
+    const why = await makeDepth(from.id)
+    if (why) {
+      say(why)
+      return
+    }
+    say('A depth map, wired into the picture. Try Parallax, Depth of field, Fog or Relight on it.', 5200)
+  }, [say])
+
   /* Pointing the board at a folder, and pushing a copy out to it. Both have to
      be reached from a click: a browser opens a folder picker only from one. */
   const keepInFolder = useCallback(async () => {
@@ -1142,6 +1164,7 @@ export default function App() {
         exportModels: (ids) => void exportSolids(ids),
         exportSounds: (ids) => void exportHeard(ids),
         pullColours: (ids) => void pullColours(ids),
+        depthOf: (ids) => void depthOf(ids),
         keepInFolder: () => void keepInFolder(),
         copyToFolder: () => void copyToFolder(),
         forgetFolder: () => void forgetFolder(),
@@ -1170,7 +1193,7 @@ export default function App() {
       }),
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
-      exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, keepInFolder, copyToFolder,
+      exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, depthOf, keepInFolder, copyToFolder,
       gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
@@ -1359,6 +1382,7 @@ export default function App() {
           onOpenEditor={openItem}
           onExportPictures={exportPictures}
           onPullColours={(ids) => void pullColours(ids)}
+          onDepth={(ids) => void depthOf(ids)}
         onGather={gather}
         onTakeAway={takeAway}
           canvasActions={canvasActions}
