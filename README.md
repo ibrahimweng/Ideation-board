@@ -16,7 +16,9 @@ Everything is stored in your own browser. There is no server and no account.
 
 ## Running it
 
-You need Node 18 or newer.
+You need Node 20.19 or newer, and on the 22 line 22.12 or newer — which is
+what the build tools ask for, and what `engines` in `package.json` will tell
+you if you are on something older. CI runs 22.
 
 ```bash
 npm install
