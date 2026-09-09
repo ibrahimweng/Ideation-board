@@ -1,4 +1,5 @@
 import { allBlobKeys, allBoards, delBlob, getBlob, writtenAt } from './idb'
+import { KEPT_BY_THE_APP } from './kept'
 import { skinKeys } from '../state/skins'
 import type { StoredBoard } from './idb'
 import type { Item } from '../state/types'
@@ -79,6 +80,20 @@ export function keysInUse(boards: StoredBoard[], live: Item[] = [], held: Item[]
   return out
 }
 
+/* Whether the sweep may let a file go.
+ *
+ * Two reasons it may not, and they are different in kind. A card points at it,
+ * which is what this file is about. Or the app itself holds it: the depth model
+ * was downloaded because somebody pressed a button and waited, and no card
+ * names it or ever could — under the rule above that makes it garbage, and it
+ * is not. Letting go of that one is a thing you ask for by name.
+ *
+ * Separate from `keysInUse` on purpose. That answers "which files do the cards
+ * use", which is a question about the boards; this answers "may this go", which
+ * is a question about the store. */
+export const collectable = (key: string, used: Set<string>): boolean =>
+  !used.has(key) && !KEPT_BY_THE_APP.includes(key)
+
 export interface Swept {
   /* How many files were let go, and what they came to. */
   files: number
@@ -107,7 +122,7 @@ export async function sweep(what: SweepWhat = {}): Promise<Swept> {
   let young = 0
 
   for (const key of keys) {
-    if (used.has(key)) continue
+    if (!collectable(key, used)) continue
     if (now - writtenAt(key) < GRACE_MS) {
       young++
       continue

@@ -1,5 +1,6 @@
 import type { InferenceSession, Tensor } from 'onnxruntime-common'
 import { delBlob, getBlob, putBlob } from '../store/idb'
+import { DEPTH_MODEL } from '../store/kept'
 
 /* ---------------------------------------------------------------------------
  * The other way of guessing.
@@ -41,11 +42,13 @@ const RUNTIME = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.mi
 const WEIGHTS =
   'https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_q8.onnx'
 
-/* Where the weights are kept once they have been fetched. In the blob store,
- * beside the pictures, because that is where this browser keeps large things
- * and because the sweep must never collect it — no card points at it, so it is
- * deliberately not given a media key. */
-const KEPT = 'model_depth_anything_v2_small_q8'
+/* Where the weights are kept once they have been fetched: in the blob store,
+ * beside the pictures, because that is where this browser keeps large things.
+ *
+ * No card points at it, which is exactly what the sweep calls garbage — so the
+ * key is named in store/kept.ts, which is the list the sweep reads before
+ * deciding what nothing uses any more. */
+const KEPT = DEPTH_MODEL
 
 /* What the model was trained at. A multiple of fourteen because the patches
  * are fourteen across, and the model refuses anything else. */
@@ -248,8 +251,13 @@ export async function modelDepth(src: ImageBitmap, w: number, h: number, say: Sa
 }
 
 /* For the person who wants the room back. The weights are the largest single
- * thing this app will ever put in a browser. */
-export async function forgetModel(): Promise<void> {
+ * thing this app will ever put in a browser, and the sweep will not take them
+ * — that is what makes asking by name the only way. Returns what was let go,
+ * so the answer can say. */
+export async function forgetModel(): Promise<number> {
   session = null
+  const blob = await getBlob(KEPT).catch(() => null)
+  const bytes = blob?.size || 0
   await delBlob(KEPT).catch(() => {})
+  return bytes
 }
