@@ -24,13 +24,31 @@ const secondOf = (key?: string) => {
 const post = (m: FromWorker, transfer?: Transferable[]) =>
   (self as unknown as Worker).postMessage(m, transfer || [])
 
+/* The context, on the worker's own global.
+ *
+ * The same reason the engine is on `window` as `__fx`: the render pipeline is
+ * worth being able to inspect from a console without a build flag, and the one
+ * WebGL context is the half of it that lives in here where nothing else can
+ * reach. It is also the only handle a test has for taking the context away on
+ * purpose — the platform provides WEBGL_lose_context for exactly that, and
+ * without a reference there is nothing to call it on. */
+const expose = (r: Renderer | null) => {
+  ;(self as unknown as { __gl?: unknown }).__gl = r ? r.context() : null
+}
+
 function boot() {
   if (renderer) return renderer
   try {
     renderer = new Renderer(new OffscreenCanvas(256, 256))
+    /* Thrown away rather than repaired. Every program, texture and buffer it
+     * held died with the context, so there is nothing to keep — and the next
+     * message boots another, which re-uploads from `sources` on demand. That
+     * is the same path a cold start takes, and it is a path that works. */
+    if (renderer) renderer.onLost = () => { renderer = null; expose(null) }
   } catch {
     renderer = null
   }
+  expose(renderer)
   post({ t: 'ready', ok: !!renderer?.ok })
   return renderer
 }

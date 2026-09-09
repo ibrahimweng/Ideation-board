@@ -92,7 +92,18 @@ export default defineConfig({
     target: 'es2022',
     rollupOptions: {
       output: {
-        manualChunks: { react: ['react', 'react-dom'] },
+        /* React in a chunk of its own, so the part of the bundle that changes
+         * every commit and the part that changes twice a year are cached
+         * separately.
+         *
+         * Written as a function rather than as `{ react: [...] }`, which is
+         * what it was: the bundler underneath takes a function now, and the
+         * object form it used to take is gone. Matching on the path rather
+         * than the name so that everything React drags in — the scheduler, the
+         * DOM half — lands in the same chunk instead of being scattered back
+         * into the app's. */
+        manualChunks: (id) =>
+          /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id) ? 'react' : undefined,
       },
     },
   },
