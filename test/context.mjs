@@ -12,13 +12,20 @@
  * looking exactly like a board that works, while nothing it is asked for
  * happens, until somebody reloads the page.
  *
- * The context lives in the worker and is not on any global, so it is caught on
- * the way out of getContext, hooked the moment the worker appears. That is a
- * race — the renderer is built on the worker's first message — so the setup
- * retries rather than hoping. Losing it afterwards is done with the extension
- * the platform provides for exactly this, WEBGL_lose_context, which is a real
- * loss and not a simulated one: the context is gone, and the app is not told
- * which of the several ways it went.
+ * The context lives in the worker, which puts it on its own global for the
+ * same reason the engine is on the window: a pipeline you cannot look at is a
+ * pipeline you cannot debug. Losing it is done with the extension the platform
+ * provides for exactly this, WEBGL_lose_context, which is a real loss and not
+ * a simulated one: the context is gone, and the app is not told which of the
+ * several ways it went.
+ *
+ * This first tried to catch the context on its way out of getContext, hooked
+ * when the worker appeared. That is a race against the worker's first message
+ * and it lost every time on a CI machine — and the shape of the failure is the
+ * part worth keeping in mind: with nothing caught, nothing was ever lost, so
+ * the checks below went on passing about a board that had never been hurt.
+ * Two setup lines failed and eight substantive ones passed vacuously. A
+ * premise that cannot be established now stops the suite instead.
  *
  * The whole claim is the last check: after the loss, asking for a different
  * effect has to paint a different picture. Nothing else in the app is allowed
@@ -43,22 +50,6 @@ const page = await browser.newPage({ viewport: { width: 1200, height: 850 } })
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 
-/* Installed on every worker this page ever makes, so a reload gets another
-   chance at the race. */
-page.on('worker', (w) => {
-  void w.evaluate(() => {
-    if (self.__caught) return
-    const proto = OffscreenCanvas.prototype
-    const was = proto.getContext
-    self.__caught = []
-    proto.getContext = function (kind, opts) {
-      const g = was.call(this, kind, opts)
-      if (g && /webgl/.test(String(kind))) self.__caught.push(g)
-      return g
-    }
-  }).catch(() => { /* the worker went before the hook landed; the retry covers it */ })
-})
-
 const drop = () =>
   page.evaluate(async () => {
     const c = document.createElement('canvas')
@@ -79,21 +70,27 @@ const drop = () =>
 
 const held = async () => {
   const w = page.workers()[0]
-  if (!w) return 0
-  return await w.evaluate(() => (self.__caught || []).length).catch(() => 0)
+  if (!w) return false
+  return await w.evaluate(() => !!self.__gl).catch(() => false)
 }
 
-/* The renderer is built on the worker's first message, which can beat the hook
-   in. Reloading gets another worker and another go. */
 await page.goto(BASE, { waitUntil: 'domcontentloaded' })
 await page.evaluate(() => { indexedDB.deleteDatabase('ideation.board.db'); localStorage.clear() })
-let caught = 0
-for (let tries = 0; tries < 6 && !caught; tries++) {
-  await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(2200)
-  caught = await held()
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2200)
+
+const reachable = await held()
+ok('setup: the renderer’s own context is in reach', reachable, reachable ? 'on the worker' : 'not exposed')
+if (!reachable) {
+  /* Everything below is about what happens after a loss, and without a handle
+     there is nothing to lose. Passing those checks would say the board
+     survived something that never happened to it. */
+  console.log('\nnothing to take away — the rest of this suite would be about a board that was never hurt')
+  console.log(`\n${results.filter((r) => r.p).length}/${results.length} checks passed`)
+  console.log('FAIL')
+  await browser.close()
+  process.exit(1)
 }
-ok('setup: the renderer’s own context is in reach', caught > 0, `${caught} caught`)
 
 await drop()
 await page.waitForSelector('.card[data-kind="image"]', { timeout: 15000 })
@@ -126,8 +123,8 @@ ok('with the context alive, changing the effect changes the picture', first !== 
 /* Gone. Not simulated: the extension is the platform's own way of taking a
    context away, and what the app sees is what it would see on a GPU reset. */
 const wentAway = await page.workers()[0].evaluate(() => {
-  const g = (self.__caught || [])[0]
-  if (!g) return 'nothing caught'
+  const g = self.__gl
+  if (!g) return 'nothing exposed'
   const ext = g.getExtension('WEBGL_lose_context')
   if (!ext) return 'no extension'
   ext.loseContext()
@@ -172,15 +169,21 @@ ok('and what it painted is a picture rather than an empty square',
 
 /* A second loss is not a special case: the renderer that came back can go the
    same way, and the one after it has to come back too. */
+/* The one the worker put up when it rebuilt, which is a different context from
+   the one taken away a moment ago — and proving that is half of what this
+   check is for. */
 const twice = await page.workers()[0].evaluate(() => {
-  const g = (self.__caught || []).slice(-1)[0]
-  const ext = g && g.getExtension('WEBGL_lose_context')
+  const g = self.__gl
+  if (!g) return 'nothing exposed'
+  if (g.isContextLost()) return 'still the dead one'
+  const ext = g.getExtension('WEBGL_lose_context')
   if (!ext) return 'no extension'
   ext.loseContext()
   return 'lost'
 })
 await page.waitForTimeout(1200)
-ok('setup: and a fourth effect after a second loss', await setFx('Solarize'), twice)
+ok('the renderer that came back is a live context of its own', twice === 'lost', twice)
+ok('setup: and a fourth effect after a second loss', await setFx('Solarize'))
 const fourth = await shot()
 ok('and it survives losing it twice', fourth !== third && fourth > 0, `${third} then ${fourth}`)
 

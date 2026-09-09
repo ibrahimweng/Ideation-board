@@ -1781,12 +1781,15 @@ two against a server it starts itself.
   the board carries on. It matters because of how that fails rather than how
   often it happens: every call on a lost context is a silent no-op that neither
   throws nor returns an error, so a board that has stopped rendering goes on
-  looking exactly like one that has not, until somebody reloads. The context
-  lives in the worker and is on no global, so the suite catches it on the way
-  out of `getContext` and loses it with the platform's own
-  `WEBGL_lose_context` — a real loss, not a simulated one. The check that
-  matters is that a different effect afterwards paints a different picture;
-  before this, it painted the same bytes exactly, twice over.
+  looking exactly like one that has not, until somebody reloads. The worker
+  puts its context on its own global — the same reason the engine is on the
+  window — and the suite loses it with the platform's own `WEBGL_lose_context`,
+  a real loss rather than a simulated one. The check that matters is that a
+  different effect afterwards paints a different picture; before this, it
+  painted the same bytes exactly, twice over. If the context cannot be reached
+  the suite stops rather than reporting the rest, which would otherwise be
+  eight passes about a board that was never hurt — which is exactly what the
+  first version of it did on a machine where its setup lost a race.
 - `test:offline` makes a board, cuts the network at the browser, and opens the
   app again: it has to start, and the work has to be there — in a reloaded tab
   and in a fresh one, which is what an installed app is. Then the two things

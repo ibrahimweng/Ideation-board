@@ -166,6 +166,11 @@ export class Renderer {
    * to do about it. Set by the worker; nothing else needs it. */
   onLost: (() => void) | null = null
 
+  /* The context itself, for the worker to put where it can be inspected. */
+  context(): WebGL2RenderingContext | null {
+    return this.gl || null
+  }
+
   constructor(canvas: AnyCanvas) {
     this.cv = canvas
     const gl = canvas.getContext('webgl2', {
