@@ -2,7 +2,7 @@ import type { Item } from './types'
 import { getBlob } from '../store/idb'
 import { safeName } from '../store/fs'
 import { exportModel } from '../store/model'
-import { isStaged, skinsOn } from './staging'
+import { eachSkin, isStaged, skinsOn } from './staging'
 
 /* ---------------------------------------------------------------------------
  * A model, as a file you can hand to someone.
@@ -39,7 +39,7 @@ export async function exportModels(items: Item[]): Promise<ExportedModel[]> {
     try {
       blob = await exportModel(item.media!, file, { skins })
     } finally {
-      for (const bmp of skins?.values() || []) bmp.close()
+      for (const bmp of eachSkin(skins)) bmp.close()
     }
     if (!blob) continue
     let name = `${baseName(item)}.glb`

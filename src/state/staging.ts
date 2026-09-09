@@ -7,6 +7,7 @@ import { exportSize, renderCardPicture } from './exportImage'
 import { getEngine } from '../engine/client'
 import { hasEffect } from '../board/adjust'
 import { feederCard, refreshFeeds } from './feeds'
+import { SLOT_BY_ID, dressOf, withSkin, withoutSkin } from './skins'
 import type { Stage } from '../store/model'
 import type { Item } from './types'
 
@@ -84,18 +85,29 @@ export const turningModel = (id: string) => busy.has(id)
 /* The pictures a model is wearing, decoded. A card handed to a material is
  * held by its media address, not by its id: the address is what survives the
  * card being deleted, and it is what the renderer needs anyway. */
-export async function skinsOn(it: Item): Promise<Map<string, ImageBitmap> | undefined> {
-  const want = it.skins
-  if (!want) return undefined
-  const out = new Map<string, ImageBitmap>()
-  for (const [name, key] of Object.entries(want)) {
-    if (!key) continue
-    const blob = await getBlob(key)
-    if (!blob) continue
-    const bmp = await decodeCapped(blob)
-    if (bmp) out.set(name, bmp)
+export async function skinsOn(it: Item): Promise<Map<string, Map<string, ImageBitmap>> | undefined> {
+  const want = dressOf(it)
+  const out = new Map<string, Map<string, ImageBitmap>>()
+  for (const [name, slots] of Object.entries(want)) {
+    for (const [slot, key] of Object.entries(slots)) {
+      if (!key) continue
+      const blob = await getBlob(key)
+      if (!blob) continue
+      const bmp = await decodeCapped(blob)
+      if (!bmp) continue
+      const mine = out.get(name) || new Map<string, ImageBitmap>()
+      mine.set(slot, bmp)
+      out.set(name, mine)
+    }
   }
   return out.size ? out : undefined
+}
+
+/* Every bitmap in one, for the callers that only have to close them. */
+export function eachSkin(worn: Map<string, Map<string, ImageBitmap>> | undefined): ImageBitmap[] {
+  const out: ImageBitmap[] = []
+  for (const slots of worn?.values() || []) for (const bmp of slots.values()) out.push(bmp)
+  return out
 }
 
 /* Renders whatever the card is currently asking for, until it stops asking.
@@ -111,7 +123,7 @@ async function drain(id: string): Promise<boolean> {
     if (!file) break
     const skins = await skinsOn(it)
     const shot = await renderModel(it.media!, file, stage, { skins })
-    for (const bmp of skins?.values() || []) bmp.close()
+    for (const bmp of eachSkin(skins)) bmp.close()
     if (!shot) break
 
     const key = newKey('pv')
@@ -205,9 +217,10 @@ async function bake(from: Item): Promise<Blob | null> {
 
 /* Puts the card wired into this model onto one of its materials. Returns the
  * reason it could not, or null if it did. */
-export async function wearSkin(id: string, material: string): Promise<string | null> {
+export async function wearSkin(id: string, material: string, slot = 'colour'): Promise<string | null> {
   const it = store.getItem(id)
   if (!isStaged(it)) return 'that card is not a model'
+  if (!SLOT_BY_ID[slot]) return `a material has nothing called ${slot}`
   refreshFeeds()
   const fromId = feederCard(id)
   const from = fromId ? store.getItem(fromId) : null
@@ -221,7 +234,7 @@ export async function wearSkin(id: string, material: string): Promise<string | n
   const still = store.getItem(id)
   if (!isStaged(still)) return null
   store.beginGesture(0)
-  store.update(id, { skins: { ...(still.skins || {}), [material]: key } }, false)
+  store.update(id, { skins: withSkin(still, material, slot, key) }, false)
   await turnTo(id, stageOf(store.getItem(id)))
   return null
 }
@@ -246,15 +259,20 @@ export async function wearSkin(id: string, material: string): Promise<string | n
  * treated picture of a model with one treated material. The panel says so.
  * ------------------------------------------------------------------------- */
 
-export async function treatSkin(id: string, material: string): Promise<string | null> {
+export async function treatSkin(id: string, material: string, slot = 'colour'): Promise<string | null> {
   const it = store.getItem(id)
   if (!isStaged(it)) return 'that card is not a model'
+  const which = SLOT_BY_ID[slot]
+  /* Relief is a thing you put on rather than a thing a file arrives with —
+   * glTF carries directions, not heights — so there is nothing of its own to
+   * treat and the panel does not offer it. */
+  if (!which?.reads) return `a material carries no ${slot} of its own to treat`
   if (!hasEffect(it.fx)) return 'choose an effect first, then put it on a material'
 
   const file = await getBlob(it.media!)
   if (!file) return 'that model could not be read'
-  const src = await textureOf(it.media!, file, material)
-  if (!src) return `${material} has no texture of its own to treat`
+  const src = await textureOf(it.media!, file, material, slot)
+  if (!src) return `${material} has no ${which.name.toLowerCase()} of its own to treat`
 
   /* The bitmap belongs to the parsed model, so the engine is handed a copy:
    * renderOnce closes what it is given, and closing this one would take the
@@ -287,19 +305,19 @@ export async function treatSkin(id: string, material: string): Promise<string | 
   const still = store.getItem(id)
   if (!isStaged(still)) return null
   store.beginGesture(0)
-  store.update(id, { skins: { ...(still.skins || {}), [material]: key } }, false)
+  store.update(id, { skins: withSkin(still, material, slot, key) }, false)
   await turnTo(id, stageOf(store.getItem(id)))
   return null
 }
 
 /* And takes it off again. One step of undo, because it is one decision. */
-export async function takeOffSkin(id: string, material: string): Promise<boolean> {
+export async function takeOffSkin(id: string, material: string, slot = 'colour'): Promise<boolean> {
   const it = store.getItem(id)
-  if (!isStaged(it) || !it.skins?.[material]) return false
-  const next: Record<string, string> = { ...it.skins }
-  delete next[material]
+  if (!isStaged(it)) return false
+  const next = withoutSkin(it, material, slot)
+  if (next === undefined && dressOf(it)[material]?.[slot] === undefined) return false
   store.beginGesture(0)
-  store.update(id, { skins: Object.keys(next).length ? next : undefined }, false)
+  store.update(id, { skins: next }, false)
   await turnTo(id, stageOf(store.getItem(id)))
   return true
 }

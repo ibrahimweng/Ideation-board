@@ -1276,7 +1276,11 @@ body[data-turning] .card-chrome { opacity: 0; }
    thing you can do about it on the end. */
 .part-list { display: flex; flex-direction: column; gap: 4px; }
 .part {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  /* Four columns now: the swatch, the name, what the card becomes, and the
+     buttons. The picker sits next to the buttons it changes the meaning of
+     rather than under the name, because reading it after pressing Wear is
+     reading it too late. */
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
   padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
 }
 .part[data-worn] { border-color: var(--ink); }
@@ -1285,6 +1289,12 @@ body[data-turning] .card-chrome { opacity: 0; }
 .part-of b { font-size: var(--t-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .part-of em { font-style: normal; font-size: var(--t-xs); color: var(--faint); }
 .part-do { display: flex; gap: 4px; }
+.part-slot {
+  font: inherit; font-size: var(--t-xs); color: var(--muted); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 4px 6px; max-width: 116px;
+}
+.part-slot:hover { color: var(--ink); }
+.part-slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .part button { padding: 4px 9px; font-size: var(--t-xs); white-space: nowrap; }
 .part button:disabled { opacity: 0.45; cursor: default; }
 

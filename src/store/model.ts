@@ -142,6 +142,16 @@ export function forgetModel(key: string) {
   scenes.delete(key)
 }
 
+/* Which property of a standard material each wearable slot is. Kept beside
+ * WEARS so a slot cannot be put on in one place and taken off in another. */
+const SLOT_PROP: Record<string, keyof THREE.MeshStandardMaterial> = {
+  colour: 'map',
+  roughness: 'roughnessMap',
+  glow: 'emissiveMap',
+  relief: 'bumpMap',
+  cutout: 'alphaMap',
+}
+
 const SLOTS: [keyof THREE.MeshStandardMaterial, string][] = [
   ['map', 'colour'],
   ['normalMap', 'normal'],
@@ -223,8 +233,55 @@ async function load(key: string, file: Blob): Promise<{ kit: Kit; got: NonNullab
  * ------------------------------------------------------------------------- */
 
 export interface Look {
-  /* Material name -> an ImageBitmap to use as its colour map. */
-  skins?: Map<string, ImageBitmap>
+  /* Material name -> slot id -> the picture to put in that slot. The slots
+   * themselves are named and explained in state/skins.ts; what is here is only
+   * which property of a standard material each one lands on. */
+  skins?: Map<string, Map<string, ImageBitmap>>
+}
+
+/* Where each slot goes, and what else has to be true for it to show.
+ *
+ * The last part is why this is a table rather than a name. A roughness map
+ * multiplies the number the file set, so a material whose roughness is zero
+ * wears one and looks identical; an emissive map is multiplied by the emissive
+ * colour, which is black in most files, so a glow lands invisibly; and holes
+ * cut in an opaque material are not holes. Each of those reads as the feature
+ * being broken, and each is one property. */
+const WEARS: Record<string, { put: (std: THREE.MeshStandardMaterial, tex: THREE.Texture) => void; also?: (three: typeof THREE, std: THREE.MeshStandardMaterial) => () => void; srgb: boolean }> = {
+  colour: { put: (std, tex) => { std.map = tex }, srgb: true },
+  roughness: {
+    put: (std, tex) => { std.roughnessMap = tex },
+    also: (_t, std) => { const was = std.roughness; std.roughness = 1; return () => { std.roughness = was } },
+    srgb: false,
+  },
+  glow: {
+    put: (std, tex) => { std.emissiveMap = tex },
+    also: (three, std) => {
+      const was = std.emissive?.clone()
+      const wasI = std.emissiveIntensity
+      std.emissive = new three.Color(0xffffff)
+      std.emissiveIntensity = Math.max(1, wasI || 1)
+      return () => { if (was) std.emissive = was; std.emissiveIntensity = wasI }
+    },
+    srgb: true,
+  },
+  relief: {
+    put: (std, tex) => { std.bumpMap = tex },
+    also: (_t, std) => { const was = std.bumpScale; std.bumpScale = 1.6; return () => { std.bumpScale = was } },
+    srgb: false,
+  },
+  cutout: {
+    put: (std, tex) => { std.alphaMap = tex },
+    also: (_t, std) => {
+      const was = std.transparent
+      const wasS = std.side
+      std.transparent = true
+      /* Both faces, because a hole in a wall shows the inside of the wall. */
+      std.side = 2 as THREE.Side
+      return () => { std.transparent = was; std.side = wasS }
+    },
+    srgb: false,
+  },
 }
 
 /* Anything handed a picture wears it, and is put back by the returned list —
@@ -240,22 +297,32 @@ function dress(three: typeof THREE, scene: THREE.Group, look: Look): (() => void
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
     for (const m of mats) {
       const std = m as THREE.MeshStandardMaterial
-      const bmp = look.skins?.get(std.name || 'Unnamed')
-      if (!bmp) continue
-      const was = std.map
-      const tex = new three.Texture(bmp as unknown as HTMLImageElement)
-      tex.needsUpdate = true
-      tex.colorSpace = three.SRGBColorSpace
-      tex.flipY = false
-      tex.wrapS = three.RepeatWrapping
-      tex.wrapT = three.RepeatWrapping
-      std.map = tex
-      std.needsUpdate = true
-      undo.push(() => {
-        std.map = was
+      const worn = look.skins?.get(std.name || 'Unnamed')
+      if (!worn?.size) continue
+      for (const [slot, bmp] of worn) {
+        const how = WEARS[slot]
+        if (!how) continue
+        const key = SLOT_PROP[slot]
+        const was = std[key] as THREE.Texture | null
+        const tex = new three.Texture(bmp as unknown as HTMLImageElement)
+        tex.needsUpdate = true
+        /* Colour and glow are pictures and are read as colour; the rest are
+         * numbers wearing a picture's clothes and must not be gamma-corrected
+         * on the way in. */
+        if (how.srgb) tex.colorSpace = three.SRGBColorSpace
+        tex.flipY = false
+        tex.wrapS = three.RepeatWrapping
+        tex.wrapT = three.RepeatWrapping
+        how.put(std, tex)
+        const back = how.also?.(three, std)
         std.needsUpdate = true
-        tex.dispose()
-      })
+        undo.push(() => {
+          ;(std as unknown as Record<string, unknown>)[key] = was
+          back?.()
+          std.needsUpdate = true
+          tex.dispose()
+        })
+      }
     }
   })
   return undo
@@ -276,7 +343,9 @@ function dress(three: typeof THREE, scene: THREE.Group, look: Look): (() => void
  * copies first.
  * ------------------------------------------------------------------------- */
 
-export async function textureOf(key: string, file: Blob, material: string): Promise<ImageBitmap | null> {
+export async function textureOf(key: string, file: Blob, material: string, slot = 'colour'): Promise<ImageBitmap | null> {
+  const prop = SLOT_PROP[slot]
+  if (!prop) return null
   const loaded = await load(key, file)
   if (!loaded) return null
   let found: ImageBitmap | null = null
@@ -288,7 +357,7 @@ export async function textureOf(key: string, file: Blob, material: string): Prom
     for (const m of mats) {
       const std = m as THREE.MeshStandardMaterial
       if ((std.name || 'Unnamed') !== material) continue
-      const img = std.map?.image as ImageBitmap | HTMLImageElement | HTMLCanvasElement | undefined
+      const img = (std[prop] as THREE.Texture | null)?.image as ImageBitmap | HTMLImageElement | HTMLCanvasElement | undefined
       if (!img) continue
       /* glTF images arrive as ImageBitmap where the browser can make one and
        * as an <img> where it cannot. Either draws. */
@@ -309,7 +378,7 @@ export async function textureOf(key: string, file: Blob, material: string): Prom
     for (const m of mats) {
       const std = m as THREE.MeshStandardMaterial
       if ((std.name || 'Unnamed') !== material) continue
-      const img = std.map?.image as HTMLImageElement | HTMLCanvasElement | undefined
+      const img = (std[prop] as THREE.Texture | null)?.image as HTMLImageElement | HTMLCanvasElement | undefined
       if (img) other = img
     }
   })

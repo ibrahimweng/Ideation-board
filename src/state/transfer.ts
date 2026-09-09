@@ -1,4 +1,5 @@
 import type { Item } from './types'
+import { remapSkins, skinKeys } from './skins'
 import type { StoredBoard } from '../store/idb'
 import { putBoard, getBlob, putBlob } from '../store/idb'
 import { zip, unzip } from '../store/zip'
@@ -82,7 +83,7 @@ export async function gather(rootId: string): Promise<Gathered> {
       /* A picture a model is wearing. Usually a card on the same board, whose
          own file is already here — but the name has to travel with it or the
          model comes back undressed on the next turn. */
-      for (const key of Object.values(it.skins || {})) if (key) keys.add(key)
+      for (const key of skinKeys(it)) keys.add(key)
     }
   }
 
@@ -181,14 +182,7 @@ export async function importTree(file: Blob, at: { x: number; y: number }): Prom
       if (it.media) copy.media = mediaMap.get(it.media) || undefined
       if (it.poster) copy.poster = mediaMap.get(it.poster) || undefined
       if (it.heard) copy.heard = mediaMap.get(it.heard) || undefined
-      if (it.skins) {
-        const worn: Record<string, string> = {}
-        for (const [material, key] of Object.entries(it.skins)) {
-          const fresh = mediaMap.get(key)
-          if (fresh) worn[material] = fresh
-        }
-        copy.skins = Object.keys(worn).length ? worn : undefined
-      }
+      if (it.skins) copy.skins = remapSkins(it, (key) => mediaMap.get(key))
       /* Object URLs belong to the session that made them. */
       delete copy.src
       return copy

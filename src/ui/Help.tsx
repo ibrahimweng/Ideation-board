@@ -282,8 +282,15 @@ function parts(): Part[] {
             so about itself, and this reads it. Draw a line from another card to the model and you
             can hand that card to a material: press <strong>Wear</strong> and the model comes back
             with your picture on it, which is the shortest route there is from a reference to the
-            thing you are designing. It takes the card <em>as it looks</em> — the effect on it, the
-            tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
+            thing you are designing. What the picture becomes is up to you — <strong>Colour</strong>{' '}
+            is the surface, <strong>Roughness</strong> makes it matte where the picture is light,{' '}
+            <strong>Glow</strong> lights it in that shape, <strong>Relief</strong> raises it as if
+            the picture were pressed in, and <strong>Cut-out</strong> puts holes where it is dark.
+            One material can wear several at once, and each comes off on its own.
+          </p>
+          <p>
+            Whichever slot it lands in, it takes the card <em>as it looks</em> — the effect on it,
+            the tone, the crop — so a halftoned scan goes onto the material halftoned. That is a
             picture taken at the moment you press it rather than a live link, so press{' '}
             <strong>Again</strong> after working on the card.
           </p>
