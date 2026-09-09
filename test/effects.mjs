@@ -126,6 +126,7 @@ const plain = await fingerprint(plainShot)
 
 const flat = []
 const same = []
+const near = []
 const unchanged = []
 const seen = []
 
@@ -140,13 +141,20 @@ for (const name of names) {
   if (name !== 'Original' && dist(fp, plain) < 3) unchanged.push(name)
   for (const prev of seen) {
     if (prev.name === 'Original' || name === 'Original') continue
-    if (dist(fp, prev.fp) < 2) same.push(`${name}=${prev.name}`)
+    const d = dist(fp, prev.fp)
+    if (d < 2) same.push(`${name}=${prev.name}`)
+    /* Not the same, and not one nudge away from it either. Two effects that
+       differ by a hair pass this on one machine and fail on the next, which is
+       how Parallax and Displace — a shift by brightness at forty-four pixels
+       and a shift by brightness at forty-five — got as far as a red build. */
+    else if (d < 4) near.push(`${name}~${prev.name} (${d})`)
   }
   seen.push({ name, fp })
 }
 
 check('every effect paints something of its own', unchanged.length === 0, unchanged.join(', ') || 'none unchanged')
 check('no two effects paint the same picture', same.length === 0, same.join(', ') || 'all distinct')
+check('and none of them is one nudge away from another', near.length === 0, near.join(', ') || 'all clear of each other')
 check('none of them paints a flat colour', flat.length === 0, flat.join(', ') || 'all have detail')
 
 /* ---------- the one that used to give up in the shadows ---------- */

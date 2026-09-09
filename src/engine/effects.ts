@@ -781,25 +781,40 @@ export const EFFECTS: EffectSpec[] = [
    * --------------------------------------------------------------------- */
   {
     id: 'parallax', name: 'Parallax', group: 'Pair',
-    controls: [N('p0', 'Shift', 0, 200, 1, 44, 'px'), N('p1', 'Focus', 0, 1, 0.01, 0.5),
-      N('p2', 'Direction', -180, 180, 1, 0, '°'), N('p3', 'Map scale', 0.25, 4, 0.01, 1),
+    controls: [N('p0', 'Across', 0, 200, 1, 40, 'px'), N('p1', 'Focus', 0, 1, 0.01, 0.5),
+      N('p2', 'Direction', -180, 180, 1, 0, '°'), N('p3', 'Towards', 0, 1, 0.01, 0.35),
       E('p4', 'Near is', 0, ['White', 'Black']), N('p5', 'Amount', 0, 1, 0.01, 1)],
     /* A flat photograph moved as though it had layers: what is near travels
      * and what is far holds still, which is the cue the eye reads as space
      * before it reads anything else.
      *
+     * Two ways of moving, because there are two. A camera that steps sideways
+     * slides the near past the far, and that is Across. A camera that walks
+     * forwards grows the near faster than the far, and that is Towards —
+     * everything spreading out from the middle at a rate that is its distance.
+     * Only the first of those is a displacement by another name; the second is
+     * the one that makes a still photograph feel walked into, and having both
+     * on one pair of controls is the whole difference between this and pushing
+     * pixels about with a map.
+     *
+     * The focus plane is the other half of it: whatever sits at Focus does not
+     * move at all, either way, so it is the thing you are standing still in
+     * front of while the rest of the picture moves around it.
+     *
      * Walked three times rather than shifted once. A single step samples the
-     * map where the pixel ends up rather than where it came from, which
-     * smears every edge in the direction of travel; three passes settle on
-     * the place the depth actually agrees with, and cost three lookups. */
+     * map where the pixel ends up rather than where it came from, which smears
+     * every edge in the direction of travel; three passes settle on the place
+     * the depth actually agrees with, and cost three lookups. */
     frag: `vec4 fx(vec2 uv){
       vec2 dir = vec2(cos(radians(p2)), sin(radians(p2))) * p0 * 2.0 / uRes;
       vec2 p = uv;
       for(int i = 0; i < 3; i++){
-        vec2 m = (p - 0.5) / max(0.05, p3) + 0.5;
-        float d = luma(S(mirror(m)).rgb);
+        float d = luma(S(p).rgb);
         if(p4 > 0.5) d = 1.0 - d;
-        p = uv + dir * (d - p1);
+        float rel = d - p1;
+        /* Sampled nearer the middle is drawn larger, so the near half of the
+           picture is what grows when the camera walks in. */
+        p = uv + dir * rel - (uv - 0.5) * rel * p3 * 0.8;
       }
       return vec4(mix(T(uv).rgb, T(mirror(p)).rgb, p5), 1.0); }`
   },

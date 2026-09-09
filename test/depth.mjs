@@ -465,7 +465,7 @@ const plainRows = await rows()
 await pick('Parallax').click()
 await page.waitForTimeout(2600)
 await setCtl('Focus', 0)
-await setCtl('Shift', 120)
+await setCtl('Across', 120)
 const moved = await look()
 /* Focus at zero means the far half does not move at all and the near half
    moves the whole way, so one edge of the square travels and the other stays

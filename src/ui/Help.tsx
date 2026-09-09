@@ -188,7 +188,8 @@ function parts(): Part[] {
           </p>
           <p>
             The map is wired into the picture it came from, which is how four effects read it.{' '}
-            <strong>Parallax</strong> moves the near things and holds the far ones,{' '}
+            <strong>Parallax</strong> moves the near things and holds the far ones — sideways, or
+            forwards into the picture, or both,{' '}
             <strong>Depth of field</strong> keeps one plane sharp and softens either side of it,{' '}
             <strong>Fog</strong> pushes air into the distance, and <strong>Relight</strong> reads
             the map as a surface and lights the picture from somewhere it never was. One map can
