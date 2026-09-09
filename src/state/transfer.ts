@@ -1,5 +1,6 @@
 import type { Item } from './types'
 import { remapSkins, skinKeys } from './skins'
+import { repoint } from './ids'
 import type { StoredBoard } from '../store/idb'
 import { putBoard, getBlob, putBlob } from '../store/idb'
 import { zip, unzip } from '../store/zip'
@@ -174,10 +175,11 @@ export async function importTree(file: Blob, at: { x: number; y: number }): Prom
     for (const it of items) ids.set(it.id, newItemId())
 
     const next = items.map((it) => {
-      const copy: Item = { ...it, id: ids.get(it.id)! }
-      if (it.parent) copy.parent = ids.get(it.parent) || null
-      if (it.from) copy.from = ids.get(it.from) || it.from
-      if (it.to) copy.to = ids.get(it.to) || it.to
+      /* Every card this one names, through the new ids — the list of which
+         fields those are is in state/ids.ts and is shared with the two other
+         places that copy cards. */
+      const copy: Item = { ...repoint(it, (id) => ids.get(id)), id: ids.get(it.id)! }
+      /* A board is not a card and comes from a different map. */
       if (it.board) copy.board = boardMap.get(it.board) || it.board
       if (it.media) copy.media = mediaMap.get(it.media) || undefined
       if (it.poster) copy.poster = mediaMap.get(it.poster) || undefined
