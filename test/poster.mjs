@@ -226,13 +226,18 @@ const pdfEntry = await palette('as a PDF')
 const pdfLabel = (await pdfEntry.count()) ? await pdfEntry.innerText() : ''
 ok('the command list offers a PDF', pdfLabel.toLowerCase().includes('pdf'), pdfLabel.split('\n')[0])
 const [pdf] = await Promise.all([page.waitForEvent('download'), pdfEntry.click()])
-const pdfFile = path.join(OUT, `poster-${pdf.suggestedFilename()}`)
-await pdf.saveAs(pdfFile)
-/* Waited for rather than guessed at, and read while it is still up: the line
-   takes itself away after a couple of seconds and the checks below are not
-   that quick. */
+/* Read before the file is written, not after.
+ 
+   The line takes itself away 2,800ms after it goes up, and saving a few
+   megabytes to disk takes longer than that on a machine with something else
+   running — so read afterwards, this went red on a run where the export itself
+   was perfect and every other check about it passed. Waited for rather than
+   guessed at, because it goes up when the export finishes rather than when the
+   download event fires. */
 await page.waitForSelector('.toast', { timeout: 8000 }).catch(() => {})
 const pdfSaid = await page.locator('.toast').innerText().catch(() => '')
+const pdfFile = path.join(OUT, `poster-${pdf.suggestedFilename()}`)
+await pdf.saveAs(pdfFile)
 const bytes = fs.readFileSync(pdfFile)
 const asText = bytes.toString('latin1')
 ok('it saves a PDF', /\.pdf$/.test(pdf.suggestedFilename()) && asText.startsWith('%PDF-'), pdf.suggestedFilename())
