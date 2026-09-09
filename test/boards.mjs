@@ -267,6 +267,81 @@ await page.locator('.search input').fill('')
 await page.waitForTimeout(500)
 check('clearing the search puts the list away', (await page.locator('.search-deep').count()) === 0)
 
+/* ---------- a copied board keeps what is joined inside it ---------- */
+
+/* A wire is not an annotation on this board. It is what a two-picture effect
+   reads its second picture along, what a sketch is handed a picture through,
+   what a depth map drives, and how a card gets onto a material. A board that
+   loses its wires when it is duplicated loses the work, not the drawing.
+
+   It did. Copying a board rewrote which section each card sat in and nothing
+   else, so every wire in the copy pointed at cards on the board it came from —
+   and a wire with an end that is not there is neither drawn nor read. Two
+   notes went in and two notes came out, which is why nothing said so. */
+
+await crumbs().first().click()
+await page.waitForTimeout(900)
+await blur()
+await page.keyboard.press('b')
+await page.waitForTimeout(1400)
+await boardCards().last().dblclick()
+await page.waitForTimeout(1600)
+
+await blur()
+await page.keyboard.press('n')
+await page.waitForTimeout(800)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+/* Out from under where the next one lands, so both can be seen and one can be
+   dragged from. */
+const one = await cards().first().boundingBox()
+await page.mouse.move(one.x + 12, one.y + 6)
+await page.mouse.down()
+await page.mouse.move(one.x + 12 - 380, one.y + 6, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(800)
+await blur()
+await page.keyboard.press('n')
+await page.waitForTimeout(900)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+check('setup: two cards inside a board of their own', (await cards().count()) === 2,
+  `${await cards().count()} cards`)
+
+const [left, right] = await Promise.all([
+  cards().first().boundingBox(),
+  cards().nth(1).boundingBox(),
+])
+await page.mouse.move(left.x + left.width / 2, left.y + left.height / 2)
+await page.waitForTimeout(500)
+const joinPort = await page.evaluate(
+  () => document.querySelector('.port-e')?.getBoundingClientRect().toJSON() || null
+)
+if (joinPort) {
+  await page.mouse.move(joinPort.x + joinPort.width / 2, joinPort.y + joinPort.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(right.x + right.width / 2, right.y + right.height / 2, { steps: 14 })
+  await page.mouse.up()
+  await page.waitForTimeout(1400)
+}
+check('setup: and a wire between them', (await page.locator('.wire').count()) === 1,
+  `${await page.locator('.wire').count()} wires`)
+
+await crumbs().first().click()
+await page.waitForTimeout(1100)
+await boardCards().last().click()
+await page.waitForTimeout(400)
+await blur()
+await page.keyboard.press('Control+d')
+await page.waitForTimeout(1800)
+await boardCards().last().dblclick()
+await page.waitForTimeout(1800)
+check('the copy holds both cards', (await cards().count()) === 2, `${await cards().count()} cards`)
+check('and the wire between them came too', (await page.locator('.wire').count()) === 1,
+  `${await page.locator('.wire').count()} wires`)
+await crumbs().first().click()
+await page.waitForTimeout(900)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

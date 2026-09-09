@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { describeSweep, keysInUse } from '../../src/store/reclaim'
+import { collectable, describeSweep, keysInUse } from '../../src/store/reclaim'
+import { DEPTH_MODEL, KEPT_BY_THE_APP } from '../../src/store/kept'
 import type { Item } from '../../src/state/types'
 import type { StoredBoard } from '../../src/store/idb'
 import { FX_0 } from '../../src/engine/types'
@@ -98,5 +99,43 @@ describe('saying what was cleared', () => {
      * this one. Saying "nothing to clear up" there would be a lie somebody
      * would notice. */
     expect(describeSweep({ files: 0, bytes: 0, young: 3 })).toBe('Nothing to clear up yet')
+  })
+})
+
+describe('what the app holds for itself', () => {
+  /* Everything else in the store belongs to a card, and the rule that anything
+     no card points at is garbage is the right rule. The depth model is the one
+     thing it is wrong about: nobody dropped it and no card names it, but
+     somebody pressed a button and waited for twenty-five megabytes, and it is
+     kept so the next press works offline. */
+  it('will not let the depth model go, though no card can point at it', () => {
+    expect(collectable(DEPTH_MODEL, new Set())).toBe(false)
+  })
+
+  it('and will not on a board with nothing on it at all', () => {
+    expect(collectable(DEPTH_MODEL, keysInUse([board('a', [])]))).toBe(false)
+  })
+
+  it('and holds every key on the list, whatever the list grows to', () => {
+    for (const key of KEPT_BY_THE_APP) expect(collectable(key, new Set())).toBe(false)
+  })
+
+  /* The other half, which is the half that matters more: this must not have
+     become a sweep that keeps everything. A store that only grows is the thing
+     the file exists to stop. */
+  it('and lets an ordinary file go, as it always did', () => {
+    expect(collectable('img_1', new Set())).toBe(true)
+    expect(collectable('img_1', new Set(['img_1']))).toBe(false)
+  })
+
+  it('and the list it holds is short on purpose', () => {
+    expect(KEPT_BY_THE_APP).toHaveLength(1)
+  })
+
+  /* `keysInUse` still answers only what the cards use. The two questions are
+     different and the one that grew is not that one. */
+  it('and none of it leaks into what the cards are said to use', () => {
+    expect(keysInUse([]).size).toBe(0)
+    expect(keysInUse([]).has(DEPTH_MODEL)).toBe(false)
   })
 })

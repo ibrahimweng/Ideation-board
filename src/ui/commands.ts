@@ -47,6 +47,7 @@ export interface CommandActions {
   pullColours: (ids: string[]) => void
   depthOf: (ids: string[]) => void
   sharpenDepth: (ids: string[]) => void
+  forgetDepthModel: () => void
   keepInFolder: () => void
   copyToFolder: () => void
   forgetFolder: () => void
@@ -178,6 +179,12 @@ export function buildCommands(a: CommandActions): Command[] {
        This is the one thing that gets the room back. */
     cmd('out.reclaim', 'Clear up files nothing uses any more', 'Take out', () => a.reclaim(), {
       keywords: 'storage space free disk clean purge unused orphan reclaim room full',
+    }),
+    /* Beside it, because it is the same question — how do I get the room back
+       — with a different answer. The sweep deliberately will not touch the
+       weights, so the only way is to say so. */
+    cmd('out.depthmodel', 'Let go of the downloaded depth model', 'Take out', () => a.forgetDepthModel(), {
+      keywords: 'depth model onnx storage space free delete forget download weights room',
     }),
     cmd('out.delboard', 'Delete a board and everything in it', 'Take out', () => a.deleteBoard(), {
       keywords: 'remove board destroy nested',

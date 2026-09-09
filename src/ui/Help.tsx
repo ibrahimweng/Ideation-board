@@ -187,6 +187,12 @@ function parts(): Part[] {
             card says so and keeps the map it had.
           </p>
           <p>
+            It stays until you say otherwise. <strong>Clear up files nothing uses any more</strong>{' '}
+            will not take it — no card points at it, which is exactly what that command collects, so
+            it is left out on purpose. <strong>Let go of the downloaded depth model</strong> in the
+            command list is the way to have the room back, and it says what it gave you.
+          </p>
+          <p>
             The map is wired into the picture it came from, which is how four effects read it.{' '}
             <strong>Parallax</strong> moves the near things and holds the far ones — sideways, or
             forwards into the picture, or both,{' '}

@@ -3,6 +3,7 @@ import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
 import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
+import { repoint } from './ids'
 import { alignTo, clearGround, distributeAlong, gatherInto, tidyOnto } from './arrange'
 import type { AlignMode, Moves } from './arrange'
 import type { LookFx } from './looks'
@@ -399,12 +400,16 @@ export class BoardStore {
       const ends = endsOf(src)
       if (ends && !(remap.has(ends[0]) && remap.has(ends[1]))) continue
       const nid = remap.get(id)!
-      const parent = src.parent && remap.has(src.parent) ? remap.get(src.parent)! : src.parent ?? null
-      const copy: Item = { ...src, id: nid, x: src.x + dx, y: src.y + dy, z: ++this.topZ, parent }
-      if (ends) {
-        copy.from = remap.get(ends[0])!
-        copy.to = remap.get(ends[1])!
+      /* Which fields name a card is answered in state/ids.ts, so this cannot
+         drift from the other two places that copy cards. */
+      const copy: Item = {
+        ...repoint(src, (was) => remap.get(was)),
+        id: nid, x: src.x + dx, y: src.y + dy, z: ++this.topZ,
       }
+      /* Said outright rather than left absent, which is what a duplicate has
+         always carried: null when the card is on the ground rather than in a
+         section. */
+      copy.parent = copy.parent ?? null
       this.put(nid, copy)
       this.noteOrder()
       this.order.push(nid)

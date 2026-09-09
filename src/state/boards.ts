@@ -1,4 +1,5 @@
 import type { Item } from './types'
+import { repoint } from './ids'
 import { delBoard, getBoard, putBoard } from '../store/idb'
 import type { StoredBoard } from '../store/idb'
 import { hasPixels, pixelKey } from './kinds'
@@ -186,8 +187,10 @@ export async function cloneBoard(id: string, depth = 0): Promise<string> {
 
   const items: Item[] = []
   for (const it of src) {
-    const copy: Item = { ...it, id: remap.get(it.id)! }
-    if (it.parent) copy.parent = remap.get(it.parent) || it.parent
+    /* Every card this one names, which until this was only `parent` — so a
+       copied board came back with every wire inside it pointing at the board
+       it was copied from, and therefore with no wires at all. */
+    const copy: Item = { ...repoint(it, (id) => remap.get(id)), id: remap.get(it.id)! }
     /* Media blobs are shared rather than copied: they are immutable, keyed by
      * content identity, and copying them would double the space a duplicate
      * costs for no gain. */

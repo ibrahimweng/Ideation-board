@@ -204,6 +204,49 @@ check('with a real spread between the nearest and the furthest',
 
 fs.writeFileSync(path.join(OUT, 'depth-map.png'), await page.screenshot())
 
+/* ---------- copied together, the copy points at the copy ---------- */
+
+/* A map knows the picture it was made from, and knowing it by id means every
+   place that copies cards has to rewrite it — the same list that rewrites a
+   wire's two ends and a card's section. Copy the pair and the new map must
+   read the new picture; copy the map alone and it should still reach across to
+   the one that is really there. */
+
+const depthsOn = () =>
+  page.evaluate(async () => {
+    const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+    const all = await new Promise((res) => {
+      const t = db.transaction('boards', 'readonly')
+      const q = t.objectStore('boards').getAll()
+      q.onsuccess = () => res(q.result || [])
+      q.onerror = () => res([])
+    })
+    const items = all.flatMap((b) => b.items || [])
+    const here = new Set(items.map((i) => i.id))
+    return items
+      .filter((i) => i.depthOf)
+      .map((i) => ({ id: i.id, of: i.depthOf, real: here.has(i.depthOf) }))
+  })
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(400)
+await page.keyboard.press('Control+d')
+await page.waitForTimeout(1800)
+const pairs = await depthsOn()
+check('a map copied with its picture points at the copy, not at the original',
+  pairs.length === 2 && new Set(pairs.map((p) => p.of)).size === 2 && pairs.every((p) => p.real),
+  JSON.stringify(pairs))
+
+/* And the copies go, so the rest of this reads the board it expects. */
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(1200)
+check('and undoing the copy leaves the one map that was there',
+  (await depthsOn()).length === 1, `${(await depthsOn()).length} maps`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
 /* ---------- and the same map, worked out properly ---------- */
 
 /* The map above is three cues and a blur, and it is wrong in one particular
@@ -525,6 +568,84 @@ check('Relight reads the map as a surface and catches the light on its one slope
   `${atSeam.toFixed(0)} of change at the seam, ${away.toFixed(0)} away from it`)
 
 fs.writeFileSync(path.join(OUT, 'depth-effects.png'), await page.screenshot())
+
+/* ---------- the weights are the app's, not a card's ---------- */
+
+/* Everything else in this browser's store belongs to a card, and the sweep
+   works on exactly that rule: anything nothing points at is a file nothing
+   uses any more. The depth model is the one thing the rule is wrong about.
+   Nobody dropped it and no card names it or ever could — somebody pressed a
+   button and waited for twenty-five megabytes, and it is kept so the next
+   press works offline. Swept away, that is a download thrown out from under
+   the person who asked for it.
+
+   Stood in for here rather than fetched, because the fetch is the one thing
+   this machine cannot do. What is under test is what the store does with a
+   file under that name, and that does not care what is in it. */
+
+const MODEL_KEY = 'model_depth_anything_v2_small_q8'
+
+const seedModel = (bytes) =>
+  page.evaluate(async ({ key, bytes }) => {
+    const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+    await new Promise((res, rej) => {
+      const t = db.transaction('blobs', 'readwrite')
+      t.objectStore('blobs').put(new Blob([new Uint8Array(bytes)]), key)
+      t.oncomplete = res
+      t.onerror = () => rej(t.error)
+    })
+  }, { key: MODEL_KEY, bytes })
+
+const modelBytes = () =>
+  page.evaluate(async (key) => {
+    const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+    const blob = await new Promise((res) => {
+      const t = db.transaction('blobs', 'readonly')
+      const q = t.objectStore('blobs').get(key)
+      q.onsuccess = () => res(q.result)
+      q.onerror = () => res(null)
+    })
+    return blob ? blob.size : 0
+  }, MODEL_KEY)
+
+const run = async (typed) => {
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Control+k')
+  await page.waitForSelector('.cmd', { timeout: 5000 })
+  await page.keyboard.type(typed)
+  await page.waitForTimeout(600)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(2500)
+}
+
+await seedModel(9000)
+check('setup: a model in the store', (await modelBytes()) === 9000, `${await modelBytes()} bytes`)
+
+/* The whole board is thrown away first, so every picture on it really is
+   unreferenced and the sweep really does have work to do. If it kept the model
+   only because it kept everything, this would prove nothing. */
+await page.keyboard.press('Escape')
+await page.keyboard.press('Control+a')
+await page.keyboard.press('Delete')
+await page.waitForTimeout(1000)
+await run('clear up files')
+const swept = await page.evaluate(() => document.querySelector('.toast span')?.textContent || '')
+check('the sweep has work to do with the board emptied', /cleared \d+ file/i.test(swept), swept)
+check('and it does not take the depth model with it',
+  (await modelBytes()) === 9000, `${await modelBytes()} bytes left`)
+
+/* Which leaves asking by name as the only way to get the room back. */
+await run('let go of the downloaded depth model')
+const freed = await page.evaluate(() => document.querySelector('.toast span')?.textContent || '')
+check('and it can be let go of by name, which says what it cost',
+  /let go of the depth model/i.test(freed) && /KB|MB|bytes/.test(freed), freed)
+check('and then it really is gone', (await modelBytes()) === 0, `${await modelBytes()} bytes left`)
+
+await run('let go of the downloaded depth model')
+const twice = await page.evaluate(() => document.querySelector('.toast span')?.textContent || '')
+check('and asking twice says there was nothing to let go of',
+  /not been downloaded/i.test(twice), twice)
 
 check('no page errors', errors.length === 0, errors.join(' | '))
 

@@ -40,6 +40,7 @@ import { drawMany, picturesFrom } from './state/generate'
 import { diceFor, madeToOrder, shuffleAny, varyAny } from './state/varying'
 import { describeSweep, sweep } from './store/reclaim'
 import { canDepth, isDepth, makeDepth, modelIsHere, sharpenDepth } from './state/depth'
+import { forgetModel } from './state/depthModel'
 import { boardTree, deleteBoardTree, renameBoard, weighBoard } from './state/boards'
 import { heldItems, holdDeleted, takeBack } from './state/undelete'
 import { FIRST_BOARD, boardExists, boardFromUrl, listRoots, newRoot, pointTabAt, tabOrder, trailKey, urlForBoard } from './state/roots'
@@ -932,6 +933,22 @@ export default function App() {
     say(why || 'A better map, in the same place. Everything wired to it follows.', why ? 6000 : 4200)
   }, [say])
 
+  /* And letting go of it again.
+   *
+   * The sweep will not take the weights, because no card points at them and
+   * under the sweep's own rule that makes them garbage — which is exactly what
+   * they are not. Which leaves asking by name as the only way, and this is it.
+   * It is the largest single thing this app will ever put in a browser. */
+  const forgetDepthModel = useCallback(async () => {
+    const bytes = await forgetModel()
+    say(
+      bytes
+        ? `Let go of the depth model, ${saySize(bytes)}. The next time you ask for one it is fetched again.`
+        : 'The depth model has not been downloaded, so there is nothing to let go of.',
+      5000
+    )
+  }, [say])
+
   /* Pointing the board at a folder, and pushing a copy out to it. Both have to
      be reached from a click: a browser opens a folder picker only from one. */
   const keepInFolder = useCallback(async () => {
@@ -1186,6 +1203,7 @@ export default function App() {
         pullColours: (ids) => void pullColours(ids),
         depthOf: (ids) => void depthOf(ids),
         sharpenDepth: (ids) => void sharpenNow(ids),
+        forgetDepthModel: () => void forgetDepthModel(),
         keepInFolder: () => void keepInFolder(),
         copyToFolder: () => void copyToFolder(),
         forgetFolder: () => void forgetFolder(),
@@ -1214,7 +1232,7 @@ export default function App() {
       }),
     [
       selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
-      exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, depthOf, sharpenNow, keepInFolder, copyToFolder,
+      exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, depthOf, sharpenNow, forgetDepthModel, keepInFolder, copyToFolder,
       gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
     ]
