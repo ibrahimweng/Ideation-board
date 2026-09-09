@@ -1,6 +1,6 @@
 import type { Item } from './types'
 import { TAGS } from './types'
-import { TRAITS, isSection, isWire, pixelKey } from './kinds'
+import { traitsOf, isSection, isWire, pixelKey } from './kinds'
 import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
 import type { PaperName } from './posterPage'
 import { parse } from './rich'
@@ -516,7 +516,7 @@ function drawCaption(cx: Ctx, it: Item, t: Tokens) {
 
   /* Asked of the table rather than as a guard: a guard proves the item is
      there, which leaves nothing at all on the other side of the `||`. */
-  const overPicture = TRAITS[it.kind].pixels || it.kind === 'embed' || it.kind === 'board'
+  const overPicture = traitsOf(it.kind).pixels || it.kind === 'embed' || it.kind === 'board'
   const h = overPicture ? 34 : 26
   const y = it.y + it.h - h
 
@@ -605,7 +605,7 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
   /* A photograph, a frame of video, a page, an artboard, a view of a model:
      all pictures, all drawn as one. Asked of the traits table rather than
      listed here, because a list here is a list that forgets. */
-  if (TRAITS[it.kind].pixels) {
+  if (traitsOf(it.kind).pixels) {
     const w = Math.max(2, Math.round(it.w * scale))
     const h = Math.max(2, Math.round(it.h * scale))
     const picture = await renderCardPicture(it, w, h, await sourceFor(it))

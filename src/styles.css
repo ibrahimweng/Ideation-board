@@ -909,6 +909,9 @@ body[data-turning] .card-chrome { opacity: 0; }
 .file-ext { font: 500 var(--t-xs)/1.4 var(--sans); color: var(--on-ink); background: var(--ink); padding: 2px 7px; border-radius: var(--r-sm); }
 .file-name { font-size: var(--t-sm); color: var(--muted); word-break: break-all; }
 .file-dl { font-size: var(--t-sm); color: var(--sel); margin-top: auto; }
+/* Said quietly, on a card from a build ahead of this one: it is not broken and
+   it is not lost, it is only unreadable here. */
+.file-why { font-size: var(--t-xs); color: var(--muted); margin-top: auto; opacity: .8; }
 
 /* ---------- sound ----------
 
@@ -2190,3 +2193,15 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 @media (max-width: 700px) {
   .panel { width: min(320px, 88vw); }
 }
+
+/* ---------- when the board cannot be drawn ----------
+
+   Written plainly and centred on the page, because the person reading it has
+   just watched their work disappear and needs the first line to be the answer
+   rather than the apology. Its own colours rather than the board's, so it
+   still reads if what failed was the theme. */
+.boom { max-width: 34rem; margin: 12vh auto; padding: 0 1.5rem; font: var(--t-md)/1.6 var(--sans); color: var(--ink); }
+.boom h1 { font-size: var(--t-xl); margin: 0 0 .75rem; }
+.boom p { margin: 0 0 .75rem; color: var(--ink-2, var(--ink)); }
+.boom button { font: inherit; padding: .5rem 1rem; margin: .5rem 0 1.25rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); cursor: pointer; }
+.boom pre { font: var(--t-xs)/1.5 var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-word; margin: 0; }

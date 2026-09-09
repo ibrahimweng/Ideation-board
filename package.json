@@ -23,6 +23,7 @@
     "test:nospace": "node test/nospace.mjs",
     "test:mirror": "node test/mirror.mjs",
     "test:context": "node test/context.mjs",
+    "test:ahead": "node test/ahead.mjs",
     "test:ascii": "node test/ascii.mjs",
     "test:png": "node test/png.mjs",
     "test:load": "node test/load.mjs",

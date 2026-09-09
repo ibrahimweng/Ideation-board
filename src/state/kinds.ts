@@ -82,10 +82,36 @@ export const TRAITS: Record<Kind, Traits> = {
  * They are type guards rather than plain booleans, so asking the question also
  * settles whether there is anything there — which is what the exclamation
  * marks were standing in for. */
+/* A kind this build has never heard of.
+ *
+ * The table is written so a new kind is a new row, and the answers follow —
+ * but a row that is not there was fatal, because every one of these questions
+ * reached into it directly. A board holding one card from a later build, and
+ * the whole app was a white screen: not the card missing, everything missing,
+ * with nothing said. That is the worst failure this app has, because the work
+ * is in this browser and nowhere else, and somebody looking at a blank page
+ * cannot tell a crash from having lost all of it.
+ *
+ * A record can arrive from ahead of you in two ordinary ways — a second tab
+ * running a newer build, and a `.board.zip` exported by one — so the answer is
+ * not to guess at the kind but to say what is safely true of any card: it is a
+ * box, so it can be moved, tidied, selected and deleted, and it holds a file,
+ * so nothing goes looking for one to throw away. Everything that would need to
+ * understand it says no. */
+const UNKNOWN: Traits = { thing: true, pixels: false, graded: false, media: true, words: false }
+
+export const traitsOf = (kind: Kind | string | undefined | null): Traits =>
+  (kind && TRAITS[kind as Kind]) || UNKNOWN
+
+/* Whether this build knows what to do with a card at all. The card itself uses
+ * it to say so rather than drawing an empty box. */
+export const isKnownKind = (kind: Kind | string | undefined | null): boolean =>
+  !!kind && !!TRAITS[kind as Kind]
+
 const trait =
   (k: keyof Traits) =>
   (i?: Item | null): i is Item =>
-    !!i && TRAITS[i.kind][k]
+    !!i && traitsOf(i.kind)[k]
 
 /* A box to move, resize, line up and tidy. */
 export const isThing = trait('thing')

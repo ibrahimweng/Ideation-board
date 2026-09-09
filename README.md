@@ -1544,10 +1544,10 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 ## Tests
 
 Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
-are sixty suites driving a real browser, and take about half an hour.
+are sixty-one suites driving a real browser, and take about half an hour.
 
 ```bash
-npm test            # types, then 611 unit tests — a few seconds
+npm test            # types, then 617 unit tests — a few seconds
 npm run test:all    # the above, then a build, then every browser suite
 ```
 
@@ -1657,6 +1657,7 @@ npm run test:undelete -- http://localhost:5173
 npm run test:nospace -- http://localhost:5173
 npm run test:mirror -- http://localhost:5173
 npm run test:context -- http://localhost:5173
+npm run test:ahead -- http://localhost:5173
 npm run test:ascii -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
@@ -1790,6 +1791,17 @@ two against a server it starts itself.
   the suite stops rather than reporting the rest, which would otherwise be
   eight passes about a board that was never hurt — which is exactly what the
   first version of it did on a machine where its setup lost a race.
+- `test:ahead` opens a board holding a card this build has never heard of,
+  which is what a second tab running a newer deploy writes, and what a
+  `.board.zip` from a later version brings in. It used to take the whole app
+  down — not the card, everything, a blank page with one line in a console
+  nobody has open — because every question about a card went through a table
+  indexed by its kind and a row that is not there is undefined. Now the card is
+  drawn as one this version does not know, can still be moved out of the way or
+  deleted, and its file survives a sweep. The second half is the other layer:
+  a record no build ever wrote is put on the board to make a render really
+  throw, and the page has to say what happened and say the work is still there
+  rather than going white.
 - `test:offline` makes a board, cuts the network at the browser, and opens the
   app again: it has to start, and the work has to be there — in a reloaded tab
   and in a fresh one, which is what an installed app is. Then the two things

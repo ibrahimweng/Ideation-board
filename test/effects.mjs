@@ -114,6 +114,43 @@ const fingerprint = (b64) =>
     return { v, spread: Math.round(spread) }
   }, b64)
 
+/* Whether two shots are the same picture, at full resolution.
+ *
+ * The fingerprint below is eight by eight and is right for asking whether two
+ * effects look alike — but wrong for asking whether an effect ran at all. An
+ * effect that changes local detail while leaving the overall brightness where
+ * it was reads as nothing at that size: Relight is built to do exactly that,
+ * and it sat above the line here and under it on a runner, on a machine
+ * difference of a couple of grey levels.
+ *
+ * What that check is really asking is whether the shader painted or quietly
+ * fell back to Original when it failed to compile — and a fallback is not
+ * nearly the same picture, it is the same picture. So it is asked at full size
+ * and answered in tenths of a grey level, where a fallback is 0 and everything
+ * else is far from it. */
+const differs = (a, b) =>
+  page.evaluate(async ([one, two]) => {
+    const load = async (data) => {
+      const img = new Image()
+      img.src = 'data:image/png;base64,' + data
+      await img.decode()
+      const c = document.createElement('canvas')
+      c.width = img.width
+      c.height = img.height
+      const x = c.getContext('2d', { willReadFrequently: true })
+      x.drawImage(img, 0, 0)
+      return x.getImageData(0, 0, c.width, c.height).data
+    }
+    const [p, q] = [await load(one), await load(two)]
+    if (p.length !== q.length) return 999
+    let n = 0
+    for (let i = 0; i < p.length; i += 4) {
+      n += Math.abs(0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]
+                  - (0.2126 * q[i] + 0.7152 * q[i + 1] + 0.0722 * q[i + 2]))
+    }
+    return Math.round((n / (p.length / 4)) * 100) / 100
+  }, [a, b])
+
 const dist = (a, b) => {
   let n = 0
   for (let i = 0; i < 64; i++) n += Math.abs(a.v[i] - b.v[i])
@@ -129,6 +166,7 @@ const same = []
 const near = []
 const tight = []
 const unchanged = []
+const faint = []
 const seen = []
 
 for (const name of names) {
@@ -139,7 +177,21 @@ for (const name of names) {
   shots.push({ name, b64 })
 
   if (fp.spread < 4) flat.push(name)
-  if (name !== 'Original' && dist(fp, plain) < 3) unchanged.push(name)
+  if (name !== 'Original') {
+    const moved = await differs(b64, plainShot)
+    /* Where the line goes, measured rather than guessed at both ends.
+ 
+       A shader made to fail to compile on purpose — Relight, with rubbish for
+       a body — falls back and reads 0.55 rather than the 0 you would expect:
+       the picture still goes through the render path, so it is close to the
+       original without being it. The faintest effect that really paints is
+       Pixel sort at 3.04. So the line sits between them with about a doubling
+       of room on each side, which is what the eight-by-eight fingerprint could
+       not offer: it had the faintest real effects and the machine-to-machine
+       drift in the same three grey levels. */
+    if (moved < 1.2) unchanged.push(name)
+    faint.push({ name, d: moved })
+  }
   for (const prev of seen) {
     if (prev.name === 'Original' || name === 'Original') continue
     const d = dist(fp, prev.fp)
@@ -166,7 +218,16 @@ for (const name of names) {
   seen.push({ name, fp })
 }
 
-check('every effect paints something of its own', unchanged.length === 0, unchanged.join(', ') || 'none unchanged')
+/* The three that changed the picture least, said out loud whether or not
+   anything failed — the same reasoning as the closest pairs below it. An
+   effect drifting towards doing nothing on a machine nobody here runs is the
+   thing that gets found out on a runner, and Relight did: it landed under the
+   margin there while passing here, and nothing in this suite's output would
+   have told anyone it was close. */
+faint.sort((a, b) => a.d - b.d)
+check('every effect paints something of its own',
+  unchanged.length === 0,
+  unchanged.length ? unchanged.join(', ') : `faintest: ${faint.slice(0, 3).map((f) => `${f.name} ${f.d}`).join(', ')}`)
 check('no two effects paint the same picture', same.length === 0, same.join(', ') || 'all distinct')
 check('and none of them is one step away from another', near.length === 0,
   near.join(', ') ||

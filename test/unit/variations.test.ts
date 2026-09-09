@@ -223,12 +223,31 @@ describe('a whole batch', () => {
     }
   })
 
+  /* This one asserted the rate on a single batch of nine and wanted five of
+     them from a parent — which is the mistake the top of this file is about,
+     made inside the file that says so. Measured over two thousand batches, the
+     share bred from a parent is 0.79, and 2.3% of batches of nine come back
+     with four or fewer. So it went red about one run in forty, on nothing.
+ 
+     The claim is the same one; it is the sample that was wrong. Over the same
+     draws as everything else here, the worst batch seen was 0.44 and the best
+     was 1.00, while the share held at 0.79 — so a band either side of that
+     catches a real change to the odds and never catches a fair run. Both ends
+     are worth having: breeding from nobody means the keepers were ignored, and
+     breeding from nothing else means the grid has stopped offering
+     alternatives and only repeats what it was given. */
   it('and with keepers, it breeds from them instead', () => {
-    const parents = [rollLook(FX_0, 'halftone'), rollLook(FX_0, 'invert')]
-    const batch = batchOfLooks(FX_0, 9, parents)
-    expect(batch).toHaveLength(9)
-    const fromParents = batch.filter((l) => parents.some((p) => p.fxid === l.fxid)).length
-    expect(fromParents).toBeGreaterThan(4)
+    const parents = [rollLook(FX_0, 'halftone'), rollLook(FX_0, 'dither')]
+    let bred = 0
+    let made = 0
+    for (let i = 0; i < DRAWS; i++) {
+      const batch = batchOfLooks(FX_0, 9, parents)
+      expect(batch).toHaveLength(9)
+      made += batch.length
+      bred += batch.filter((l) => parents.some((p) => p.fxid === l.fxid)).length
+    }
+    expect(bred / made).toBeGreaterThan(0.6)
+    expect(bred / made).toBeLessThan(0.95)
   })
 
   it('and asking for none makes none', () => {

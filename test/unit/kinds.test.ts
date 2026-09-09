@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS, wordsField, pixelKey } from '../../src/state/kinds'
+import { canShade, endsOf, hasPixels, hasWords, holdsMedia, isGradeable, isSection, isThing, isWire, TRAITS, wordsField, pixelKey, isKnownKind, traitsOf } from '../../src/state/kinds'
 import type { Item, Kind } from '../../src/state/types'
 import { FX_0 } from '../../src/engine/types'
 
@@ -178,5 +178,59 @@ describe('a design file', () => {
     /* Whatever type is set inside a Photoshop document is inside the picture,
        not typed onto the card. */
     expect(TRAITS.design.words).toBe(false)
+  })
+})
+
+/* A kind this build has never heard of.
+ *
+ * The table is written so that adding a kind is adding a row — but reading a
+ * row that is not there was fatal, and the ways it happens are ordinary: a
+ * second tab running a newer deploy, a `.board.zip` exported by one. Every
+ * question below used to throw on such a card, and throwing during a render
+ * takes the whole app down, which on an app holding the only copy of somebody's
+ * work is the worst thing it can do.
+ *
+ * The answers are chosen so that nothing is lost and nothing is guessed: it is
+ * a box, so it can be moved out of the way and deleted; it holds a file, so
+ * nothing goes hunting for one to collect; and everything that would need to
+ * understand it says no.
+ */
+describe('a card from a later build', () => {
+  const ahead = { ...of('image', { name: 'From a later build' }), kind: 'hologram' } as unknown as Item
+
+  it('is a thing on the board, so it can be moved and deleted', () => {
+    expect(isThing(ahead)).toBe(true)
+  })
+
+  it('and is said to hold a file, so nothing sweeps one away under it', () => {
+    expect(holdsMedia(ahead)).toBe(true)
+  })
+
+  it('but claims nothing this build would have to understand', () => {
+    expect(hasPixels(ahead)).toBe(false)
+    expect(isGradeable(ahead)).toBe(false)
+    expect(hasWords(ahead)).toBe(false)
+  })
+
+  it('and none of the questions throw, which is the whole of it', () => {
+    for (const ask of [isThing, hasPixels, isGradeable, holdsMedia, hasWords]) {
+      expect(() => ask(ahead)).not.toThrow()
+    }
+  })
+
+  it('says plainly that it is not a kind this build knows', () => {
+    expect(isKnownKind('hologram')).toBe(false)
+    expect(isKnownKind('image')).toBe(true)
+    expect(isKnownKind('')).toBe(false)
+    expect(isKnownKind(undefined)).toBe(false)
+  })
+
+  /* The table itself still answers for everything it does know, which is what
+     says the fallback has not quietly become the answer for everyone. */
+  it('and every kind this build does know still answers from its own row', () => {
+    expect(traitsOf('image').pixels).toBe(true)
+    expect(traitsOf('note').words).toBe(true)
+    expect(traitsOf('section').thing).toBe(false)
+    expect(traitsOf('edge').thing).toBe(false)
   })
 })
