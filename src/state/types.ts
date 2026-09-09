@@ -104,6 +104,13 @@ export interface Item {
    * under `poster` like any other still. */
   peaks?: number[]
   secs?: number
+  /* The shape of the file that was dropped, kept for the compare key.
+   *
+   * `peaks` follows the treatment — that is the point of it, a gate that chops
+   * a track to pieces has to look chopped from across the room. Which leaves
+   * nothing to draw when somebody asks what it looked like before, so the
+   * untreated shape is kept beside it and never written over. */
+  dry?: number[]
 }
 
 export interface Board {

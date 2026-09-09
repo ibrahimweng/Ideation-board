@@ -343,6 +343,84 @@ const told = await page.locator('.said').textContent().catch(() => '')
 check('and it says to trim it first, which is the first effect in the list',
   /trim/i.test(told), told)
 
+/* ---------- what it sounded like before ---------- */
+
+/* Every picture medium drops its effect while the compare key is held. A sound
+   is the one where that question gets asked oftener than any other — nobody
+   judges a treatment against nothing — and the only answer the board had was
+   the panel's Back to the original, which takes the chain off: two presses of
+   undo and a lost train of thought, which is the exact problem the compare key
+   was written to solve.
+
+   Measured on both halves of the card, because either one alone can be right
+   while the other is wrong: the shape that is drawn, and the file that plays. */
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+await clear()
+await page.locator('.card[data-kind="audio"]').first().click({ position: { x: 30, y: 8 } })
+await page.waitForTimeout(500)
+await put('Reverse', 3500)
+
+/* The bars of the waveform, from the path the card draws. */
+const bars = () =>
+  page.evaluate(() => {
+    const p = document.querySelector('.card[data-kind="audio"] .wave-rest')
+    if (!p) return null
+    const out = []
+    for (const m of (p.getAttribute('d') || '').matchAll(/M[\d.]+ ([\d.]+)H[\d.]+V([\d.]+)/g)) {
+      out.push(parseFloat(m[2]) - parseFloat(m[1]))
+    }
+    return out
+  })
+const heavy = (list, from, to) => {
+  const cut = list.slice(Math.floor(list.length * from), Math.floor(list.length * to))
+  return cut.reduce((a, b) => a + b, 0) / Math.max(1, cut.length)
+}
+const playing = () =>
+  page.evaluate(() => document.querySelector('.card[data-kind="audio"] audio')?.src || '')
+
+const treatedBars = await bars()
+const treatedFile = await playing()
+check('setup: reversed, so the card draws the loud end at the end',
+  !!treatedBars && heavy(treatedBars, 0.8, 1) > heavy(treatedBars, 0, 0.2) * 1.5,
+  `${heavy(treatedBars, 0, 0.2).toFixed(3)} then ${heavy(treatedBars, 0.8, 1).toFixed(3)}`)
+
+await page.evaluate(() => document.activeElement?.blur())
+await page.keyboard.down('\\')
+await page.waitForTimeout(700)
+const heldBars = await bars()
+const heldFile = await playing()
+check('holding the compare key draws the sound as it arrived',
+  !!heldBars && heavy(heldBars, 0, 0.2) > heavy(heldBars, 0.8, 1) * 1.5,
+  `${heavy(heldBars, 0, 0.2).toFixed(3)} at the start, ${heavy(heldBars, 0.8, 1).toFixed(3)} at the end`)
+check('and puts the file it arrived as back under the player',
+  !!heldFile && heldFile !== treatedFile, heldFile === treatedFile ? 'same file' : 'a different file')
+
+await page.keyboard.up('\\')
+await page.waitForTimeout(700)
+const backBars = await bars()
+check('and letting go gives the treatment back',
+  JSON.stringify(backBars) === JSON.stringify(treatedBars),
+  `${heavy(backBars, 0, 0.2).toFixed(3)} then ${heavy(backBars, 0.8, 1).toFixed(3)}`)
+check('with the treated file under the player again', (await playing()) === treatedFile)
+
+/* An untreated sound has nothing to swap, and the key must not restart it —
+   which is what assigning the address it already has would do. */
+await clear()
+await page.waitForTimeout(800)
+const plainFile = await playing()
+await page.evaluate(() => {
+  const el = document.querySelector('.card[data-kind="audio"] audio')
+  if (el) el.currentTime = 0.9
+})
+await page.keyboard.down('\\')
+await page.waitForTimeout(500)
+const kept = await page.evaluate(() => document.querySelector('.card[data-kind="audio"] audio')?.currentTime ?? -1)
+await page.keyboard.up('\\')
+check('and on a sound with nothing on it the key leaves the track where it was',
+  kept > 0.5 && (await playing()) === plainFile, `${kept.toFixed(2)}s`)
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

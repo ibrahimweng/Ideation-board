@@ -30,9 +30,12 @@ interface Props {
    * play on it. */
   secs: number
   selected: boolean
+  /* Whether the compare key is being held, which is to say whether the file
+   * under the player is the treated one or the one that was dropped. */
+  plain: boolean
 }
 
-export const AudioCard = memo(function AudioCard({ url, name, art, peaks, secs, selected }: Props) {
+export const AudioCard = memo(function AudioCard({ url, name, art, peaks, secs, selected, plain }: Props) {
   const ref = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [at, setAt] = useState(0)
@@ -73,6 +76,48 @@ export const AudioCard = memo(function AudioCard({ url, name, art, peaks, secs, 
       el.removeEventListener('ended', off)
     }
   }, [url])
+
+  /* The file, put on the element rather than written into the markup.
+   *
+   * Holding the compare key swaps the treated render for the file that was
+   * dropped, and the whole point of that swap is hearing the same moment
+   * untreated — so where you were and whether you were playing come across
+   * with it. A comparison that starts you back at the beginning is not one.
+   *
+   * Which means reading the position before the new file lands, and React
+   * writing `src` in the markup would already have cleared it by the time any
+   * effect could look. So the assignment is here, in order.
+   *
+   * Only across the swap. Treating a sound gives you a different sound and a
+   * different length, and carrying a position into it would be carrying it
+   * into a track that may not be that long. */
+  const wasPlain = useRef(plain)
+  const on = useRef<string | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !url) { on.current = null; return }
+    const swap = wasPlain.current !== plain
+    wasPlain.current = plain
+    /* An untreated sound is the same file with the key held as without it, so
+       there is nothing to swap and the load below would be a reload of what is
+       already loaded, on every press of the key. */
+    if (on.current === url) return
+    const from = el.currentTime
+    const going = !el.paused
+    on.current = url
+    el.src = url
+    if (!swap) return
+    const land = () => {
+      const len = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0
+      el.currentTime = len ? Math.min(from, len) : from
+      setAt(el.currentTime)
+      if (going) void el.play().catch(() => {})
+    }
+    /* HAVE_METADATA or better means the length is known and a seek will hold;
+       before that it is thrown away, so wait for the one event that says so. */
+    if (el.readyState >= 1) land()
+    else el.addEventListener('loadedmetadata', land, { once: true })
+  }, [url, plain])
 
   /* A card taken off the board, or scrolled far enough away to be unmounted,
    * must not go on playing from nowhere. */
@@ -180,8 +225,10 @@ export const AudioCard = memo(function AudioCard({ url, name, art, peaks, secs, 
         <span>{clock(length)}</span>
       </div>
 
-      {/* The element itself, which does the work and is never seen. */}
-      {url && <audio ref={ref} src={url} preload="metadata" />}
+      {/* The element itself, which does the work and is never seen. The file
+          it plays is put on it below rather than written here, because the
+          swap has to read where the track was before the new one lands. */}
+      {url && <audio ref={ref} preload="metadata" />}
     </div>
   )
 })

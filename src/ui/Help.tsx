@@ -204,6 +204,13 @@ function parts(): Part[] {
             plays, as a WAV.
           </p>
           <p>
+            Hold <K>{KEYS.original.hint}</K> and you hear the file you dropped, and the card draws
+            its shape — the same key that shows a picture without its effect. It keeps your place
+            in the track and keeps playing, so it is an A against a B rather than a trip back to
+            the start. Let go and the treatment is there again; nothing was taken off and nothing
+            has to be put back.
+          </p>
+          <p>
             <K>{KEYS.vary.hint}</K> works on a sound too: twelve versions underneath, each run
             through something different, and you can see which is which before you hear any of
             them — the waveform on each card is that version. Mark the ones worth keeping with{' '}
