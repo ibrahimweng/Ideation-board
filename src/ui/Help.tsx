@@ -348,7 +348,9 @@ function parts(): Part[] {
             editing, which is the same trade every picture in the file already makes. A sound over
             about a minute, or one arriving after the page has had its share, is named and placed
             and says on the card why it is not playable — better than a play button that does
-            nothing. The zip below still has all of them at full length.
+            nothing. The zip below still has all of them at full length. The waveform in the page is
+            the scrub bar, as it is here, and takes the keyboard the same way: <K>Tab</K> to it,
+            arrows to move through the track, <K>Space</K> to play.
           </p>
           <p>
             <K>{KEYS.export.hint}</K> is the backup, and the one that <em>can</em> be read back in

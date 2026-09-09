@@ -143,7 +143,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .sndplay{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
   background:var(--bg);border:1px solid var(--line);font-size:10px;line-height:1}
 .sndplay:hover{border-color:var(--accent);color:var(--accent)}
-.sndwave{flex:1;min-height:20px;cursor:pointer}
+.sndwave{flex:1;min-height:20px;cursor:pointer;border-radius:4px}
+.sndwave:focus-visible,.sndplay:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sndwave svg{display:block;width:100%;height:100%}
 .wrest{fill:var(--dot)}
 .wdone{fill:var(--accent)}
@@ -327,6 +328,12 @@ function show(id, keepView) {
         if (rect) rect.setAttribute('width', String(secs ? (a.currentTime / secs) * (it.bars || 1) : 0))
         at.textContent = clock(a.currentTime)
       }
+      const seek = (share) => {
+        const secs = a.duration || it.secs || 0
+        if (!secs || !isFinite(share)) return
+        a.currentTime = Math.min(secs, Math.max(0, share) * secs)
+        draw()
+      }
       a.addEventListener('timeupdate', draw)
       a.addEventListener('loadedmetadata', () => { len.textContent = clock(a.duration || it.secs) })
       a.addEventListener('play', () => { play.textContent = '\u275A\u275A'; play.setAttribute('aria-label', 'Pause') })
@@ -347,11 +354,35 @@ function show(id, keepView) {
       /* The waveform is the scrub bar, exactly as it is on the board. */
       wrap.addEventListener('pointerdown', (e) => {
         e.stopPropagation()
-        const box = wrap.getBoundingClientRect()
+        seek((e.clientX - wrap.getBoundingClientRect().left) / (wrap.getBoundingClientRect().width || 1))
+      })
+      /* And reachable without a pointer, exactly as it is on the board. A page
+         somebody is sent is read by whoever it is sent to, and the one control
+         on it that does something should not be the one thing on it a keyboard
+         cannot work. */
+      wrap.tabIndex = 0
+      wrap.setAttribute('role', 'slider')
+      wrap.setAttribute('aria-label', 'Position in the track')
+      wrap.setAttribute('aria-valuemin', '0')
+      const say = () => {
         const secs = a.duration || it.secs || 0
-        if (!box.width || !secs) return
-        a.currentTime = Math.min(secs, Math.max(0, (e.clientX - box.left) / box.width) * secs)
+        wrap.setAttribute('aria-valuemax', String(Math.round(secs)))
+        wrap.setAttribute('aria-valuenow', String(Math.round(a.currentTime)))
+        wrap.setAttribute('aria-valuetext', clock(a.currentTime) + ' of ' + clock(secs))
+      }
+      say()
+      a.addEventListener('timeupdate', say)
+      a.addEventListener('loadedmetadata', say)
+      wrap.addEventListener('keydown', (e) => {
+        const secs = a.duration || it.secs || 0
+        if (e.key === 'ArrowRight') { e.preventDefault(); a.currentTime = Math.min(secs, a.currentTime + 5) }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); a.currentTime = Math.max(0, a.currentTime - 5) }
+        else if (e.key === 'Home') { e.preventDefault(); a.currentTime = 0 }
+        else if (e.key === 'End') { e.preventDefault(); a.currentTime = Math.max(0, secs - 0.05) }
+        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); play.click() }
+        else return
         draw()
+        say()
       })
     } else if (it.kind === 'note') {
       n.classList.add('thing', 'note')
