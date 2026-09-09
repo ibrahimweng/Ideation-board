@@ -100,14 +100,27 @@ const TOOLS = [
     name: 'add_card',
     description:
       'Put a card down. A note holds words, a label is a line of text on the board itself, a section is ' +
-      'a titled area that carries what is inside it when moved, and a link becomes a real card for what ' +
-      'is at the other end.',
+      'a titled area that carries what is inside it when moved, a link becomes a real card for what ' +
+      'is at the other end, and a sketch is code that draws a picture. Prefer a sketch over draw_image ' +
+      'for anything a program can make — pattern, grid, field, gradient, type specimen, noise, a shape ' +
+      'study: it costs nothing, appears at once, throws itself again on a key, and the person gets ' +
+      'twelve of it on another. draw_image is for photographs and things only a model knows.',
     inputSchema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['note', 'label', 'section', 'link'], description: 'What sort of card.' },
-        text: str('The words, for a note. The name, for a label or section. Ignored for a link.'),
+        kind: { type: 'string', enum: ['note', 'label', 'section', 'link', 'sketch'], description: 'What sort of card.' },
+        text: str('The words, for a note. The name, for a label, section or sketch. Ignored for a link.'),
         url: str('The address, for a link.'),
+        code: str(
+          'The drawing, for a sketch. A body of plain JavaScript, no function wrapper and no imports, ' +
+          'handed (ctx, w, h, rand, img, seed): ctx is a 2D canvas context the size of w by h, rand() ' +
+          'gives 0..1 and rand(a, b) a number between them from the card\'s own seed — use it for every ' +
+          'random number or the picture will not be the same twice — img is the picture of the card ' +
+          'wired into this one or null. It runs alone, with no globals and no network, and is stopped ' +
+          'after a few seconds, so an endless loop costs the card rather than the tab. Fill the ' +
+          'background first: the canvas starts white. The answer says whether it drew, and the error if ' +
+          'it did not — read it and send the fix with update_card.'
+        ),
         x: num('Board coordinates. Omitted, it goes in the middle of the view.'),
         y: num('Board coordinates.'),
         colour: str('Hex, e.g. "#F2C14E". Notes and labels only.'),
@@ -142,12 +155,16 @@ const TOOLS = [
   },
   {
     name: 'update_card',
-    description: 'Change a card that is already there: its words, its colour, its tag, or whether it is kept or cut.',
+    description:
+      'Change a card that is already there: its words, its colour, its tag, whether it is kept or cut, ' +
+      'or — on a sketch — the code it draws with, which is how you fix one that came back wrong and how ' +
+      'you work on one somebody else wrote.',
     inputSchema: {
       type: 'object',
       properties: {
         id: str('The card, from get_board.'),
         text: str('New words for a note, or a new name for anything else.'),
+        code: str('New drawing code, for a sketch. Replaces what was there and redraws. Same shape as add_card.'),
         colour: str('Hex.'),
         tag: { type: 'string', enum: ['red', 'amber', 'green', 'blue', 'violet', 'none'], description: 'A category colour, or "none".' },
         pick: { type: 'string', enum: ['in', 'out', 'none'], description: 'Kept, cut, or undecided. This is the decision the board is for.' },

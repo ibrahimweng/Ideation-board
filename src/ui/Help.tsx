@@ -363,6 +363,14 @@ function parts(): Part[] {
             that has ever known what is on your board — so an agent can read it, add cards, move
             things and draw pictures without your work leaving this browser.
           </p>
+          <p>
+            It can also write you a sketch, which is the more useful of the two. A drawn picture
+            costs money and takes ten seconds and is one picture; a sketch is code, so it arrives at
+            once, throws itself again on <K>{KEYS.shuffle.hint}</K>, and gives you twelve on{' '}
+            <K>{KEYS.vary.hint}</K> — ask for a grid, a field, a type specimen, and what you get is
+            the way of making a hundred of them. Code from an agent runs exactly where your own
+            does: alone, with nothing to reach, and stopped after a few seconds.
+          </p>
         </>
       ),
     },

@@ -2,6 +2,7 @@ import type { Item, Kind } from '../state/types'
 import { store } from '../state/store'
 import { labelItem, noteItem, sectionItem, addUrl } from '../state/ingest'
 import { hasPixels, wordsField } from '../state/kinds'
+import { runSketch, sketchItem } from '../state/sketches'
 import { drawMany, picturesFrom } from '../state/generate'
 import { fitToBoard, viewportSize } from '../state/walk'
 import { allBoards } from '../store/idb'
@@ -52,8 +53,12 @@ function describe(it: Item) {
     out.to = it.to
   }
   /* Whether there is a picture, not what it is. An agent cannot see it, and
-   * saying so plainly is better than it inferring from a media key. */
-  if (it.media || it.url) {
+   * saying so plainly is better than it inferring from a media key.
+   *
+   * `poster` counts: a sketch holds no file at all and a model and a document
+   * are looked at through one, so asking only about `media` reports a sketch
+   * that has drawn as having nothing on it. */
+  if (it.media || it.url || it.poster) {
     out.hasPicture = hasPixels(it)
   }
   /* A document says how long it is and where in it the card is looking, which
@@ -117,7 +122,7 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
       .sort((x, y) => y.cards - x.cards)
   },
 
-  add_card(a) {
+  async add_card(a) {
     const kind = str(a.kind)
     const at = { x: numOr(a.x, centre().x), y: numOr(a.y, centre().y) }
     const text = str(a.text)
@@ -134,7 +139,23 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     if (kind === 'note') it = noteItem(at, text)
     else if (kind === 'label') it = labelItem(at)
     else if (kind === 'section') it = sectionItem(at)
-    else throw new Error(`No card kind called "${kind}". Try note, label, section or link.`)
+    /* Code that draws, rather than a drawing.
+     *
+     * The other way to put a picture on this board from here is draw_image,
+     * which spends the person's own money and takes ten seconds a go. A sketch
+     * costs nothing, arrives at once, throws again on a key, and gives twelve
+     * of itself on another — so what is being handed over is a way of making a
+     * hundred pictures rather than one picture.
+     *
+     * It runs where a person's own code runs: a worker built from a blob, no
+     * globals, stopped after a few seconds. Nothing has to be trusted about
+     * where the code came from, which is exactly why this can be offered. */
+    else if (kind === 'sketch') {
+      const code = str(a.code)
+      if (!code) throw new Error('A sketch needs code. It is handed (ctx, w, h, rand, img, seed) and draws on ctx.')
+      it = sketchItem(at, code)
+    }
+    else throw new Error(`No card kind called "${kind}". Try note, label, section, link or sketch.`)
 
     /* A label carries its words the way a note does; a section is named. The
      * app already has one answer to which is which, and this uses it rather
@@ -145,6 +166,15 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     const colour = str(a.colour)
     if (colour) it.color = colour
     store.add(it)
+    /* Drawn before the answer goes back, and the answer says whether it drew.
+     * Code written blind is code that needs the error more than it needs the
+     * card. Not recorded: the step that put the card down is the step, and a
+     * card whose picture had to be undone separately would be a card that
+     * arrives twice. */
+    if (it.kind === 'sketch') {
+      const no = await runSketch(it.id, undefined, false)
+      return { ...describe(store.getItem(it.id) || it), drew: !no, ...(no ? { trouble: no } : {}) }
+    }
     return describe(it)
   },
 
@@ -178,15 +208,29 @@ const TOOLS: Record<ToolName, (a: Args) => unknown | Promise<unknown>> = {
     }
   },
 
-  update_card(a) {
+  async update_card(a) {
     const it = must(a.id)
     const patch: Partial<Item> = {}
     if (typeof a.text === 'string') patch[wordsField(it)] = a.text
     if (typeof a.colour === 'string' && a.colour) patch.color = a.colour
     if (typeof a.tag === 'string') patch.tag = a.tag === 'none' ? null : a.tag
     if (typeof a.pick === 'string') patch.pick = a.pick === 'none' ? null : (a.pick as 'in' | 'out')
-    if (!Object.keys(patch).length) throw new Error('Nothing to change. Pass text, colour, tag or pick.')
+    /* Rewriting a sketch is the other half of writing one. Code that draws is
+     * code that comes back wrong the first time, and a card you can put code on
+     * but never correct is one round of a loop that needs several. */
+    const code = typeof a.code === 'string' ? a.code : null
+    if (code !== null) {
+      if (it.kind !== 'sketch') throw new Error('Only a sketch card holds code.')
+      if (!code.trim()) throw new Error('That is no code at all.')
+      patch.code = code
+      patch.poster = undefined
+    }
+    if (!Object.keys(patch).length) throw new Error('Nothing to change. Pass text, colour, tag, pick or code.')
     store.update(it.id, patch)
+    if (code !== null) {
+      const no = await runSketch(it.id, undefined, false)
+      return { ...describe(store.getItem(it.id)!), drew: !no, ...(no ? { trouble: no } : {}) }
+    }
     return describe(store.getItem(it.id)!)
   },
 

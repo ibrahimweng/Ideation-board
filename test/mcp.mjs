@@ -285,6 +285,68 @@ r = await call('draw_image', { prompt: 'x', from: ['i_nosuchcard'] })
 ok('and a card that is not there is said plainly rather than quietly ignored',
    r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 
+/* ---------- code that draws, rather than a drawing ---------- */
+
+/* The other way to put a picture here spends the person's money and takes ten
+   seconds. A sketch costs nothing, arrives at once, and is a way of making a
+   hundred pictures rather than one — the person can throw it again on a key and
+   get twelve of it on another. So the useful thing to hand an agent is not a
+   picture but the code for one.
+
+   Checked by reading the pixels, because "a card appeared" and "the code ran"
+   are different claims and only the second one is the feature. */
+
+const paint = (id, hex) =>
+  `ctx.fillStyle = '${hex}'\nctx.fillRect(0, 0, w, h)\n/* ${id} */`
+
+const inkOf = (kind) =>
+  page.evaluate((kind) => {
+    const el = document.querySelector(`.card[data-kind="${kind}"] img.media, .card[data-kind="${kind}"] canvas.media`)
+    if (!el) return null
+    const c = document.createElement('canvas')
+    c.width = 32
+    c.height = 32
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(el, 0, 0, 32, 32)
+    const d = cx.getImageData(8, 8, 16, 16).data
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++ }
+    return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) }
+  }, kind)
+
+r = await call('add_card', { kind: 'sketch', text: 'Field', code: paint('one', '#1030c0'), x: 1200, y: 200 })
+await page.waitForTimeout(2500)
+const sketchId = r.json?.id
+ok('Claude can put code on the board and it says whether the code ran',
+   !r.isError && r.json?.kind === 'sketch' && r.json?.drew === true, r.text.slice(0, 140))
+ok('and the card is named what it was called', r.json?.name === 'Field', r.json?.name)
+const blue = await inkOf('sketch')
+ok('and the picture on the card is what the code drew',
+   !!blue && blue.b > 120 && blue.b > blue.r + 60, JSON.stringify(blue))
+
+/* Written blind, code comes back wrong. The error is worth more than the card
+   at that point, so it goes in the answer rather than being left on screen for
+   somebody who is not looking. */
+r = await call('add_card', { kind: 'sketch', code: 'nothingAtAll()', x: 1200, y: 700 })
+await page.waitForTimeout(2500)
+ok('code that does not run comes back saying so, rather than as a blank card',
+   !r.isError && r.json?.drew === false && /nothingAtAll|not defined/i.test(String(r.json?.trouble || '')),
+   JSON.stringify(r.json?.trouble))
+
+/* And the fix goes back the same way, which is what makes it a loop. */
+r = await call('update_card', { id: sketchId, code: paint('two', '#c03010') })
+await page.waitForTimeout(2500)
+ok('and the fix can be sent to the same card', !r.isError && r.json?.drew === true, r.text.slice(0, 120))
+const red = await inkOf('sketch')
+ok('which redraws it', !!red && red.r > 120 && red.r > red.b + 60, JSON.stringify(red))
+
+r = await call('add_card', { kind: 'sketch', x: 0, y: 0 })
+ok('a sketch with no code is refused, and says what a sketch is handed',
+   r.isError && /ctx, w, h, rand, img, seed/.test(r.text), r.text.slice(0, 100))
+r = await call('update_card', { id: noteId, code: 'ctx.fillRect(0,0,w,h)' })
+ok('and code on a card that is not a sketch is refused',
+   r.isError && /only a sketch/i.test(r.text), r.text.slice(0, 80))
+
 /* ---------- arranging and looking ---------- */
 r = await call('arrange', { how: 'tidy' })
 await page.waitForTimeout(600)
@@ -303,7 +365,7 @@ r = await call('move_card', { id: 'i_nosuchcard', x: 0, y: 0 })
 ok('a card that is not there is said plainly, not guessed at',
    r.isError && /no card/i.test(r.text), r.text.slice(0, 80))
 r = await call('add_card', { kind: 'sculpture' })
-ok('and so is a kind of card that does not exist', r.isError && /note, label, section or link/.test(r.text), r.text.slice(0, 80))
+ok('and so is a kind of card that does not exist', r.isError && /note, label, section, link or sketch/.test(r.text), r.text.slice(0, 80))
 
 /* ---------- deleting is one step of undo ---------- */
 const before = (await cards()).length
