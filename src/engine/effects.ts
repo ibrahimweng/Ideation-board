@@ -871,9 +871,13 @@ export const EFFECTS: EffectSpec[] = [
       vec3 L = normalize(vec3(cos(a) * cos(e), sin(a) * cos(e), sin(e)));
       float lam = clamp(dot(n, L), 0.0, 1.0);
       vec3 base = T(uv).rgb;
-      vec3 lit = base * (p4 + lam * p3 * 1.6) * mix(vec3(1.0), c0, 0.8);
+      /* Scaled so that a surface facing the camera with the light where it
+         starts comes back about as bright as it went in. A relight whose
+         middle setting blows a photograph to white is a relight nobody can
+         judge the direction on. */
+      vec3 lit = base * (p4 + lam * p3) * mix(vec3(1.0), c0, 0.8);
       /* A glance off the surface where it faces the light squarely. */
-      float spec = pow(lam, 22.0) * p3 * 0.35;
+      float spec = pow(lam, 22.0) * p3 * 0.28;
       return vec4(clamp(lit + spec, 0.0, 1.0), 1.0); }`
   },
 

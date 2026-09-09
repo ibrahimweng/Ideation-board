@@ -204,6 +204,238 @@ check('with a real spread between the nearest and the furthest',
 
 fs.writeFileSync(path.join(OUT, 'depth-map.png'), await page.screenshot())
 
+/* ---------- the four that read one ---------- */
+
+/* A guessed map is a guess, so the effects are not checked against one. They
+   get a map drawn on purpose — the top half black, the bottom half white, one
+   hard seam across the middle — and a picture whose every feature is easy to
+   find: a white square on black. Then what each effect did to the near half
+   and to the far half are two different numbers, and the difference between
+   them is the whole claim, which is that the map was read at all.
+
+   An effect that ignored the map would do the same thing to both halves. */
+
+/* A clean board and a view that has not moved. The section above made twelve
+   hundred pixels of depth map and pulled the view about to show it, and a card
+   that is on screen but two hundred pixels wide is a card whose corner cannot
+   be clicked and whose port cannot be dragged from. */
+await page.evaluate(() => { indexedDB.deleteDatabase('ideation.board.db'); localStorage.clear() })
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1800)
+
+const SQUARE = `x.fillStyle='#000';x.fillRect(0,0,w,h);x.fillStyle='#fff';x.fillRect(w*0.3,h*0.12,w*0.4,h*0.76)`
+/* Far at the top, near at the bottom, and a slope between them rather than a
+   step. A step has no width for a light to fall across, and a real depth map
+   is made of slopes — a wall going away, a floor coming towards you — so a map
+   with one is the honest thing to ask Relight about. */
+const SPLIT = `
+x.fillStyle='#000';x.fillRect(0,0,w,h*0.42);
+x.fillStyle='#fff';x.fillRect(0,h*0.58,w,h*0.42);
+const g=x.createLinearGradient(0,h*0.42,0,h*0.58);
+g.addColorStop(0,'#000');g.addColorStop(1,'#fff');
+x.fillStyle=g;x.fillRect(0,h*0.42,w,h*0.16);
+`
+
+await drop(SQUARE, 'square.png', { x: 400, y: 420 })
+await page.waitForSelector('.card[data-kind="image"]', { timeout: 15000 })
+await page.waitForTimeout(1600)
+await drop(SPLIT, 'split.png', { x: 1010, y: 420 })
+await page.waitForTimeout(1800)
+/* Named by where they are rather than by the order they turn up in the
+   document, which is z-order and not the order they were dropped. */
+const placed = await page.evaluate(() =>
+  [...document.querySelectorAll('.card')]
+    .map((c) => ({ id: c.dataset.id, x: c.getBoundingClientRect().x }))
+    .sort((a, b) => a.x - b.x)
+)
+check('setup: a picture and a map to read it with', placed.length === 2,
+  placed.map((c) => c.id).join(', '))
+const PIC = placed[0]?.id
+const MAP = placed[1]?.id
+
+/* The map feeds the picture, which is what all four of them read along. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+const mapBox = await page.locator(`.card[data-id="${MAP}"]`).boundingBox()
+const picBox = await page.locator(`.card[data-id="${PIC}"]`).boundingBox()
+await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2)
+await page.waitForTimeout(500)
+/* The map sits to the right of the picture, so the wire leaves by its west
+   side. Which port a card offers depends on where the pointer is over it. */
+/* The ports are a layer beside the card rather than inside it, so the one
+   that belongs to this card is found by where it is: the west port sits on the
+   card's left edge, half way down. */
+const port = await page.evaluate((box) => {
+  for (const p of document.querySelectorAll('.port-w')) {
+    const r = p.getBoundingClientRect()
+    if (!r.width) continue
+    if (Math.abs(r.left + 10 - box.x) < 30 && r.top > box.y && r.top < box.y + box.height) {
+      return r.toJSON()
+    }
+  }
+  return null
+}, mapBox)
+if (port) {
+  await page.mouse.move(port.x + port.width / 2, port.y + port.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(picBox.x + picBox.width / 2, picBox.y + picBox.height / 2, { steps: 16 })
+  await page.mouse.up()
+  await page.waitForTimeout(1800)
+}
+check('setup: the map is wired into the picture', (await page.locator('.wire').count()) === 1,
+  `${await page.locator('.wire').count()} wires, port ${port ? 'found' : 'missing'}`)
+
+/* What the picture looks like, half by half. `bright` is where the white
+   square is, `edges` counts pixels that are neither black nor white — which is
+   what a blur makes and a sharp edge does not — and `air` is how far the half
+   has drifted towards a colour. */
+const look = () =>
+  page.evaluate((id) => {
+    const el = document.querySelector(`.card[data-id="${id}"] canvas.media, .card[data-id="${id}"] img.media`)
+    if (!el) return null
+    const N = 80
+    const c = document.createElement('canvas')
+    c.width = N
+    c.height = N
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(el, 0, 0, N, N)
+    const d = cx.getImageData(0, 0, N, N).data
+    const half = (from, to) => {
+      let wx = 0
+      let wn = 0
+      let soft = 0
+      let r = 0
+      let g = 0
+      let b = 0
+      let n = 0
+      for (let y = from; y < to; y++) {
+        for (let x = 0; x < N; x++) {
+          const i = (y * N + x) * 4
+          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+          if (l > 128) { wx += x; wn++ }
+          if (l > 40 && l < 215) soft++
+          r += d[i]; g += d[i + 1]; b += d[i + 2]; n++
+        }
+      }
+      return {
+        x: wn ? wx / wn : -1,
+        white: wn,
+        soft: soft / n,
+        r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n),
+      }
+    }
+    return { top: half(4, 30), bottom: half(50, 76) }
+  }, PIC)
+
+/* A brightness profile down the picture, taken through the middle of the white
+   square so that what is measured is the subject and not the black around it.
+   Relight makes a line rather than a wash, and a line is a row. */
+const rows = () =>
+  page.evaluate((id) => {
+    const el = document.querySelector(`.card[data-id="${id}"] canvas.media, .card[data-id="${id}"] img.media`)
+    if (!el) return null
+    const N = 80
+    const c = document.createElement('canvas')
+    c.width = N
+    c.height = N
+    const cx = c.getContext('2d', { willReadFrequently: true })
+    cx.drawImage(el, 0, 0, N, N)
+    const d = cx.getImageData(0, 0, N, N).data
+    const out = []
+    for (let y = 0; y < N; y++) {
+      let s = 0
+      let n = 0
+      for (let x = 32; x < 48; x++) {
+        const i = (y * N + x) * 4
+        s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+        n++
+      }
+      out.push(s / n)
+    }
+    return out
+  }, PIC)
+
+const pick = (title) => page.locator(`.fx-thumb[title="${title}"]`).first()
+const setCtl = async (label, v) => {
+  const row = page.locator('.panel .ctl').filter({ hasText: label }).first()
+  await row.locator('.ctl-num').fill(String(v))
+  await row.locator('.ctl-num').press('Enter')
+  await page.waitForTimeout(1400)
+}
+await page.locator(`.card[data-id="${PIC}"]`).click()
+await page.waitForTimeout(500)
+if (!(await page.locator('.fx-thumb').count())) {
+  await page.keyboard.press('e')
+  await page.waitForTimeout(900)
+}
+const plain = await look()
+const plainRows = await rows()
+
+/* ---- Parallax ---- */
+await pick('Parallax').click()
+await page.waitForTimeout(2600)
+await setCtl('Focus', 0)
+await setCtl('Shift', 120)
+const moved = await look()
+/* Focus at zero means the far half does not move at all and the near half
+   moves the whole way, so one edge of the square travels and the other stays
+   where it was. Nothing that ignored the map could do that. */
+check('Parallax moves the near half of the picture and leaves the far half',
+  !!moved && !!plain &&
+    Math.abs(moved.top.x - plain.top.x) < 1.5 &&
+    Math.abs(moved.bottom.x - plain.bottom.x) > 2.5,
+  `top ${plain?.top.x.toFixed(1)}→${moved?.top.x.toFixed(1)}, bottom ${plain?.bottom.x.toFixed(1)}→${moved?.bottom.x.toFixed(1)}`)
+
+/* ---- Depth of field ---- */
+await pick('Depth of field').click()
+await page.waitForTimeout(2600)
+await setCtl('Focus', 0)
+await setCtl('Blur', 70)
+const softened = await look()
+/* Focused on the far half, so the near half goes and the far half does not.
+   Counted as pixels that are neither black nor white, which is what a blurred
+   edge is made of and a sharp one has almost none of. */
+check('Depth of field softens the half it is not focused on and keeps the other sharp',
+  !!softened && softened.bottom.soft > softened.top.soft * 1.8,
+  `${(softened?.top.soft * 100).toFixed(1)}% soft in the far half, ${(softened?.bottom.soft * 100).toFixed(1)}% in the near`)
+
+/* ---- Fog ---- */
+await pick('Fog').click()
+await page.waitForTimeout(2600)
+await setCtl('Density', 1)
+const fogged = await look()
+/* Air fills the distance, so the far half lifts towards the air colour — which
+   is pale and blue — and the near half is left alone. */
+check('Fog puts air in the distance and none of it in the foreground',
+  !!fogged && fogged.top.b > fogged.bottom.b + 25 && fogged.top.b > fogged.top.r,
+  `far half rgb(${fogged?.top.r},${fogged?.top.g},${fogged?.top.b}), near rgb(${fogged?.bottom.r},${fogged?.bottom.g},${fogged?.bottom.b})`)
+
+/* ---- Relight ---- */
+await pick('Relight').click()
+await page.waitForTimeout(2600)
+/* From the other side, so the map's one slope turns away from the light
+   rather than towards it. Facing it, the slope would be brighter than a flat
+   surface — and a flat surface lit from where this starts is already about as
+   bright as it began, so brighter is the half of the range with less room in
+   it. Turned away is unmistakable. */
+await setCtl('Light from', 135)
+await setCtl('Relief', 4)
+/* The map's only feature is the seam across its middle, so that is the only
+   place the surface has a slope — and a slope is the only thing a light can
+   catch. Everywhere else the surface is flat and faces the camera, so nothing
+   happens to it: which makes the claim "changed at the seam, unchanged away
+   from it" rather than "brighter", since a slope can turn towards a light or
+   away from one and this one does both. */
+const litRows = await rows()
+const shift = (y) => Math.abs((litRows?.[y] ?? 0) - (plainRows?.[y] ?? 0))
+const atSeam = Math.max(...[38, 39, 40, 41, 42].map(shift))
+const away = Math.max(...[10, 18, 26, 58, 66, 74].map(shift))
+check('Relight reads the map as a surface and catches the light on its one slope',
+  !!litRows && !!plainRows && atSeam > away + 20,
+  `${atSeam.toFixed(0)} of change at the seam, ${away.toFixed(0)} away from it`)
+
+fs.writeFileSync(path.join(OUT, 'depth-effects.png'), await page.screenshot())
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)
