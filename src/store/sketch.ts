@@ -37,7 +37,7 @@
  * A 2D context, the size, a seeded random, and — if a card is wired into it —
  * that card's picture. The last one is what makes this part of the board
  * rather than a canvas beside it: a sketch can read a photograph, and code
- * becomes another way to treat a picture, alongside the sixty-four effects.
+ * becomes another way to treat a picture, alongside the sixty-nine effects.
  * ------------------------------------------------------------------------- */
 
 /* Long enough to draw something with a hundred thousand strokes in it, short

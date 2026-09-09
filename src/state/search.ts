@@ -48,9 +48,25 @@ function madeOf(it: Item): string[] {
   return out
 }
 
-/* Everything about a card that is worth searching, lowercased once. */
+/* Everything about a card that is worth searching, lowercased once — and once
+ * per card rather than once per render.
+ *
+ * While the search box has anything in it the board asks `passes` about every
+ * card on every render, and building a haystack is a dozen reads, a join and a
+ * lowercase. That was already more work than a render wants; since a sketch's
+ * whole source went into it, it has no upper bound at all — a board of forty
+ * drawings rebuilt forty bodies of code on every frame of a pan.
+ *
+ * Keyed on the item itself, which is only sound because of the rule the store
+ * is built on: every change replaces the item object rather than editing it. A
+ * card that has changed is therefore a different key, so nothing here can go
+ * stale, and the entry for the old object goes when the object does. */
+const built = new WeakMap<Item, string>()
+
 function haystack(it: Item): string {
-  return [
+  const had = built.get(it)
+  if (had !== undefined) return had
+  const hay = [
     it.name,
     it.text,
     it.url,
@@ -65,6 +81,8 @@ function haystack(it: Item): string {
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
+  built.set(it, hay)
+  return hay
 }
 
 export function parseQuery(q: string): string[] {

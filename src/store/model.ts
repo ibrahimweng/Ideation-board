@@ -9,7 +9,7 @@
  * the same shape a video, a PDF and a Photoshop document already have here:
  * `media` is the file, `poster` is what you look at. Everything downstream
  * then works with no special case at all. The view goes to the graphics card
- * and takes all sixty-four effects, exports as a picture, gives up its colours
+ * and takes all sixty-nine effects, exports as a picture, gives up its colours
  * to the palette, can be varied twelve ways, and can be read through by
  * another card.
  *

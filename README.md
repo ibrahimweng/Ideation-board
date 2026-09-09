@@ -3,11 +3,14 @@
 # Ideation Board
 
 A board where you drop ideas and work on them. You can drop images, video,
-audio, notes, links and other files. You can apply visual effects to the images
-and video, move things around, group them into sections and label them, draw
-connections between them, keep checklists in your notes, put a board inside a
-board when one canvas is no longer enough, and take any of it out as a
-full-resolution picture.
+audio, 3D models, notes, links and other files, and write a card that draws
+itself. You can apply visual effects to anything with pixels, run a sound
+through effects of its own, make a depth map of a photograph and push other
+pictures around with it, ask for twelve versions of anything and keep the ones
+worth keeping, move things around, group them into sections and label them,
+draw connections between them, keep checklists in your notes, put a board
+inside a board when one canvas is no longer enough, and take any of it out as
+a full-resolution picture.
 
 Everything is stored in your own browser. There is no server and no account.
 
@@ -119,6 +122,12 @@ You add things in several ways:
   becomes a picture rather than a link.
 - Press the nested-frame button for a board inside this one, for work that has
   outgrown a corner of the canvas.
+- Drop a `.glb` or a `.gltf` and it arrives as a picture of itself that you can
+  turn, rather than as a grey rectangle with three letters on it.
+- Drop a sound and it draws its own waveform, plays, and can be run through a
+  chain of effects the way a picture can.
+- Press W for a card you write: a dozen lines of drawing code that become a
+  picture like any other.
 
 Once something is on the board:
 
@@ -178,9 +187,12 @@ Type in the search box to narrow the board. Cards that do not match fade out
 and stop taking clicks, but stay where they are, because where you put
 something is part of how you recognise it later.
 
-Search looks at the card name, its text, a link's address, its tag and the
-kind of card it is. Every word has to match somewhere, in any order, so
-"blue note" finds a note tagged blue.
+Search looks at the card name, its text, a link's address, its tag, the kind
+of card it is, and what it is made of — the effects on a picture, the chain on
+a sound, the code in a sketch, the materials in a model. Every word has to
+match somewhere, in any order, so "blue note" finds a note tagged blue, and
+"halftone" finds the picture you put a halftone on and never got round to
+naming.
 
 Next to the box is a tag filter. Pick a colour to keep only cards carrying
 that tag, or Untagged to find the ones with none. Each entry shows how many
@@ -254,11 +266,15 @@ Keyboard shortcuts:
 
 ## Effects
 
-Select an image or a video and open the Effects panel. There are 31 effects,
+Select an image or a video and open the Effects panel. There are 69 effects,
 grouped by the kind of look they give. Each preview in the panel is a real
-render of your own picture through that effect, not a stock sample. Thirty one
-previews is more than anyone can scan, so there is a field at the top to find
-one by name.
+render of your own picture through that effect, not a stock sample. Seventy
+tiles — the sixty-nine and the picture untouched — is more than anyone can
+scan, so there is a field at the top to find one by name.
+
+Anything with pixels of its own takes them, which is wider than it sounds: a
+page of a PDF, a Photoshop document, a rendered view of a model, a sketch you
+wrote.
 
 With nothing selected the panel stands down to a narrow rail and gives the
 board back the width, since everything it has to say needs a picture to say it
@@ -266,10 +282,24 @@ about.
 
 The panel has three tabs:
 
-- Effect. Pick one of the 31 effects and adjust its own settings.
+- Effect. Pick one of the 69 effects and adjust its own settings.
 - Adjust. Change exposure, contrast, saturation, warmth, blur and grain. You
-  can also zoom, move, rotate and flip the picture inside its card.
+  can also zoom, move, rotate and flip the picture inside its card, and say how
+  it sits with the cards under it.
 - Looks. Save what you have arrived at and put it on other pictures.
+
+Every figure in the panel can be typed into as well as dragged, because a
+setting you cannot enter exactly is a setting you cannot repeat on a second
+card. Hold **\\** to see the picture without any of it — held rather than
+toggled, since a mode that hides your work is the worst kind to be left in by
+accident.
+
+Framing is done by hand as well as by number: **Alt and drag** pushes the
+picture around inside its card and **Alt and the wheel** scales it, writing the
+same two numbers the sliders write. Nobody frames a photograph by typing
+coordinates into two boxes. On a model the same gesture turns the model
+instead, because there is no picture to push about there — there is a thing,
+and the other side of it.
 
 You can select several images and apply the same effect to all of them at once.
 
@@ -311,6 +341,141 @@ Saved looks are kept in the browser rather than in the board, because a look is
 how you work rather than what is on this board. The one you saved last week is
 waiting on the board you start today, and it does not travel inside an exported
 `.board.zip`.
+
+## One card read through another
+
+Every effect here treated one picture. The ones that matter most on a moodboard
+treat two: a texture pushed through a photograph, a wordmark knocked out of a
+shape, a palette taken off one image and put onto another. Doing any of it
+meant leaving, doing it somewhere else, and bringing the answer back flat.
+
+The wire is the wiring. Draw a line from one card to another — the same line
+you would draw to say these two belong together — and when the card it points
+at is running an effect that wants a second picture, the card at the other end
+is that picture. There is no picker and no second selection mode, because the
+board already had a way to say "this one, with that one". Where two wires
+arrive at the same card the newest wins, which is how you change your mind.
+
+Seven effects read a partner. **Displace** pushes the picture around by the
+other one's brightness. **Stencil** lets the other picture decide where this
+one shows — a shape knocked out of a photograph, a photograph poured into a
+letterform. **Through** takes this picture's range of light and colours it with
+a line read across the other, which is how a palette pulled off one image gets
+put onto another without anybody naming a single colour. The remaining four —
+**Parallax**, **Depth of field**, **Fog** and **Relight** — read the partner as
+distance, which is what the next section is about.
+
+An effect that wants a partner and has none is still an effect rather than an
+error. It has to be, or it could not sit in the list beside the others.
+
+## Depth maps
+
+Select a photograph and **⌘K → "Make a depth map of the picture"**. A card
+appears beside it holding a map of how far away everything in it is, wired into
+the picture it came from — because that is what anybody making one is about to
+do by hand anyway.
+
+A card rather than a hidden buffer, and that decision is most of the feature.
+You can look at it, which is the only way to know whether the guess is any good
+before spending an hour on top of it. It takes every effect on the list, so a
+map that reads a bright window as near is corrected with the tools already here
+rather than with a slider somebody has to write first. It can be drawn from
+nothing as a sketch, or brought in from a renderer that exported a real one. It
+wires into anything, so one map can drive four pictures. And it exports, varies
+twelve ways and comes back after a reload, because everything that works on a
+picture already works on it.
+
+Four effects read a map as distance:
+
+- **Parallax** moves the camera. Near things move further across the frame than
+  far ones, and Towards makes it a step forward rather than a step sideways.
+- **Depth of field** holds one distance sharp and blurs away from it in both
+  directions, the way a lens does rather than the way a blur slider does.
+- **Fog** puts air between you and the far things.
+- **Relight** reads the map as the shape of the surface and lights the picture
+  again from a direction you choose.
+
+### The quick guess and the real one
+
+The map the engine makes is three cues and a blur: what carries detail is near,
+what is washed out is far, and the bottom of the frame is the floor. It costs
+nothing, it is instant, and it is wrong in one particular way that no weighting
+fixes — it is reading brightness and texture, so a dark near thing against a
+bright far one comes out backwards.
+
+**⌘K → "Work out the depth map properly"** runs a real monocular depth model on
+the picture, in your browser. It is not reading brightness; it has seen a few
+million photographs and knows what a face, a doorway and a horizon are.
+
+A first use fetches a runtime and about twenty-five megabytes of weights, which
+is a real download on a board that has never asked the network for anything
+except a picture you paid for. So it happens when it is asked for and never
+before, and the quick map stands in the whole time — the board is never waiting
+on it. Both are pinned to a version, because a runtime that changed under the
+app would change what every board's depth map looks like, and that is not a
+thing to find out about from a bug report.
+
+The weights are kept in the same store the pictures are in, so the second use
+is offline and instant, and **⌘K → "Let go of the downloaded depth model"**
+gives the room back and says how much it was.
+
+## An effect run again on what it drew
+
+Each effect has a **Repeat** count, and each pass reads what the pass before it
+drew. One is an effect. More is feedback, which is the whole reason a live
+coded video synth is worth using: a kaleidoscope that recurses, a warp that
+spirals, a blur that blooms. None of it can be reached by moving a slider,
+because what it needs is not a different setting — it is the same setting
+applied to its own output.
+
+A count rather than a running loop, because these are still pictures. A card
+has to look the same next time it is opened, and an effect that drifts while
+nobody is watching cannot be exported, reloaded or compared against anything.
+
+This is not the same as stacking. Stacking is different effects one after
+another and has a section of its own below; repeating is one effect reading
+what it just drew.
+
+## How a card sits with the ones under it
+
+Two settings on the Adjust tab are about the card and the board rather than
+about the picture: how strong it is, and how it blends with what is beneath it.
+Eight modes rather than the sixteen a graphics program offers, because sixteen
+is a menu nobody reads — Normal, Multiply, Screen, Overlay, Darken, Lighten,
+Difference and Luminosity, which read as nothing, the two that darken and
+lighten by multiplying, the two that do it by picking, and the three that are
+their own thing.
+
+A texture laid over a photograph, a wordmark knocked out of a colour field, a
+scan of a print held at a quarter strength over the thing it is being compared
+with. Both settings are part of the treatment, so a saved look carries them the
+way it carries the tone.
+
+## Twelve of these
+
+The panel is a thing you operate: pick an effect, push six sliders, look, push
+them again. That is fine when you know what you are after, and useless when you
+do not — which, on a board whose job is working out what you are after, is most
+of the time.
+
+So select a card and press **V**. Twelve versions of it appear in a grid
+underneath, the card itself untouched. Mark the ones worth keeping with **I**
+and press V again: the ones you did not keep are replaced, in the holes they
+left, by twelve bred from the ones you did. Press V on a single card out of the
+batch and that one has won — the rest were the alternatives it was chosen over,
+and they go. Every round is one press of undo, because a grid you cannot
+cheaply throw away is a grid nobody will risk making.
+
+What varies is whatever makes that card what it is. A picture varies by what is
+drawn on it, a sound by what it is run through, a sketch by the throw its code
+was drawn on, and a model by where the camera stands — because twelve
+treatments of one drawing is not what you asked for when the thing worth having
+twelve of was drawings. `src/state/varyGrid.ts` is the grid, once, for every
+medium; `src/state/varying.ts` decides which dice. A medium supplies only what
+makes its twelve different from each other.
+
+**R** throws one random treatment at the selection instead, for when twelve is
+more than the question deserves.
 
 ## Notes
 
@@ -395,6 +560,43 @@ dragging a card redraws its own arrows and no others.
 Click an arrow to select it and Delete to remove it. Deleting a card removes
 the connections that reached it, and one undo brings back the card and its
 connections together.
+
+A connection is also how one card is handed to another: an effect that wants a
+second picture reads the card at the other end of the wire, and a model wears
+what is wired into it. Both are above, under "One card read through another"
+and "Models".
+
+## Projects
+
+A row of tabs along the top, one per project. There was one board with
+everything nested inside it, which is a fine way to keep one project and a poor
+way to keep four: opening last month's work meant walking down into it from the
+same root, and there was no way to have two of them on screen at once.
+
+Which boards are top level is worked out rather than written down — a board is
+a project when no board card anywhere points at it. Nothing to keep in step and
+no second list that can disagree with the boards themselves, and it has a
+property worth having on purpose: delete the card that stood for a nested board
+and that board stops being nested, so instead of becoming a record nothing can
+reach, it turns up in the row. Work cannot go missing quietly.
+
+Switching does not reload. The board is loaded in place and the address is
+rewritten to match, so `?board=<id>` always names what is on screen — which is
+what makes the address worth copying, and what lets a reload, a bookmark or the
+browser's own "open in a new tab" land back where you were.
+
+The tabs are not the breadcrumbs. The crumbs say where you are *inside* a
+project and the tabs say which project, and folding them into one row would
+make a board four levels down look like a fifth project.
+
+Closing a tab deletes the project, which is the one thing here that destroys
+work outright: no file behind a board, no undo that reaches across boards, and
+this browser holding the only copy. It asks first and says what it is about to
+take. Then, for ten seconds, it offers to put it back — under the same ids, in
+the same place in the row — because a confirm is a thin safety net when a
+focused tab answers the Delete key. The project is properly gone in the
+meantime, from the row and from search both, and the sweep that would have
+collected its pictures is the one thing in the app that waits.
 
 ## Boards inside boards
 
@@ -482,6 +684,122 @@ name plate was meant to be that, and never could be: it is drawn with pointer
 events off, because it is a label rather than a control, so every point on a
 selected player belonged to the player and the card could only be moved by
 clicking away to deselect it first.
+
+## Sound
+
+A sound card played and drew its own waveform, and that was the whole of it. On
+a board where a photograph can be taken through sixty-nine treatments and
+varied twelve ways, sound was the one medium you could only look at.
+
+So a sound gets the shape a picture has. Select one, open the panel, and build
+a chain of up to four: Speed, Reverse, Trim and Wow and flutter under Tape;
+Filter, Drive, Bit crush and Ring mod under Tone; Delay, Reverb and Chorus
+under Space; Tremolo and Gate under Shape. Four is the cap for the same reason
+it is the cap on effects — past four nobody can hear which one is doing what.
+
+The chain is rendered rather than played live, and that decision is the rest of
+it. A graph of nodes between the file and the speakers is gone the moment the
+tab is, cannot be measured, and cannot be exported. A rendered buffer is saved
+beside the original: the card sounds the same next time the board is opened,
+the waveform is redrawn from what you actually made — a gate that chops a track
+to pieces looks like a track in pieces, from across the room, without pressing
+play — and **⌘K → Export the selected sound** writes a WAV of the treated
+version, while an untreated one comes back out as the file that arrived,
+because renaming an mp3 to `.wav` would be a lie about its contents. Offline
+rendering runs far faster than the sound is long, so the cost is a pause rather
+than a wait.
+
+The file you dropped is never touched. `media` stays what arrived and `heard`
+is what the card plays, so taking the chain off is not an undo — it is the card
+pointing back at the thing it always had. Hold **\\** on a treated sound to
+hear the original for as long as you hold it.
+
+## Models
+
+Drop a `.glb` or a `.gltf` and it arrives as a photograph of itself: turned a
+little off square and looked slightly down on, which is how a thing is
+photographed when the photograph is meant to show what it is. It used to arrive
+as a grey rectangle with three letters on it, which on a board about looking at
+things is the wrong answer for the file a product designer works in all day.
+
+Turning it is not a transform on the card, it is a new picture — the same job
+as turning to another page of a PDF, and written in the same place for the same
+reason. Alt-drag the model to turn it, Alt-scroll to move in and out, or use
+Turn, Tilt and Distance in the panel. A drag asks for a new angle faster than a
+render can answer, so the last angle asked for is kept and everything before it
+is thrown away: the model comes to rest showing what your hand actually asked
+for last, rather than going on turning after it stopped.
+
+Because the card is a picture with the file kept beside it, everything
+downstream works with no special case at all — the effects, the export, the
+palette, being read through by another card, and twelve versions, which for a
+model means twelve places to stand rather than twelve treatments of one view.
+
+### What a material wears
+
+The file says what it is made of, so the panel lists the model's own materials
+rather than guessing at them. Wire a card into the model, pick a material, and
+press **Wear**: that card becomes the material's Colour, Roughness, Glow,
+Relief or Cut-out — as it looks now, effects and all. One material can wear
+several at once.
+
+Five slots, and only five: the ones where a photograph means something.
+Metalness is left out on purpose, because its map multiplies a number the file
+sets, so wearing one does nothing at all unless that number is forced to one —
+and a material forced to metal is a chrome material whatever picture is on it,
+which is an answer that looks like a bug.
+
+Relief is the odd one out. The other four are slots a glTF can arrive with
+something already in, so they can be worn and they can be treated. glTF carries
+normal maps, and a normal map is three channels of direction rather than a
+picture of a height, so relief is something you put on and never something the
+file came with.
+
+**Treat** is the other half, and it works on what the model already had: it
+runs the effect this card is set to over the texture a material arrived with. A
+material with no texture of its own has nothing for Treat to run over, and the
+button says so rather than doing nothing.
+
+**⌘K → Export the selected model as a .glb** writes it back out wearing what it
+was given.
+
+## A card you write
+
+Press **W**. A card appears with code on it and the picture that code drew, and
+from that moment it is a picture like any other: it takes the effects, exports,
+gives up its colours, and varies twelve ways.
+
+Every other picture here arrived from somewhere — dropped, pasted, fetched,
+rendered out of a file. This one is written, which makes it the only material
+on the board that can be asked for a hundred nearly-right things and edited
+between each one. Generative work has always been a design practice rather than
+a programming one: a grid you can shake, a pattern with a dial on it, a hundred
+versions of a mark. What was missing was somewhere to put the output next to
+the photographs.
+
+The editor opens with something already on it and a shelf of seven more, each
+short enough to read in one go and built so that the first thing you would
+change is obvious — a count, a colour, a power. A blank editor is a worse offer
+than no editor: nobody opens one and writes a flow field. The shelf is curated
+rather than open, so growing it is a commit, which is the same arrangement the
+effects have.
+
+Your code is handed a 2D context, the size, a seeded random, and — if a card is
+wired into it — that card's picture. The last one is what makes this part of
+the board rather than a canvas beside it: a sketch can read a photograph, so
+code becomes another way to treat a picture, alongside the sixty-nine effects.
+
+It runs in a worker made for the run and thrown away after it, with four
+seconds to finish. That is not politeness about speed. A loop that never ends
+can only be stopped by killing the thing running it, and on the main thread a
+missing increment locks the tab and takes the board with it; in a worker it is
+a card that says it took too long, and the board never notices.
+
+Everything that reaches out of the worker — fetch, sockets, storage, other
+workers — is taken off the global before a line of your code is read. You own
+the board, so this is not a wall against an attacker. It is the same courtesy
+the rest of the app extends, which is that nothing here goes anywhere, and code
+pasted in from a forum should not be the exception that quietly does.
 
 ## Drawing a picture from a prompt
 
@@ -618,7 +936,17 @@ The sheet fills that address in for you.
 
 `get_board` first — card ids come from there and from nowhere else. Then
 `list_boards`, `add_card`, `draw_image`, `update_card`, `move_card`,
-`delete_cards`, `connect_cards`, `arrange`, `select_cards`, `fit_view`.
+`delete_cards`, `connect_cards`, `arrange`, `select_cards`, `make_versions`,
+`fit_view`.
+
+Two of those are worth saying more about. `add_card` will put down a **sketch**
+— a body of plain JavaScript handed `(ctx, w, h, rand, img, seed)` — and for
+anything a program can make, a pattern, a grid, a field, a type specimen, that
+is the better verb than `draw_image`: it costs nothing, it appears at once, and
+the person can throw it again or ask for twelve of it. `draw_image` is for
+photographs and things only a model knows. `make_versions` is the grid from
+here: name one card and twelve alternatives appear under it, varied by whatever
+that medium varies by.
 
 Everything goes through the same store the interface goes through. An arrow
 drawn by Claude and an arrow drawn by hand are the same arrow, one press of undo
@@ -822,6 +1150,12 @@ Three things are not garbage and look exactly like it:
   the card down after. The gap is milliseconds; ten seconds is the margin, which
   is a thousand times over.
 
+A fourth is not a card's at all. The depth model's weights live in the same
+store as the pictures, and no card will ever point at them, so a sweep would
+collect twenty-five megabytes that the next depth map would immediately
+download again. `src/store/kept.ts` is the list of what the app itself keeps,
+and the sweep asks it before it collects anything.
+
 Each of those is a way to delete a picture somebody is still using, so each is
 asked about before anything is removed. `test/unit/reclaim.test.ts` gives every
 one of them a test of its own rather than letting one test happen to cover
@@ -833,6 +1167,12 @@ A video's first frame is kept too. It is stored under a name derived from the
 video's own, so the name is worked out rather than read — a board saved before
 posters were written onto the item would otherwise lose the still that every
 effected video card falls back to.
+
+### Letting go of the depth model
+
+**⌘K → "Let go of the downloaded depth model"** deletes the weights and says
+how many megabytes came back. Nothing else is touched, and the next map that
+asks for the model downloads it again.
 
 ### Deleting a board
 
@@ -847,8 +1187,9 @@ another, and the board has to survive that.
 ## Where your work is stored
 
 Everything lives in this browser and nowhere else: the boards in IndexedDB,
-the pictures beside them as blobs. Nothing is uploaded, and there is no
-account.
+and beside them as blobs the pictures, sounds, documents, models, and — once
+you have asked for one — the weights of the depth model. Nothing is uploaded,
+and there is no account.
 
 That means the only copy of your work is on this machine, in this browser, so
 the app takes it seriously:
@@ -1103,6 +1444,27 @@ cross-reference table, which is a list of byte offsets into the file itself,
 each entry exactly twenty bytes long — wrong in a way nothing on screen would
 show, which is why it is unit tested.
 
+## Sending a board to someone
+
+**⌘K → "Save as a page anyone can open"** writes the board as one HTML file.
+Every picture is inside it as data, every board in the tree is in there too,
+and it opens in any browser with no network, no server and nothing installed.
+Effects are baked in, because the person opening it has no engine of ours to
+run them through — what they get is what was on your screen. Sounds come with
+it, treated, with a waveform they can play and step through from the keyboard.
+
+It is not the board coming back. An exported page has thrown away the original
+files and kept a picture of each card at the size it was being shown, which is
+the trade that makes it small enough to send. Two exports for two jobs: the
+page is the thing to hand over, the `.board.zip` below is the thing to keep,
+and the names say which is which.
+
+`test/sendable.mjs` is the only test that could settle a claim like this: it
+takes the file the app produces, opens it in a browser that has never seen this
+app with the network switched off, and checks the board is there — the cards,
+the pictures, the note text, the boards inside, the panning, all of it in that
+second page.
+
 ## Taking a board out, and putting one back
 
 "Export" writes the board you are on, every board nested inside it, and every
@@ -1166,11 +1528,12 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 
 ## Tests
 
-Two kinds. The fast ones are arithmetic and run in about a second; the slow
-ones drive a real browser and take about twenty minutes.
+Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
+are fifty-seven suites driving a real browser, and take about half an hour —
+1,517 checks, last measured at 32.9 minutes.
 
 ```bash
-npm test            # types, then 107 unit tests — about a second
+npm test            # types, then 597 unit tests — a few seconds
 npm run test:all    # the above, then a build, then every browser suite
 ```
 
@@ -1189,8 +1552,15 @@ to a card and how big the file that comes out of it is, what a note's markup
 parses to, which colours come out of an image and whether the hex is legible
 on them, where a dragged card snaps to, what a pasted address turns into, what
 a saved look carries and what it leaves behind, how the store lines cards up
-and spaces them out and joins them, what each kind of card can do, and what
-happens when the disk runs out.
+and spaces them out and joins them, what each kind of card can do, which fields
+on a card name another card, which boards are projects, what twelve variations
+of a picture, a sound, a sketch and a model come out as, what a sound chain
+does to a buffer, where a model's camera ends up, what a material on it is
+wearing, and what happens when the disk runs out.
+
+The variation tests are the ones worth copying the shape of. A dice roll can
+only be judged over thousands of draws, so they assert rates rather than
+outcomes — twelve samples in a browser would flake, and did.
 
 They found two real bugs on the day they were written: a palette could offer
 the same colour twice under one name, and duplicating two connected cards
@@ -1252,8 +1622,28 @@ npm run test:urlimage -- http://localhost:5173
 npm run test:aspect -- http://localhost:5173
 npm run test:video -- http://localhost:5173
 npm run test:urlvideo -- http://localhost:5173
+npm run test:vary -- http://localhost:5173
+npm run test:pair -- http://localhost:5173
+npm run test:repeat -- http://localhost:5173
+npm run test:layer -- http://localhost:5173
+npm run test:framing -- http://localhost:5173
+npm run test:finish -- http://localhost:5173
+npm run test:dialogs -- http://localhost:5173
+npm run test:plate -- http://localhost:5173
+npm run test:sound -- http://localhost:5173
+npm run test:model -- http://localhost:5173
+npm run test:sketch -- http://localhost:5173
+npm run test:depth -- http://localhost:5173
 npm run test:load -- http://localhost:5173 60
 npm run bench
+```
+
+A few suites have no script of their own and are run through the runner by
+name, which works for any of them:
+
+```bash
+node scripts/browser-tests.mjs help findall sendable ascii
+node scripts/browser-tests.mjs undoboards undelete nospace
 ```
 
 - `test:ui` drives every control on the board, which is 43 checks covering the
@@ -1458,7 +1848,7 @@ npm run bench
   narrows the board and combines with the text.
 - `test:smoke` drops a picture, applies five effects and checks that each one
   actually painted something different.
-- `test:effects` applies all 31 to one picture and checks that each paints
+- `test:effects` applies all 69 to one picture and checks that each paints
   something of its own, that no two paint the same thing, and that none paints
   a flat colour. A shader that fails to compile falls back to Original without
   saying so, which is exactly what that catches. It also checks that ASCII
@@ -1479,6 +1869,91 @@ npm run bench
   outcomes: effects on the readable one, a playing card that says so on the
   other, an embedded player for a YouTube link, and a plain link for an address
   that is not a video.
+- `test:vary` presses the key that puts twelve versions under a card and checks
+  the three things that make the loop worth having: that the twelve are
+  genuinely different from each other rather than near-copies, that the card
+  they came from is untouched, and that the whole round is one press of undo.
+  It marks keepers and presses again to check the next batch is bred from
+  those and fills the holes the rest left.
+- `test:pair` draws a wire and checks the card at the other end is really what
+  the effect reads — measured on the pixels, since that is the only place the
+  question is answered — and that an effect wanting a partner it has not got is
+  still an effect rather than an error.
+- `test:repeat` checks that a second pass changes the picture, that each
+  further pass changes it again, that a card costs nothing until it is asked
+  for, and that the count survives everything else a card survives. It also
+  holds the line on a bug that shipped: a card with two passes on it used to
+  come out upside down, in the card and in every export of it.
+- `test:layer` puts a blue card over a yellow one and reads the composited
+  pixels. Multiplied they make a near-black green that neither of them is, so
+  an overlap still flat blue means the blending never happened and an overlap
+  flat anything else means it happened wrong. The one that is easy to get
+  wrong and hard to notice is last: a card set to multiply over nothing at all
+  must still look like itself.
+- `test:framing` checks that Alt and a drag reframes the picture inside its
+  card while a plain drag still moves the card, that Alt and the wheel scales
+  it, that a card with no picture behaves as it always did, and that a whole
+  selection is not reframed because one of them was.
+- `test:finish` holds the key that shows the picture without its grade and
+  checks the edges rather than the happy path: that the hold ends when the
+  window loses focus, that it files nothing in the undo history, and that a
+  typed setting out of range is brought into range rather than accepted or
+  dropped.
+- `test:dialogs` puts all seven things that cover the board through the same
+  four questions — does it say what it is, does the focus go in, does the focus
+  stay in, and does the focus come back out to where it started — which is the
+  point of doing it with a table rather than seven times by hand.
+- `test:plate` measures the halftone screen a card's name sits on over a
+  photograph: the words have to stay readable over any picture and the picture
+  has to stay visible between the dots. It was drawn at a coverage that put the
+  dots half a width into each other, which came out as a black slab.
+- `test:sound` drops a clip, builds a chain on it, and measures the peaks the
+  card draws from — the one number a browser gives you about a sound without
+  playing it, and exactly what a person sees. It checks that the treatment is
+  rendered and saved so it survives a reload, that the waveform is the treated
+  sound and not a picture of what it used to be, and that the file that was
+  dropped is never written over, so taking it all off puts the original back.
+- `test:model` drops a `.glb` of two boxes in two named materials, one warm and
+  one cool, and checks four things that cannot be proved by counting cards: that
+  it really rendered and rendered both materials, that the camera really moved
+  rather than a CSS rotation of one picture, that the materials and UV sets were
+  read off the file rather than guessed at, and that it goes back out as a model
+  wearing what it was given.
+- `test:sketch` checks that the code really drew the card, that the dice can be
+  thrown again without touching the code, that a loop with no end in it costs a
+  card rather than the tab, and that what comes out is a picture like any other.
+  The quietest check matters most: a sketch runs with nothing it could use to
+  reach out of the browser, asked from the inside.
+- `test:depth` cannot check that a guessed depth map is correct, so it checks
+  three things that are true of a depth map and false of the picture it came
+  from: that it is grey, because distance has no colour; that the near half of
+  a picture built to be near at the bottom comes out lighter than the far half;
+  and that the four effects which read it read it, by handing them a map with a
+  known shape and measuring what they did.
+- `help` says the handful of things you cannot deduce from a button, and its
+  suite is about the page being reachable, readable and escapable. The quietest
+  check again matters most: while it is open the board's own keys must do
+  nothing, because a help page that adds a note to the board behind it is worse
+  than no help page.
+- `findall` puts a note in another project and checks it turns up, that the row
+  says which project before you commit to it, and that picking it lands you on
+  the card with the tabs and the address following.
+- `sendable` takes the page the app exports, opens it in a browser that has
+  never seen this app with the network off, and checks the board is there.
+- `undoboards` checks that stepping into a nested board and coming back leaves
+  the undo history where it was, that redo survives the same trip, and that a
+  board's undo only ever undoes that board.
+- `undelete` deletes a project and puts it back, checking it is properly gone
+  from the row and from search in the meantime, that it comes back under its own
+  ids in its own place, and that its pictures are still there because the sweep
+  waited.
+- `nospace` makes every write fail on purpose, from before the app has started,
+  and checks the whole chain says so — the highest-consequence path in the app
+  and the one where a regression is invisible in ordinary use, since with a disk
+  that is not full none of it ever runs.
+- `ascii` checks the three things drawing the glyphs as shapes had to buy,
+  after a font stack meant the same board came back looking different from one
+  reload to the next and two machines never agreed.
 - `test:load` fills a board with images, applies an effect to all of them and
   reports whether the main thread ever blocked.
 - `bench` compares the old drawing method with the new one.
@@ -1513,8 +1988,8 @@ anyone typing a domain. `SITE_URL=https://your.domain npm run build` pins it.
 | --- | --- |
 | `src/engine` | The effects engine, the worker and the job scheduler |
 | `src/board` | The board surface, the cards and the pan and zoom code |
-| `src/state` | The board contents, undo and redo, the board tree, what each kind of card can do, where things go when they are lined up, and reading what is dropped in |
-| `src/store` | Saving to IndexedDB, keeping a copy in a folder on disk, and watching how much room is left |
+| `src/state` | The board contents, undo and redo, the board tree and the projects above it, what each kind of card can do, sounds, sketches, models and depth maps, the variation grid, where things go when they are lined up, and reading what is dropped in |
+| `src/store` | Saving to IndexedDB, decoding what was dropped — documents, design files, models, sound — keeping a copy in a folder on disk, and watching how much room is left |
 | `src/ui` | The top bar, the panels, the command list and the small dialogs |
 | `src/ai` | Your key, and asking Google for a picture with it |
 | `src/mcp` | The wire to the relay, and what an agent may do to the board |

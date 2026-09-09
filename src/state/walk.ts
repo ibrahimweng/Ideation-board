@@ -9,7 +9,7 @@ import type { Item } from './types'
  *
  * Everything on the board could be moved with the arrow keys and deleted with
  * a key, and none of it could be reached in the first place: selecting needed
- * a pointer. So the whole of it — sixty four effects, the looks, the export,
+ * a pointer. So the whole of it — sixty nine effects, the looks, the export,
  * the menu — was behind a gesture some people cannot make.
  *
  * Tab moves through the cards in the order the board reads, which is the order

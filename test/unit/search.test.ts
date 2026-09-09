@@ -136,3 +136,44 @@ describe('what a card is made of', () => {
     expect(finds(bare, 'halftone')).toBe(false)
   })
 })
+
+/* Built once per card rather than once per render.
+ *
+ * The board asks `passes` about every card on every render while the search
+ * box has anything in it, and since a sketch's whole source went into the
+ * haystack there is no bound on what that costs. The answer is a cache keyed
+ * on the item object, which is sound because every change in the store
+ * replaces that object rather than editing it.
+ *
+ * That rule is what these check, from both sides: a card that has not been
+ * replaced is not rebuilt, and a card that has been replaced is. The first is
+ * asserted by editing an item in place — something the app never does, and the
+ * only way from outside the module to tell a cached answer from a fresh one.
+ */
+describe('the haystack is built once per card', () => {
+  it('does not rebuild for the same item object', () => {
+    const it0 = card({ kind: 'note', name: 'Flow field' })
+    expect(finds(it0, 'flow')).toBe(true)
+
+    ;(it0 as { name?: string }).name = 'Something else'
+    expect(finds(it0, 'flow')).toBe(true)
+    expect(finds(it0, 'something')).toBe(false)
+  })
+
+  it('and a replaced item is a different card, so it is read again', () => {
+    const before = card({ kind: 'note', name: 'Flow field' })
+    expect(finds(before, 'flow')).toBe(true)
+
+    const after = { ...before, name: 'Contour study' }
+    expect(finds(after, 'flow')).toBe(false)
+    expect(finds(after, 'contour')).toBe(true)
+  })
+
+  it('and two cards are never handed each other answers', () => {
+    const a = card({ id: 'a', kind: 'note', name: 'Halftone' })
+    const b = card({ id: 'b', kind: 'note', name: 'Duotone' })
+    expect(finds(a, 'halftone')).toBe(true)
+    expect(finds(b, 'halftone')).toBe(false)
+    expect(finds(b, 'duotone')).toBe(true)
+  })
+})

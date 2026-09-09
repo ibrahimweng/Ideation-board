@@ -15,8 +15,11 @@ card.
 | File | What it does |
 | --- | --- |
 | `shaders.ts` | The vertex shader, the blur shader and the shared preamble |
-| `effects.ts` | The 24 effects, their settings and their shader code |
-| `types.ts` | Shared types, the quality levels and the size limits |
+| `effects.ts` | The 69 effects, their settings and their shader code |
+| `isf.ts` | Translating an ISF shader into the shape `effects.ts` uses |
+| `isfEffects.ts` | The handful written as ISF, so the translator is exercised by the running board rather than only by its tests |
+| `glyphs.ts` | The characters the ASCII effect spends, as shapes rather than as text in whatever font had loaded |
+| `types.ts` | Shared types, the blend modes, the quality levels and the size limits |
 | `gl.ts` | The renderer, which owns the WebGL2 context |
 | `worker.ts` | The worker that owns the renderer |
 | `protocol.ts` | The messages between the page and the worker |
@@ -206,6 +209,55 @@ each file becomes ready, so a large drop fills in as it goes. For a picture it
 decodes the file once and passes that decode straight to the graphics card,
 rather than throwing it away and decoding again when the card appears.
 
+`kinds.ts` is the traits table: what each kind of card can do, written down
+once. `Item` is one wide type with a kind on it and the code used to ask which
+kind in a hundred places, some of them the same question written differently.
+The traits are about capability rather than category — not "is it a picture"
+but "does it have pixels of its own that can be read" — because that is what
+the caller actually wants to know before it tries.
+
+`ids.ts` is the other list of that shape: which fields on a card hold another
+card's id. Three places copy cards and have to repoint them — importing a
+board, duplicating a selection, cloning a board — and each used to carry its
+own list of fields. A field added to one and not the others is a wire that
+vanishes when you duplicate the board it is on, which is the bug that made this
+file.
+
+`roots.ts` decides which boards are projects: the ones no board card anywhere
+points at. Worked out rather than written down, so there is no second list to
+disagree with the boards themselves, and a board whose card is deleted turns up
+in the tab row rather than becoming a record nothing can reach. `undelete.ts`
+then holds a closed project for ten seconds so it can be put back under its own
+ids — and holds off the sweep while it does, because those boards' pictures are
+now referenced by nothing and collecting them would mean undo brought back a
+project of empty frames.
+
+`feeds.ts` is the wire read as an input. When a card is running an effect that
+wants a second picture, the card at the other end of the wire is that picture:
+this is what keeps the engine told which texture that is, and what redraws the
+near card when the far one changes.
+
+`varyGrid.ts` is the twelve-card grid, once, for every medium that has one —
+the places under the card, which of them a kept variant holds, filling the
+holes the unkept ones leave, and the whole exchange being one step of undo. A
+medium supplies only its dice: `variations.ts` for pictures, `soundVary.ts`,
+`sketchVary.ts` and `modelVary.ts` for the others. `varying.ts` decides which
+dice a selection gets, most particular kind first, since a model and a sketch
+both have pixels and asking about pixels first would swallow them.
+
+`sounds.ts`, `staging.ts`, `sketches.ts` and `depth.ts` are the four working
+transactions of the media below. `depthModel.ts` is the other way of making a
+depth map: a real monocular depth model, fetched once and run in this browser,
+with the analytic map standing in until it arrives.
+
+`skins.ts` is what a material is wearing and where — five slots in which a
+photograph means something, read off the glTF rather than guessed at.
+
+`exportPage.ts` and `pageHtml.ts` write the board as one HTML file somebody
+without this app can open: every picture inside it as data, every board in the
+tree with it, and the effects baked in, because the person opening it has no
+engine of ours to run them through.
+
 ## The store
 
 The store is in `src/store`.
@@ -242,6 +294,32 @@ it, and the legacy build is the one asked for: the modern one calls a Map
 method new enough that a browser from last year does not have it, and the
 failure arrives as a document that will not open for no stated reason.
 
+`model.ts` renders a `.glb`, with three.js behind the same kind of dynamic
+import for the same reason. What comes back is a picture of the model and what
+the file says it is made of — the materials, which texture slots each one
+fills, which UV sets they read — walked out of the file rather than guessed at,
+because a model that was unwrapped twice is worth knowing about before handing
+it a new picture.
+
+`sound.ts` renders a chain of effects into a buffer. Some of the chain are node
+graphs run through an OfflineAudioContext and some are arithmetic on the
+samples — reverse, trim, bit crush — and each step hands on a buffer, so the
+two kinds compose without knowing about each other.
+
+`sketch.ts` runs a sketch in a worker made for the run and thrown away after
+it, with four seconds to finish and everything that reaches out of the browser
+taken off the global first.
+
+`reclaim.ts` is the sweep: every board is read, every media key still pointed at
+is collected, and what nothing points at goes. `kept.ts` is the short list of
+files the app itself owns rather than a card — the depth model's weights — which
+nothing will ever point at and which the sweep therefore has to be told about.
+
+`tabs.ts` tells the other tabs of this browser when a board is written.
+`mirror.ts` keeps a copy of a board in a folder on disk, `space.ts` watches how
+much room is left, `zip.ts` reads and writes the `.board.zip`, and `anim.ts`
+keeps a GIF moving.
+
 ## Documents and design files
 
 A PDF card is a picture of a page with the file kept beside it, which is the
@@ -270,6 +348,40 @@ at. The card keeps its size while the page changes, because the pages of a
 document are the same shape as each other and a card that resized itself on
 every turn would walk around the board.
 
+## Media that is not a picture
+
+A model, a sketch, a sound and a depth map are all shaped like the document
+card above, and that is the whole reason they cost so little: the card keeps
+what arrived, and beside it what the app made from it. For the three that show
+a picture, everything downstream then works with no special case at all — the
+effects, the export, the palette, being read through by another card, twelve
+versions of them. A sound is the exception only in what it shows, which is a
+waveform drawn from its peaks; it is written this way for the same reason.
+
+Where each keeps its own material differs, and each difference is deliberate:
+
+- A **model** keeps the `.glb` under `media` and the rendered view under
+  `poster`, exactly as a PDF keeps its document and its page.
+- A **sketch** has no file at all. The code is on the card, which is the thing
+  you edit, and what it drew is under `poster`.
+- A **sound** keeps what was dropped under `media` and the rendered chain under
+  `heard`, so taking the chain off is not an undo — it is the card pointing back
+  at the file that was always there.
+- A **depth map** is an ordinary image card with `depthOf` naming the picture it
+  was made from, which is what lets it be corrected, wired, varied and exported
+  like any other picture.
+
+The transaction is the same one every time: render, write the result under a
+fresh key, point the card at it, in one step of undo. The old picture is left
+unreferenced, which is what the sweep collects, so turning a model or throwing a
+sketch again does not fill the browser with pictures nobody is looking at.
+
+Turning a model adds one rule of its own. A drag asks for a new angle every few
+milliseconds and a render takes longer than that, so a queue would fall behind
+the hand and go on turning after it stopped. The last angle asked for is kept
+and everything before it is dropped, which lands the picture where the hand
+actually is.
+
 ## Adding an effect
 
 Add one entry to the `EFFECTS` array in `src/engine/effects.ts`. It needs:
@@ -290,6 +402,15 @@ Inside `frag` you can use these, which the preamble in `shaders.ts` provides:
 
 - `T(uv)` reads the picture.
 - `B(uv)` reads the blurred picture.
+- `S(uv)` reads the second picture — whatever card is wired into this one,
+  cropped to fill the same way the first one is, so the two line up on the card
+  rather than on their own aspect ratios. With nothing wired in it returns the
+  card's own pixels, so an effect that wants a partner still does something
+  sensible on its own rather than being an error state; `has2()` is there for
+  the few that need to know which they got.
+- `mirror(uv)` folds a coordinate back on itself instead of clamping it, which
+  is what anything that bends coordinates a long way should read the edge
+  through.
 - `luma(rgb)` gives brightness.
 - `hash(p)` and `vnoise(p)` give noise.
 - `rot(v, a)` rotates.
