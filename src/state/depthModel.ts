@@ -117,6 +117,25 @@ async function runtime(): Promise<Ort> {
   return mod
 }
 
+/* The pieces a stream arrives in, as one buffer.
+ *
+ * Its own function because it is the only arithmetic in the fetch, and the
+ * only part of it that a test can reach: a response served by a test arrives
+ * whole however large it is, so the joining of several pieces is never
+ * exercised by driving the browser. Every way it can go wrong gives a file
+ * that is the wrong length or the right length with the wrong bytes in it, and
+ * a model built from either is a graph that will not load — or worse, one that
+ * loads and answers nonsense. */
+export function join(parts: Uint8Array[], total: number): Uint8Array {
+  const out = new Uint8Array(new ArrayBuffer(total))
+  let at = 0
+  for (const p of parts) {
+    out.set(p, at)
+    at += p.length
+  }
+  return out
+}
+
 async function weights(say: Say): Promise<Uint8Array> {
   const kept = await getBlob(KEPT).catch(() => null)
   if (kept) return new Uint8Array(await kept.arrayBuffer())
@@ -146,12 +165,7 @@ async function weights(say: Say): Promise<Uint8Array> {
         if (total) say('Fetching the depth model, once', got / total)
       }
     }
-    bytes = new Uint8Array(new ArrayBuffer(got))
-    let at = 0
-    for (const p of parts) {
-      bytes.set(p, at)
-      at += p.length
-    }
+    bytes = join(parts, got)
   }
   await putBlob(KEPT, new Blob([bytes as BlobPart], { type: 'application/octet-stream' })).catch(() => {
     /* No room to keep it. It still ran this time, and the next press pays for

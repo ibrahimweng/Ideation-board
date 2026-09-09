@@ -647,6 +647,229 @@ const twice = await page.evaluate(() => document.querySelector('.toast span')?.t
 check('and asking twice says there was nothing to let go of',
   /not been downloaded/i.test(twice), twice)
 
+/* ---------- the model, actually run ---------- */
+
+/* Everything above about the real model is what happens when it cannot be
+   reached. This is the other half, and until now no part of it had ever run:
+   the fetch, the reassembly, the picture handed to the model, the tensor
+   handed back, and the map made out of it. Two addresses on the open internet
+   is not a thing a test may depend on, and "it has never executed" is not a
+   thing to ship either.
+ 
+   So the two addresses are served by the test. That is the only substitution —
+   the runtime is a real ES module the page really imports, the weights are
+   real bytes the page really streams and keeps, and everything between them is
+   the app's own code. What the fake model does is give back a ramp whose
+   answer is known in advance, which is what makes the map it produces
+   checkable rather than merely present.
+ 
+   The two claims worth the most are the ones a wrong version of this would get
+   plausibly wrong rather than obviously: that the picture reaches the model
+   normalised the way the model was trained, in planes rather than interleaved,
+   and that a larger number comes back as a lighter pixel — the same way round
+   as the map made in the engine, since the two have to be interchangeable on a
+   wire. A map that is inside out looks exactly like a map. */
+
+/* The palette, without the Escape `run` starts with: everything below acts on
+   what is selected, and Escape on the board clears it. */
+const runOn = async (typed) => {
+  await page.keyboard.press('Control+k')
+  await page.waitForSelector('.cmd', { timeout: 5000 })
+  await page.keyboard.type(typed)
+  await page.waitForTimeout(600)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(1200)
+}
+
+await page.evaluate(() => { indexedDB.deleteDatabase('ideation.board.db'); localStorage.clear() })
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(1800)
+
+/* Red down the left, blue down the right: two flat fields whose numbers after
+   ImageNet normalisation are known to three decimal places, in two channels
+   that cannot be confused with each other. */
+const HALVES = `x.fillStyle='#ff0000';x.fillRect(0,0,w/2,h);x.fillStyle='#0000ff';x.fillRect(w/2,0,w/2,h)`
+await drop(HALVES, 'halves.png', { x: 420, y: 380 })
+await page.waitForSelector('.card[data-kind="image"]', { timeout: 15000 })
+await page.waitForTimeout(1500)
+const [PIC_ID] = await cardIds()
+
+await page.locator(`.card[data-id="${PIC_ID}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await runOn('depth map')
+for (let i = 0; i < 30 && (await cardIds()).length < 2; i++) await page.waitForTimeout(400)
+const twoCards = await cardIds()
+const MAP_ID = twoCards.find((id) => id !== PIC_ID && !!id)
+check('setup: a picture and a map made the quick way', !!MAP_ID, `${twoCards.length} cards`)
+const guessed = await held(MAP_ID)
+
+/* The output the fake model gives back: a ramp down the frame, nothing at the
+   top and one at the bottom, at a size that is not the input's and not the
+   card's — so the stretch back out is exercised rather than skipped. */
+const WEIGHT_BYTES = 300_000
+const hits = { runtime: 0, weights: 0 }
+
+const FAKE_ORT = `
+export const env = { wasm: { numThreads: 4, proxy: true } }
+export class Tensor {
+  constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims }
+}
+export const InferenceSession = {
+  async create(bytes) {
+    window.__ort = window.__ort || {}
+    window.__ort.weights = bytes.length
+    /* Weighted by position, so bytes put back in the wrong order or written
+       over each other are a different number rather than the same one. */
+    let sum = 0
+    for (let i = 0; i < bytes.length; i++) sum = (sum + bytes[i] * ((i % 7) + 1)) >>> 0
+    window.__ort.sum = sum
+    window.__ort.sessions = (window.__ort.sessions || 0) + 1
+    return {
+      inputNames: ['pixel_values'],
+      outputNames: ['predicted_depth'],
+      async run(feeds) {
+        const t = feeds['pixel_values']
+        const S = 518, plane = S * S
+        const at = (x, y) => y * S + x
+        const left = at(100, 259), right = at(418, 259)
+        window.__ort.dims = t.dims
+        window.__ort.len = t.data.length
+        window.__ort.left = [t.data[left], t.data[plane + left], t.data[plane * 2 + left]]
+        window.__ort.right = [t.data[right], t.data[plane + right], t.data[plane * 2 + right]]
+        window.__ort.runs = (window.__ort.runs || 0) + 1
+        const R = 64
+        const data = new Float32Array(R * R)
+        for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) data[y * R + x] = y / (R - 1)
+        return { predicted_depth: { dims: [1, R, R], data } }
+      },
+    }
+  },
+}
+`
+
+const weightBody = Buffer.alloc(WEIGHT_BYTES)
+for (let i = 0; i < WEIGHT_BYTES; i++) weightBody[i] = (i * 7 + 13) & 0xff
+
+await page.route('**/*', (route) => {
+  const url = route.request().url()
+  if (/cdn\.jsdelivr\.net.*ort.*\.mjs$/.test(url)) {
+    hits.runtime++
+    return route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/javascript', 'access-control-allow-origin': '*' },
+      body: FAKE_ORT,
+    })
+  }
+  if (/huggingface\.co.*\.onnx$/.test(url)) {
+    hits.weights++
+    return route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'application/octet-stream', 'access-control-allow-origin': '*' },
+      body: weightBody,
+    })
+  }
+  return route.continue()
+})
+
+await page.locator(`.card[data-id="${MAP_ID}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await runOn('depth map properly')
+await page.waitForTimeout(9000)
+
+const spokeAfter = await page.evaluate(() => document.querySelector('.toast span')?.textContent || '')
+check('the model runs when its two addresses answer',
+  hits.runtime === 1 && hits.weights === 1 && (await page.evaluate(() => window.__ort?.runs || 0)) === 1,
+  `runtime ${hits.runtime}, weights ${hits.weights}, runs ${await page.evaluate(() => window.__ort?.runs || 0)}${spokeAfter ? ' — ' + spokeAfter.slice(0, 40) : ''}`)
+
+/* Twenty-five megabytes has to reach the model as the file that was served, or
+   it is handed a truncated or scrambled graph. A fulfilled response arrives in
+   one piece however large it is, so what the joining of several pieces does is
+   checked where it can be — over the arithmetic itself, in
+   test/unit/depthmodel.test.ts. */
+let expectSum = 0
+for (let i = 0; i < WEIGHT_BYTES; i++) expectSum = (expectSum + weightBody[i] * ((i % 7) + 1)) >>> 0
+const gotSum = await page.evaluate(() => window.__ort?.sum ?? -1)
+check('the weights that arrive are the weights that were served, whole and in order',
+  (await page.evaluate(() => window.__ort?.weights || 0)) === WEIGHT_BYTES &&
+  gotSum === expectSum && (await modelBytes()) === WEIGHT_BYTES,
+  `${await page.evaluate(() => window.__ort?.weights || 0)} bytes to the model, ${await modelBytes()} kept, checksum ${gotSum === expectSum ? 'matches' : gotSum + ' vs ' + expectSum}`)
+
+const fed = await page.evaluate(() => window.__ort || {})
+check('the picture is handed over at the size the model was trained at',
+  JSON.stringify(fed.dims) === JSON.stringify([1, 3, 518, 518]) && fed.len === 3 * 518 * 518,
+  `${JSON.stringify(fed.dims)}, ${fed.len} numbers`)
+
+/* Red is (1 - 0.485) / 0.229 in the first plane and nothing like it in the
+   other two. Interleaved rather than planar, or the wrong mean, and every one
+   of these six numbers is somewhere else. */
+const near = (a, b) => Math.abs(a - b) < 0.05
+check('normalised the way the model was trained, in planes rather than interleaved',
+  near(fed.left[0], 2.249) && near(fed.left[1], -2.036) && near(fed.left[2], -1.804) &&
+  near(fed.right[0], -2.118) && near(fed.right[1], -2.036) && near(fed.right[2], 2.640),
+  `left ${fed.left?.map((n) => n.toFixed(2)).join(', ')} | right ${fed.right?.map((n) => n.toFixed(2)).join(', ')}`)
+
+const sharp = await mapPixels(MAP_ID)
+const now = await held(MAP_ID)
+check('the map is replaced by the one the model made',
+  !!now && now.media !== guessed?.media && !!sharp, `${guessed?.media} then ${now?.media}`)
+check('and it is still grey, because a distance is still not a colour',
+  !!sharp && sharp.colour < 4, `${sharp?.colour.toFixed(2)} spread`)
+
+/* The whole of the second claim: the ramp went in increasing downwards, and
+   the model gives larger for nearer, so the picture has to come out dark at
+   the top and light at the bottom. Inverted, this is the check that catches it
+   — and nothing else would. */
+const ramp = (sharp?.bands || []).map((b) => Math.round(b))
+check('larger is nearer, so the ramp comes back light at the bottom',
+  ramp.length === 4 && ramp[0] < ramp[1] && ramp[1] < ramp[2] && ramp[2] < ramp[3] && ramp[3] - ramp[0] > 120,
+  ramp.join(' → '))
+
+/* Sixty-four squares in, and the card's own shape out. */
+const shape = await page.evaluate(async (id) => {
+  const db = await new Promise((res) => { const q = indexedDB.open('ideation.board.db'); q.onsuccess = () => res(q.result) })
+  const all = await new Promise((res) => {
+    const t = db.transaction('boards', 'readonly')
+    const q = t.objectStore('boards').getAll()
+    q.onsuccess = () => res(q.result || [])
+    q.onerror = () => res([])
+  })
+  const it = all.flatMap((b) => b.items || []).find((i) => i.id === id)
+  const blob = await new Promise((res) => {
+    const t = db.transaction('blobs', 'readonly')
+    const q = t.objectStore('blobs').get(it.media)
+    q.onsuccess = () => res(q.result)
+    q.onerror = () => res(null)
+  })
+  const bmp = await createImageBitmap(blob)
+  const out = { w: bmp.width, h: bmp.height, nw: it.nw, nh: it.nh }
+  bmp.close()
+  return out
+}, MAP_ID)
+check('and it comes back at the map’s own size rather than the model’s',
+  shape.w === shape.nw && shape.h === shape.nh && shape.w > 64,
+  `${shape.w}×${shape.h}, card says ${shape.nw}×${shape.nh}`)
+
+/* The download is once. A second map on the same board must not pay for it
+   again, and with the weights kept it must not even ask. */
+await page.keyboard.press('Escape')
+await page.locator(`.card[data-id="${PIC_ID}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await runOn('depth map')
+for (let i = 0; i < 30 && (await cardIds()).length < 3; i++) await page.waitForTimeout(400)
+const three = await cardIds()
+const MAP2 = three.find((id) => id !== PIC_ID && id !== MAP_ID && !!id)
+await page.locator(`.card[data-id="${MAP2}"]`).click({ position: { x: 20, y: 20 } })
+await page.waitForTimeout(400)
+await runOn('depth map properly')
+await page.waitForTimeout(7000)
+check('a second map asks the network for nothing at all',
+  hits.runtime === 1 && hits.weights === 1 &&
+  (await page.evaluate(() => window.__ort?.runs || 0)) === 2 &&
+  (await page.evaluate(() => window.__ort?.sessions || 0)) === 1,
+  `${hits.runtime} runtime, ${hits.weights} weights, ${await page.evaluate(() => window.__ort?.sessions || 0)} session`)
+
+await page.unroute('**/*')
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 
 console.log(`\n${pass}/${pass + fail} checks passed`)

@@ -1545,7 +1545,7 @@ Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
 are fifty-nine suites driving a real browser, and take about half an hour.
 
 ```bash
-npm test            # types, then 597 unit tests — a few seconds
+npm test            # types, then 611 unit tests — a few seconds
 npm run test:all    # the above, then a build, then every browser suite
 ```
 
@@ -1568,7 +1568,8 @@ and spaces them out and joins them, what each kind of card can do, which fields
 on a card name another card, which boards are projects, what twelve variations
 of a picture, a sound, a sketch and a model come out as, what a sound chain
 does to a buffer, where a model's camera ends up, what a material on it is
-wearing, and what happens when the disk runs out.
+wearing, what the folder copy says about itself, how a download arriving in
+pieces is put back together, and what happens when the disk runs out.
 
 The variation tests are the ones worth copying the shape of. A dice roll can
 only be judged over thousands of draws, so they assert rates rather than
@@ -1959,7 +1960,13 @@ two against a server it starts itself.
   from: that it is grey, because distance has no colour; that the near half of
   a picture built to be near at the bottom comes out lighter than the far half;
   and that the four effects which read it read it, by handing them a map with a
-  known shape and measuring what they did.
+  known shape and measuring what they did. It also runs the real model's whole
+  path, which two addresses on the open internet would otherwise leave
+  unexecuted: the test serves the runtime and the weights itself, and
+  everything between them is the app's own code. What that buys is the two
+  mistakes a wrong version would make plausibly rather than obviously — a
+  picture handed over interleaved or normalised wrongly, and a map that comes
+  back inside out, which looks exactly like a map.
 - `test:help` says the handful of things you cannot deduce from a button, and its
   suite is about the page being reachable, readable and escapable. The quietest
   check again matters most: while it is open the board's own keys must do
