@@ -50,7 +50,7 @@ const chosen = () => page.locator('.cmd-row[data-at] .cmd-name').innerText()
 
 /* ---------- the toolbar says what it is without words ---------- */
 const bar = await page.evaluate(() =>
-  [...document.querySelectorAll('.tools button')].map((b) => ({
+  [...document.querySelectorAll('.rail button, .topbar-right button')].map((b) => ({
     name: b.getAttribute('aria-label'),
     title: b.getAttribute('title'),
     words: b.textContent.trim(),

@@ -419,6 +419,13 @@ export default function App() {
     }
   }, [])
 
+  /* Two frames, which is what it takes for a change of layout to be laid out
+   * and then measured. Anything that moves the view straight after changing
+   * what is on screen has to wait for this, or it is fitting the view to a
+   * board that is about to be a different size. */
+  const settled = () =>
+    new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())))
+
   /* A line along the bottom that takes itself away again.
    *
    * Each one carries a token rather than being recognised by its words. The
@@ -900,6 +907,15 @@ export default function App() {
      * ink is fixed underneath this; picking it up is what makes it findable
      * whatever colour it turned out to be. */
     if (made.length) store.select(made.map((m) => m.id))
+    /* And then the view goes to them — after the layout has settled rather
+     * than in the same breath.
+     *
+     * Picking a picture up opens the panel out from a rail to its full width,
+     * which takes three hundred pixels off the board. Fitting the view to the
+     * board as it was a frame ago put the card that had just been revealed
+     * straight back under the panel. Two frames: one for the panel to be laid
+     * out, one for the board to have measured itself again. */
+    await settled()
     if (revealItems(made)) {
       say(made.length > 1 ? `Added ${made.length} — the board moved to show them` : 'The board moved to show it', 2400)
     } else {

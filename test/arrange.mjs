@@ -42,7 +42,8 @@ const check = (name, ok, extra) => {
 
 /* The toolbar is icons, so a button is found by the name it carries for
  * anything reading the page rather than by the words printed on it. */
-const tool = (t) => page.locator(`.tools button[aria-label="${t}"]`).first()
+/* The making tools live down the left now, not in the top row. */
+const tool = (t) => page.locator(`.rail button[aria-label="${t}"]`).first()
 const blur = () => page.evaluate(() => document.activeElement?.blur?.())
 
 /* Positions as the board holds them, not as the screen shows them. */

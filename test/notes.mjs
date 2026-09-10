@@ -174,7 +174,12 @@ fs.writeFileSync(path.join(OUT, 'note-editor.png'), await page.screenshot())
 /* ---------- a plain note is still a plain note ---------- */
 await tool('Note').click()
 await page.waitForTimeout(400)
-await page.locator('.card[data-kind="note"]').last().dblclick({ position: { x: 60, y: 90 } })
+/* The one just made, which arrives picked up. Two notes made in a row overlap
+   by design — the second is offset by a cascade, not put somewhere else — so
+   "the last one in the document" is not the same as "the one on top", and
+   reaching for the wrong one means reaching for a card with another sitting
+   over it. */
+await page.locator('.card[data-kind="note"][data-sel]').dblclick({ position: { x: 60, y: 90 } })
 await page.waitForSelector('.sheet textarea', { timeout: 5000 })
 await page.locator('.sheet textarea').fill('just some words\nand a second line')
 await page.locator('.sheet-actions button', { hasText: 'Save' }).click()
