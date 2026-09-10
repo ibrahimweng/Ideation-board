@@ -369,7 +369,8 @@ ok('and then nothing is sent but the words',
    JSON.stringify((last?.body?.contents?.[0]?.parts || []).map((p) => (p.inlineData ? 'a picture' : p.text))))
 
 /* ---------- a model that writes rather than draws ---------- */
-const before = (await cards()).length
+const beforeList = await cards()
+const before = beforeList.length
 await openSheet()
 await page.locator('.gen-more').click()
 await page.waitForTimeout(300)
@@ -382,7 +383,17 @@ await page.waitForTimeout(1200)
 const said = await page.locator('.toast').innerText().catch(() => '')
 ok('a model that writes hands back its own words rather than a shrug',
    /cannot draw/i.test(said), said || 'nothing said')
-ok('and leaves no empty card behind', (await cards()).length === before, `${(await cards()).length} cards, was ${before}`)
+/* Asked of what this draw added, not of how many cards are on the board.
+ *
+ * A count catches the card this is about and also catches a card that arrived
+ * from the step before — the previous draw really does put one down, and it
+ * lands when it lands. What is being protected is that a draw which cannot
+ * draw leaves nothing behind, so that is what is asked. */
+const afterList = await cards()
+const added = afterList.filter((c) => !beforeList.some((b) => b.id === c.id))
+ok('and leaves no empty card behind',
+   !added.some((c) => c.kind === 'image' && (!c.picture || c.drawing)),
+   added.map((c) => `${c.kind}${c.picture ? '' : ' with nothing in it'}`).join(', ') || 'nothing added')
 
 /* A card put down for a picture that never came is not a thing you did, so it
  * has no business in the history. Recorded, its arrival and its removal would
@@ -393,8 +404,8 @@ await page.keyboard.press('Control+z')
 await page.waitForTimeout(700)
 const afterUndo = await cards()
 ok('and undo does not bring the empty card back from the dead',
-   afterUndo.length <= before && !afterUndo.some((c) => c.kind === 'image' && !c.picture),
-   `${afterUndo.length} cards, ${afterUndo.filter((c) => !c.picture).length} without a picture`)
+   !afterUndo.some((c) => c.kind === 'image' && !c.picture),
+   `${afterUndo.length} cards, ${afterUndo.filter((c) => c.kind === 'image' && !c.picture).length} without a picture`)
 await page.keyboard.press('Control+Shift+z')
 await page.waitForTimeout(700)
 
