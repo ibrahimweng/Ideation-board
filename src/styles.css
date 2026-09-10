@@ -183,7 +183,14 @@ input[type='checkbox']:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-columns: auto minmax(0, 1fr);
 }
-.app > .topbar { grid-column: 1 / -1; }
+/* Placed rather than flowed. On a phone the rail is taken away, and an
+   auto-placed board then falls into the column the rail had left — the narrow
+   one — while the column that was meant to hold it took all the room and held
+   nothing. The board was zero pixels wide and a dropped card had nowhere to
+   be. */
+.app > .topbar { grid-column: 1 / -1; grid-row: 1; }
+.app > .rail { grid-column: 1; grid-row: 2; }
+.app > .main { grid-column: 2; grid-row: 2; }
 
 /* Three regions, not a row of things that happen to be in order: which
    project on the left, what you are looking for in the middle, and what acts
@@ -1263,6 +1270,22 @@ body[data-turning] .card-chrome { opacity: 0; }
   display: flex; flex-direction: column;
   min-height: 0;
 }
+/* Beside the board on anything with room for both, and over it on anything
+   without.
+ *
+ * Three hundred and twenty pixels of panel next to a three hundred and ninety
+ * pixel window is not a narrow board, it is no board: the flex row squeezed
+ * the viewport to nothing and there was nowhere for a dropped card to be shown.
+ * Laid over the board instead, the board keeps its size — a card lands where
+ * it was going to land, the view can still be fitted to it, and the panel is
+ * one press from being put away again. */
+@media (max-width: 720px) {
+  .main > .panel {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: 30;
+    box-shadow: -8px 0 24px rgba(24, 24, 27, 0.18);
+  }
+}
+
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }
 /* A gesture that has no other way of saying it is there, said once beside the

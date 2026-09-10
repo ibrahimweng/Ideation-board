@@ -21,6 +21,7 @@ import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
 import { ToolRail } from './ui/ToolRail'
 import { startWriting } from './board/writing'
+import { isText } from './state/type'
 import { SketchEditor } from './ui/SketchEditor'
 import { Stats } from './ui/Stats'
 import { CommandPalette } from './ui/CommandPalette'
@@ -897,16 +898,22 @@ export default function App() {
        question is only ever whether what arrived is on screen, and that is the
        question revealItems asks — it moves nothing when the drop landed in
        front of you, whatever its size. */
-    /* And what arrived is what you are now working on.
+    /* And the words that arrived are what you are now working on.
      *
-     * It used to arrive selected by nothing. On a picture that is merely
+     * A drop used to land selected by nothing. On a photograph that is merely
      * inconvenient — you can see it, so you can click it. On text it was the
      * bug: a run of words dropped onto a dark board was drawn in near-black,
      * and with nothing selected there was no outline either, so the whole
      * thing was invisible and indistinguishable from a drop that failed. The
      * ink is fixed underneath this; picking it up is what makes it findable
-     * whatever colour it turned out to be. */
-    if (made.length) store.select(made.map((m) => m.id))
+     * whatever colour it turned out to be.
+     *
+     * Only the words, and only when there are some. Picking up a picture opens
+     * the panel out to its full width, which on a phone leaves seventy pixels
+     * of board — a cost worth paying for the thing that was invisible, and not
+     * worth paying for the thing that was never hard to see. */
+    const words = made.filter(isText)
+    if (words.length) store.select(words.map((m) => m.id))
     /* And then the view goes to them — after the layout has settled rather
      * than in the same breath.
      *

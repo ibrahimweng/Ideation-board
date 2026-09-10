@@ -204,7 +204,8 @@ check('plain text is left alone', plain.paras === 2 && plain.text.includes('just
  * either — this is the shape one would really have to take. */
 await tool('Note').click()
 await page.waitForTimeout(400)
-await page.locator('.card[data-kind="note"]').last().dblclick({ position: { x: 60, y: 90 } })
+/* Again the one just made, not the last one in the document. */
+await page.locator('.card[data-kind="note"][data-sel]').dblclick({ position: { x: 60, y: 90 } })
 await page.waitForSelector('.sheet textarea', { timeout: 5000 })
 await page.locator('.sheet textarea').fill(
   '[run me](javascript:location=`https://evil.example`)\n' +

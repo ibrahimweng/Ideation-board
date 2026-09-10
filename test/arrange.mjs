@@ -82,6 +82,11 @@ const grip = (id) =>
 for (let i = 0; i < 4; i++) {
   await tool('Label').click()
   await page.waitForTimeout(250)
+  /* A label arrives with the caret in it, so it can be typed on straight
+     away. Nothing here is typing on one, and a field with the focus is a
+     field that eats the keys this suite presses. */
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
 }
 let list = await items()
 check('four cards to work with', list.length === 4, `${list.length}`)
@@ -207,6 +212,7 @@ check('tidying is one step of undo', JSON.stringify((await items()).map((c) => c
 
 /* ---------- shift still means the grid ---------- */
 await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
 list = await items()
 const gridder = list[0]
 const at = await grip(gridder.id)
@@ -217,10 +223,23 @@ await page.mouse.move(at.x + 137, at.y + 91, { steps: 10 })
 const noGuide = await page.evaluate(() => getComputedStyle(document.querySelector('.guide-v')).display === 'none')
 await page.mouse.up()
 await page.keyboard.up('Shift')
-await page.waitForTimeout(300)
+await page.waitForTimeout(400)
 check('holding shift asks for the grid instead', noGuide)
-const moved = (await items()).find((c) => c.id === gridder.id)
-check('which lands on a multiple of eight', moved.x % 8 === gridder.x % 8, `${gridder.x} -> ${moved.x}`)
+/* Where the card is *on the board*, not where it is on the screen.
+ *
+ * `items()` measures boxes on screen, and screen is board plus wherever the
+ * board happens to be scrolled to plus wherever the board area starts — and
+ * the board area no longer starts at the left edge of the window, because
+ * there is a rail of tools there. The grid is a fact about the board, so it is
+ * asked of the board: the card's own transform, which is written in board
+ * coordinates. */
+const landed = await page.evaluate((cid) => {
+  const m = document.querySelector(`.card[data-id="${cid}"]`).style.transform
+    .match(/translate3d\((-?[\d.]+)px,\s*(-?[\d.]+)px/)
+  return { x: Math.round(+m[1]), y: Math.round(+m[2]) }
+}, gridder.id)
+check('which lands on a multiple of eight', landed.x % 8 === 0 && landed.y % 8 === 0,
+      `${landed.x},${landed.y} on the board`)
 
 check('no page errors', errors.length === 0, errors.join(' | '))
 

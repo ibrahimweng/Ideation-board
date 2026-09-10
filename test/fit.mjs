@@ -62,10 +62,20 @@ await page.evaluate(async () => {
     vp.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120, ctrlKey: true, clientX: 640, clientY: 430 }))
     await new Promise((r) => setTimeout(r, 40))
   }
-  await drop('#d81b1b', 'red.png', { x: 140, y: 160 })
-  await drop('#1b5fd8', 'blue.png', { x: 1140, y: 160 })
-  await drop('#12a150', 'green.png', { x: 140, y: 760 })
-  await drop('#8b45d8', 'violet.png', { x: 1140, y: 760 })
+  /* The corners of the *board*, not of the window. There is a rail of tools
+   * down one side and a panel down the other, and a picture dropped onto
+   * either of those is a picture the board then has to scroll to show — which
+   * is a fine thing for it to do and the opposite of what this is setting
+   * up. */
+  const b = vp.getBoundingClientRect()
+  const L = Math.round(b.left + 100)
+  const R = Math.round(b.right - 100)
+  const T = Math.round(b.top + 100)
+  const B = Math.round(b.bottom - 140)
+  await drop('#d81b1b', 'red.png', { x: L, y: T })
+  await drop('#1b5fd8', 'blue.png', { x: R, y: T })
+  await drop('#12a150', 'green.png', { x: L, y: B })
+  await drop('#8b45d8', 'violet.png', { x: R, y: B })
 })
 await page.waitForTimeout(1500)
 ok('setup: four pictures, spread out', (await page.locator('.card[data-kind="image"]').count()) === 4,
