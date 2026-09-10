@@ -260,8 +260,13 @@ const note = await page.evaluate(() => document.querySelector('.card[data-kind="
 const noteBefore = await shape(note)
 await dragOn(note, 50, 30, { alt: true })
 const noteAfter = await shape(note)
+/* Within a few pixels of the drag, not to the pixel: a card being dragged
+   lines itself up with the ones already on the board, so a note that comes to
+   rest two pixels short has snapped to an edge rather than failed to move.
+   What is being asked here is whether the drag moved the card at all, or was
+   swallowed by the framing gesture. */
 check('Alt and a drag on a note moves the note, because there is nothing in it to frame',
-  noteAfter.x === noteBefore.x + 50 && noteAfter.y === noteBefore.y + 30,
+  Math.abs(noteAfter.x - noteBefore.x - 50) <= 8 && Math.abs(noteAfter.y - noteBefore.y - 30) <= 8,
   `${noteBefore.x},${noteBefore.y} -> ${noteAfter.x},${noteAfter.y}`)
 
 /* ---------- and it says it is there ---------- */
