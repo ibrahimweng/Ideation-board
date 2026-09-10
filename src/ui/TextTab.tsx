@@ -209,7 +209,7 @@ export function TextTab({ ids, id }: { ids: string[]; id: string }) {
 
         <section className="fx-controls">
           <h4>{it.kind === 'label' ? 'Ink' : 'Paper'}</h4>
-          <div className="swatches">
+          <div className="type-inks">
             {it.kind === 'label' && (
               /* The theme's own ink, which is the right answer on a pale board
                  and on a dark one. It is the default because a colour chosen

@@ -377,9 +377,11 @@ export default function App() {
   const writeNote = useCallback((at: { x: number; y: number }) => {
     const it = store.add(noteItem(at))
     store.select([it.id])
-    /* A note is a document — headings, lists, things to tick — so it is
-       written in the sheet that has buttons for all of that. */
-    setEditing(it.id)
+    /* Picked up, not opened. A note is written in the sheet that has the
+       buttons for headings and lists, and that sheet covers the board — so
+       putting three notes down in a row would mean dismissing three dialogues.
+       Double-click opens it, as it always has. A label is different: there is
+       no sheet, you type on the board itself, so nothing is in the way. */
     return it
   }, [])
 
@@ -1442,6 +1444,21 @@ export default function App() {
         }}
       />
 
+      {/* Opposite the effects panel, which is the whole arrangement: what goes
+          on the board down one side, what is done to it down the other. Beside
+          the board rather than inside it — it is not part of the project the
+          tabs are showing, it is what you do to one. */}
+      <ToolRail
+        onAddFiles={() => fileRef.current?.click()}
+        onNote={() => writeNote(centreOfView())}
+        onLabel={() => writeLabel(centreOfView())}
+        onBoard={() => void addBoard(centreOfView())}
+        onLink={() => askForLink()}
+        onDraw={() => setDrawSheet(true)}
+        onImport={() => importRef.current?.click()}
+        onExport={() => void exportBoard()}
+      />
+
       {/* Named as what the row of tabs is showing. The board inside keeps its
           own role: this says which project you are looking at, and that one
           says how to work it. */}
@@ -1451,19 +1468,6 @@ export default function App() {
         role="tabpanel"
         aria-label={`${name || 'Untitled board'}, project`}
       >
-        {/* Opposite the effects panel, which is the whole arrangement: what
-            goes on the board down one side, what is done to it down the
-            other. */}
-        <ToolRail
-          onAddFiles={() => fileRef.current?.click()}
-          onNote={() => writeNote(centreOfView())}
-          onLabel={() => writeLabel(centreOfView())}
-          onBoard={() => void addBoard(centreOfView())}
-          onLink={() => askForLink()}
-          onDraw={() => setDrawSheet(true)}
-          onImport={() => importRef.current?.click()}
-          onExport={() => void exportBoard()}
-        />
         <Board
           onDropFiles={onDropFiles}
           onOpenEditor={openItem}

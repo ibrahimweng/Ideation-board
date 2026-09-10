@@ -34,12 +34,33 @@ const stored = () => page.evaluate(async () => {
   return (b[0]?.items || []).map((i) => ({ id: i.id, kind: i.kind, z: i.z, tag: i.tag ?? null, parent: i.parent ?? null }))
 })
 
-for (let i = 0; i < 3; i++) { await page.getByRole('button', { name: 'Note', exact: true }).click(); await page.waitForTimeout(350) }
+/* Three notes, laid out in a row rather than left in a heap.
+ *
+ * They used to be added and left where they landed, which is nearly on top of
+ * one another — so a press meant for one arrived at whichever of them happened
+ * to be on top, or at a connection port, which reaches outside its own card and
+ * sits above everything. Both of those are tests of the stacking rather than of
+ * the menu. */
+for (let i = 0; i < 3; i++) {
+  await page.getByRole('button', { name: 'Note', exact: true }).click()
+  await page.waitForTimeout(350)
+  const made = page.locator('.card[data-kind="note"]').last()
+  const mb = await made.boundingBox()
+  /* Low and centred: the four ports sit at the middle of each edge and reach
+     outside the card, so this is the one part of it none of them can cover. */
+  await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height - 20)
+  await page.mouse.down()
+  await page.mouse.move(240 + i * 330, 640, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(350)
+}
+await page.keyboard.press('Escape')
+await page.waitForTimeout(250)
 
 const card = page.locator('.card[data-kind="note"]').first()
-await card.click({ position: { x: 40, y: 8 } })
+await card.click({ position: { x: 60, y: 8 } })
 await page.waitForTimeout(300)
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(400)
 ok('menu opens on right click', await page.locator('.menu').count() === 1)
 fs.writeFileSync(path.join(OUT, 'menu-open.png'), await page.screenshot())
@@ -54,7 +75,7 @@ ok('menu lists the expected actions',
 /* stays on screen when opened near an edge */
 await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 const afterFirstEsc = await page.locator('.menu').count()
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(400)
 const afterReopen = await page.locator('.menu').count()
 await page.keyboard.press('Escape'); await page.waitForTimeout(400)
@@ -63,7 +84,7 @@ ok('Escape closes the menu', afterSecondEsc === 0,
    `first esc -> ${afterFirstEsc}, reopen -> ${afterReopen}, second esc -> ${afterSecondEsc}`)
 
 /* tag */
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(350)
 await page.locator('.menu-tags button').nth(2).click()
 await settle()
@@ -74,7 +95,7 @@ ok('tag: dot shows on the card', await card.locator('.card-tag').count() === 1)
 
 /* send to back / bring to front */
 const zBefore = (await stored()).find(i => i.tag)
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(350)
 await page.locator('.menu').getByRole('button', { name: 'Send to back', exact: true }).click()
 await settle()
@@ -82,7 +103,7 @@ let zAfter = (await stored()).find(i => i.id === zBefore.id)
 ok('order: send to back lowers z', zAfter.z < zBefore.z, `${zBefore.z} -> ${zAfter.z}`)
 ok('order: stays above sections', zAfter.z >= 2, `z=${zAfter.z}`)
 
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(350)
 await page.locator('.menu').getByRole('button', { name: 'Bring to front', exact: true }).click()
 await settle()
@@ -92,7 +113,7 @@ ok('order: bring to front raises above the rest', zTop.z > maxOther, `${zTop.z} 
 
 /* duplicate */
 const n0 = (await stored()).length
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(350)
 await page.locator('.menu').getByRole('button', { name: /^Duplicate/ }).click()
 await settle()
@@ -101,7 +122,7 @@ ok('duplicate: adds a copy', (await stored()).length === n0 + 1, `${n0} -> ${(aw
 /* multi selection */
 await page.keyboard.press('Control+a')
 await page.waitForTimeout(400)
-await card.click({ button: 'right', position: { x: 40, y: 8 } })
+await card.click({ button: 'right', position: { x: 60, y: 8 } })
 await page.waitForTimeout(400)
 const head = await page.locator('.menu-head').innerText()
 ok('menu: acts on the whole selection when one of them is right clicked', /\d+ items/i.test(head), head)
@@ -186,11 +207,19 @@ await settle()
 const after = await stored()
 ok('canvas: adds a note', after.length === nBefore + 1, `${nBefore} -> ${after.length}`)
 
-/* the new note must be at the click point, not the middle of the view */
+/* the new note must be at the click point, not the middle of the view.
+ *
+ * Asked of the boxes rather than of elementFromPoint: a card you have just
+ * added is the card you are working on, so it arrives selected and wearing its
+ * resize handles — and the north-west one sits exactly on the corner this is
+ * looking at. The handles are a layer of their own, not part of the card, so
+ * the topmost element there is a handle and `closest('.card')` finds nothing. */
 const placed = await page.evaluate((s) => {
-  const el = document.elementFromPoint(s.x + 6, s.y + 6)
-  const card = el && el.closest('.card')
-  return card ? card.dataset.kind : null
+  const hit = [...document.querySelectorAll('.card')].find((c) => {
+    const r = c.getBoundingClientRect()
+    return s.x >= r.left - 2 && s.x <= r.right && s.y >= r.top - 2 && s.y <= r.bottom
+  })
+  return hit ? hit.dataset.kind : null
 }, spot)
 ok('canvas: places it under the pointer', placed === 'note', `found ${placed}`)
 

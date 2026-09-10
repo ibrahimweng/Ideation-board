@@ -372,6 +372,12 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
    * drag becomes a single undo step. */
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
+    /* A tool is armed, so this press is drawing a box rather than picking
+     * anything up — and it must be able to draw over what is already there.
+     * Left to bubble rather than handled, so the surface underneath gets it:
+     * without this a section could not have a text box written on it, which is
+     * the first place anybody would put one. */
+    if (toolNow()) return
     e.stopPropagation()
 
     /* Alt and drag pushes the picture around inside its card instead of moving

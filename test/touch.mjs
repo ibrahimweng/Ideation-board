@@ -129,7 +129,7 @@ check('and closing them zooms out again', back.z < zoomed.z * 0.8, `${zoomed.z} 
 check('the zoom readout keeps up', /\d+%/.test(await page.locator('.zoombar').innerText()))
 
 /* ---------- a card still moves under one finger ---------- */
-await page.locator('.tools button[aria-label="Note"]').first().click()
+await page.locator('.rail button[aria-label="Note"]').first().click()
 await page.waitForTimeout(500)
 const made = (await cards())[0]
 const at = await page.evaluate((cid) => {
@@ -185,18 +185,18 @@ await page.waitForTimeout(900)
 
 /* The name field used to hold on at every width and came out as "Untit" — too
    short to read, let alone edit — while the row of tabs underneath said the
-   same name in full. It stands down now, and a double tap on the tab renames
-   the project instead. */
+   same name in full. There is no field at all at the top of a project now: the
+   tabs are in the row itself, and a double tap on one renames the project. */
 const bar = await page.evaluate(() => {
   const vis = (s) => {
     const e = document.querySelector(s)
     return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0
   }
-  return { name: vis('.board-name'), mark: vis('.brand .dot'), tabs: vis('.tabs'), width: innerWidth }
+  return { name: vis('.board-name'), tabs: vis('.tabs'), tab: vis('.tab[data-on]'), width: innerWidth }
 })
-check('the board name gives up rather than sitting there unreadable', !bar.name, `window ${bar.width}px`)
+check('the board name field is not competing for the row', !bar.name, `window ${bar.width}px`)
 check('and the row of tabs is still there to say what the project is called', bar.tabs)
-check('with the mark back in the space the name gave up', bar.mark)
+check('with the one you are in marked', bar.tab)
 
 /* And a fit uses the window rather than framing it. A flat margin was a third
    of the screen at this width. */

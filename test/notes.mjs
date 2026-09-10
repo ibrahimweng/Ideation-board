@@ -43,7 +43,8 @@ const check = (name, ok, extra) => {
 }
 
 /* The toolbar is icons: found by accessible name, not by printed words. */
-const tool = (t) => page.locator(`.tools button[aria-label="${t}"]`).first()
+/* The making tools live down the left now, not in the top row. */
+const tool = (t) => page.locator(`.rail button[aria-label="${t}"]`).first()
 const note = () => page.locator('.card[data-kind="note"]').first()
 const blur = () => page.evaluate(() => document.activeElement?.blur?.())
 const textOf = () =>

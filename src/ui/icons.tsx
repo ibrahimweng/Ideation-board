@@ -52,12 +52,13 @@ export const IconLabel = (p: P) => (
   </Svg>
 )
 
-/* Writing on the board itself: an I-beam, the shape every tool that means
-   "type here" has used since the first one did. */
+/* Writing on the board itself: a box you draw, with an I-beam standing in it.
+   Not another piece of type — the label icon is already that, and two Ts in a
+   row is a rail you have to read the tooltips of. */
 export const IconText = (p: P) => (
   <Svg {...p}>
-    <path d="M8 3.1v9.8M5.6 2.9h4.8M5.6 13.1h4.8" />
-    <path d="M2.6 4.6V2.9h3M13.4 4.6V2.9h-3" opacity="0.45" />
+    <rect x="1.7" y="3.4" width="12.6" height="9.2" rx="1.6" strokeDasharray="2.4 1.9" opacity="0.6" />
+    <path d="M8 5.9v4.6M6.6 5.9h2.8M6.6 10.5h2.8" />
   </Svg>
 )
 

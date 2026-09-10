@@ -13,6 +13,11 @@ inside a board when one canvas is no longer enough, and take any of it out as
 a full-resolution picture.
 
 Everything is stored in your own browser. There is no server and no account.
+Two things reach out, and only when you ask them to: drawing a picture from a
+prompt, which needs your own Google key, and setting text in one of the Google
+families, which fetches that family's stylesheet the first time you pick it.
+Everything else — including every board you have, and the two typefaces the app
+carries — works with nothing to connect to.
 
 ## Running it
 
@@ -65,11 +70,23 @@ Nothing in the app runs on a server. The build is a set of static files, and
 all the work happens in the browser, so there are no environment variables or
 secrets to set.
 
-## The top bar, and the command list
+## The rail, the top bar, and the command list
 
-The top bar carries icons rather than words. Every one of them says what it is
-and which key runs it when you hover it, and every one of them is also in the
+Two sides. Everything that puts something on the board is a rail down the left:
+notes, labels, text, sections, files, links, drawing a picture, a board inside
+this one, and the whole board in and out. Everything that acts on what is
+already there is on the right of the top bar: undo, the command list, help, and
+the effects panel. Between them, in the row itself, is where you are — your
+projects as tabs, flush left, and the search and tag filter in the middle.
+
+Both rails carry icons rather than words. Every one of them says what it is and
+which key runs it when you hover it, and every one of them is also in the
 command list, which is the real answer to "where is that thing".
+
+Two of the tools arm instead of firing. Text and Section are both regions
+rather than cards of a fixed size, so pressing one takes the cursor — a caret
+for text, a crosshair for a section — and the next drag on the board draws the
+box. Escape puts the tool down again.
 
 Press Cmd or Ctrl with K, or the ⌘ button in the bar, and type. It searches
 everything the board can do, including the things there was never room for in
@@ -172,7 +189,13 @@ section does in Figma.
 - Drop an item so its middle is inside a section and it joins that section.
   The section lights up while you hold an item over it, so you can see which
   one will take it.
-- Move a section by its title bar and everything inside moves with it.
+- Move a section by dragging anywhere on it — its title bar, or the space
+  between the things inside it — and everything inside moves with it. Holding
+  shift draws a selection rectangle instead, which is the only thing the body
+  of a section used to do.
+- Draw one by pressing Section (or **S**) and dragging out the region you
+  want. The board takes a crosshair while the tool is armed, and the tool
+  stands down once you have drawn one.
 - Drag an item out and it leaves the section.
 - Resizing a section never changes what is inside it. Only dragging does. An
   item can therefore stick out past the edge and still belong to the section.
@@ -505,6 +528,51 @@ The note stays one string. That is what keeps search working on it, keeps the
 saved board readable, lets a note pasted in from somewhere else arrive with its
 shape intact, and means none of this needed a migration.
 
+## Setting the type
+
+Select a note or a label and the panel on the right becomes a Text panel.
+
+It opens with six roles — Title, Heading, Subheading, Small heading, Body,
+Caption — because "make this a heading" is one decision rather than four
+sliders. Each sets size, weight, line height and tracking together, the way
+they go together. Underneath are the sliders themselves, plus the family, the
+weights that family actually has, alignment, italic, underline, caps, and the
+ink.
+
+The ink matters more than it looks. A label used to be made with a near-black
+written into its record, which is right on a pale board and invisible on a dark
+one — so text imported onto a dark board could not be found at all. A colour
+you pick is now kept exactly and nothing else is written down, which means the
+theme's own ink answers, and a label reads on either ground. Labels already
+saved with that near-black are read as "nobody chose this" and heal the moment
+the board is opened.
+
+Two typefaces come with the app — Instrument Sans and JetBrains Mono — along
+with the ones your machine already has. Twelve Google families are on the shelf
+as well, with a box for typing the name of any other, and one of those is
+fetched the first time you set something in it and never again. A board that
+stays on the families the app carries never asks Google for anything. If the
+fetch cannot happen — a plane, a firewall — every family falls back through its
+own stack to something already installed, so you are never left with a board
+you cannot read.
+
+## Writing on the board
+
+**T**, or the Text tool in the rail, draws a text box wherever you drag it and
+puts the caret straight in it. It is the same kind of card as a label — type
+lying on the board with nothing under it — and it opens empty, at the measure
+you drew.
+
+Double-clicking a label writes on it in place rather than opening a dialogue,
+set in exactly the type it draws in: the family, the size, the weight, the
+alignment, the colour. Enter finishes, shift and Enter starts a line, and
+Escape leaves it as it was. A note still opens the sheet, because a note has
+headings and lists and a row of buttons for them.
+
+Anything you add arrives selected, which is the other half of the same problem:
+a card that lands with nothing marking it is a card you have to go looking for,
+and on text you could not see it was a card that appeared not to have arrived.
+
 ## Tidying up
 
 Cards line themselves up as you drag them: edges with edges, middles with
@@ -800,8 +868,8 @@ a card that says it took too long, and the board never notices.
 Everything that reaches out of the worker — fetch, sockets, storage, other
 workers — is taken off the global before a line of your code is read. You own
 the board, so this is not a wall against an attacker. It is the same courtesy
-the rest of the app extends, which is that nothing here goes anywhere, and code
-pasted in from a forum should not be the exception that quietly does.
+the rest of the app extends, which is that your work does not go anywhere, and
+code pasted in from a forum should not be the exception that quietly does.
 
 ## Drawing a picture from a prompt
 
@@ -1899,7 +1967,18 @@ two against a server it starts itself.
   and brings the card into view.
 - `test:sections` checks that items join a section when dropped in, move with
   it, leave when dragged out, survive a reload, and that resizing does not
-  change membership while deleting removes the contents.
+  change membership while deleting removes the contents. It also draws one with
+  the tool rather than dropping it, and drags one from the middle of its own
+  body — which used to draw a selection rectangle and pick up everything inside
+  it instead.
+- `test:type` is the suite for text you can see and text you can set. On a dark
+  board it measures the ink a new label is drawn in against the ground behind
+  it, does the same for a board saved with the old baked-in near-black, checks
+  that what a drop brings arrives selected, that the roles in the Text panel
+  each set something different, that choosing a Google family asks Google
+  exactly once and that nothing else ever does, that the text tool draws a box
+  at the size of the drag with the caret already in it, and that all of it
+  survives a reload.
 - `test:menu` opens both right click menus and checks each action, including
   ordering, tagging, acting on a multiple selection, and that the canvas menu
   adds things under the pointer.

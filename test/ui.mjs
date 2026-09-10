@@ -47,6 +47,28 @@ const barGrip = async () => page.evaluate(() => {
   return null
 })
 
+/* Anywhere on the last section that is the section itself: its title if that
+ * is clear, otherwise a patch of its body with nothing sitting on it. The
+ * whole of a section drags now, so this is what a person would reach for —
+ * and on a board with pictures on it the title is often under one. */
+const sectionGrip = async () => page.evaluate(() => {
+  const sec = [...document.querySelectorAll('.card-section')].pop()
+  if (!sec) return null
+  const r = sec.getBoundingClientRect()
+  const mine = (el) => el && (el === sec || sec.contains(el))
+  const bar = sec.querySelector('.section-bar').getBoundingClientRect()
+  const by = Math.round(bar.top + bar.height / 2)
+  for (let x = Math.round(bar.left) + 6; x < bar.right - 6; x += 8) {
+    if (mine(document.elementFromPoint(x, by))) return { x, y: by }
+  }
+  for (let y = Math.round(r.top) + 40; y < r.bottom - 12; y += 12) {
+    for (let x = Math.round(r.left) + 12; x < r.right - 12; x += 12) {
+      if (mine(document.elementFromPoint(x, y))) return { x, y }
+    }
+  }
+  return null
+})
+
 const emptyPoint = async () => page.evaluate(() => {
   const vp = document.querySelector('.viewport').getBoundingClientRect()
   for (let y = vp.bottom - 60; y > vp.top + 40; y -= 40) {
@@ -73,13 +95,53 @@ const addImages = (n) => page.evaluate(async (n) => {
   Object.defineProperty(ev,'dataTransfer',{value:dt}); vp.dispatchEvent(ev)
 }, n)
 
-// ---------- 1. toolbar add buttons ----------
-for (const [label, kind] of [['Note','note'],['Label','label'],['Section','section']]) {
+// ---------- 1. the rail's add buttons ----------
+for (const label of ['Note','Label']) {
   const before = await page.locator('.card').count()
   await page.getByRole('button',{name:label,exact:true}).click()
   await page.waitForTimeout(350)
   const after = await page.locator('.card').count()
-  ok(`toolbar: ${label} adds a card`, after === before+1, `${before} -> ${after}`)
+  ok(`rail: ${label} adds a card`, after === before+1, `${before} -> ${after}`)
+  ok(`rail: and the card it made is the one you are working on`,
+     await page.locator('.card[data-sel]').count() === 1)
+}
+/* A label arrives with the caret in it, so it can be typed into without going
+   looking for the way to. */
+ok('rail: Label opens ready to be written in', await page.locator('.label-write').count() === 1)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+
+/* The two that are drawn rather than dropped: the size is the point of both,
+   so pressing one arms it and the next drag on the board says how big. */
+const drawTool = async (label, x, y, w, h) => {
+  await page.getByRole('button',{name:label,exact:true}).click()
+  await page.waitForTimeout(250)
+  const armed = await page.locator('.viewport[data-tool]').count()
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + w, y + h, { steps: 10 })
+  await page.mouse.up()
+  await page.waitForTimeout(450)
+  return armed
+}
+{
+  const before = await page.locator('.card').count()
+  const armed = await drawTool('Section', 620, 300, 420, 300)
+  ok('rail: pressing Section arms it rather than dropping one', armed === 1)
+  ok('rail: and the drag draws it', await page.locator('.card').count() === before+1)
+  ok('rail: at the size it was drawn',
+     Math.abs((await page.locator('.card-section').last().boundingBox()).width - 420) < 12)
+}
+{
+  const before = await page.locator('.card[data-kind="label"]').count()
+  await drawTool('Text', 620, 660, 300, 70)
+  ok('rail: Text draws a text box', await page.locator('.card[data-kind="label"]').count() === before+1)
+  ok('rail: with the caret already in it', await page.locator('.label-write').count() === 1)
+  await page.keyboard.type('Written on the board')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(350)
+  ok('rail: and what you type is what it says',
+     (await page.locator('.card[data-kind="label"]').last().innerText()).includes('Written on the board'))
 }
 // link via prompt
 page.once('dialog', d => d.accept('https://example.com/thing'))
@@ -336,8 +398,7 @@ await page.waitForTimeout(200)
 // a fresh section, then a note dropped inside it
 await page.locator('.zoomval').click()   // back to 100% so nothing sits off screen
 await page.waitForTimeout(400)
-await page.getByRole('button',{name:'Section',exact:true}).click()
-await page.waitForTimeout(500)
+await drawTool('Section', 400, 210, 720, 480)
 const section = page.locator('.card-section').last()
 const sbox = await section.boundingBox()
 await page.getByRole('button',{name:'Note',exact:true}).click()
@@ -374,15 +435,21 @@ ok('section: items inside move with it',
    Math.abs(ibox2.x - ibox.x - 130) < 20 && Math.abs(ibox2.y - ibox.y - 90) < 20,
    `note moved ${Math.round(ibox2.x-ibox.x)},${Math.round(ibox2.y-ibox.y)}`)
 
-// drag the note back out, then move the section again: it must stay put
+// drag the note back out, then move the section again: it must stay put.
+// Somewhere with nothing on it and nothing under it, worked out rather than
+// stepped off a fixed distance: a fixed distance walks the note onto the top
+// bar as soon as the section is anywhere but where it started.
 const ib3 = await inner.boundingBox()
+const clear = await emptyPoint()
+ok('section: there is clear board to drag it out to', !!clear)
 await page.mouse.move(ib3.x + ib3.width/2, ib3.y + 8)
 await page.mouse.down()
-await page.mouse.move(ib3.x + ib3.width/2, ib3.y + 8 - (sbox3.height/2 + 200), {steps:12})
+await page.mouse.move(clear.x, clear.y, {steps:12})
 await page.mouse.up()
 await page.waitForTimeout(600)
 const ib4 = await inner.boundingBox()
-const grip4 = await barGrip()
+const grip4 = await sectionGrip()
+ok('section: it can still be got hold of after all that', !!grip4)
 await page.mouse.move(grip4.x, grip4.y)
 await page.mouse.down()
 await page.mouse.move(grip4.x + 110, grip4.y, {steps:10})
@@ -440,10 +507,20 @@ await page.getByRole('button',{name:'Effects',exact:true}).click()
 await page.waitForTimeout(400)
 ok('panel: Effects button reopens it', await page.locator('.panel').count() === 1)
 
-// ---------- 16. board name ----------
-await page.locator('.board-name').fill('Audit Board')
-await page.waitForTimeout(900)
-ok('board: name field accepts input', await page.locator('.board-name').inputValue() === 'Audit Board')
+// ---------- 16. the project's name ----------
+/* Named on its own tab now. The field that used to sit in the top row said
+ * the same thing the tab did, in a row that had to hold the tabs as well. */
+const renameProject = async (to) => {
+  await page.locator('.tab[data-on]').dblclick()
+  await page.waitForTimeout(300)
+  await page.locator('.tab-edit').fill(to)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(900)
+}
+await renameProject('Audit Board')
+ok('board: the tab is where a project is renamed',
+   (await page.locator('.tab[data-on]').innerText()).includes('Audit Board'),
+   await page.locator('.tab[data-on]').innerText())
 
 // ---------- 16b. shortcut hints and the keys themselves ----------
 /* The toolbar is icons now. A button with no words in it has to say what it
@@ -451,21 +528,21 @@ ok('board: name field accepts input', await page.locator('.board-name').inputVal
  * accessible name for anything reading the page aloud, and a title that names
  * it and gives the key that runs it. */
 const hints = await page.evaluate(() =>
-  [...document.querySelectorAll('.tools button')].map(b => ({
+  [...document.querySelectorAll('.rail button, .topbar-right button')].map(b => ({
     name: b.getAttribute('aria-label'),
     title: b.getAttribute('title'),
     words: b.textContent.trim(),
   }))
 )
-ok('toolbar: every button has an accessible name', hints.length > 6 && hints.every(h => h.name),
+ok('tools: every button has an accessible name', hints.length > 10 && hints.every(h => h.name),
    hints.map(h => h.name || '?').join(' '))
-ok('toolbar: and a title with its shortcut in it', hints.every(h => h.title && h.title.includes('(')),
+ok('tools: and a title with its shortcut in it', hints.every(h => h.title && h.title.includes('(')),
    hints.filter(h => !(h.title || '').includes('(')).map(h => h.name).join(' ') || 'all have one')
-ok('toolbar: only the mode button carries words', hints.filter(h => h.words).length === 1,
+ok('tools: only the mode button carries words', hints.filter(h => h.words).length === 1,
    hints.filter(h => h.words).map(h => h.words).join(' '))
 
-/* The board name field was the last thing touched, and a shortcut must not
- * fire while a field has focus, so move focus off it before testing them. */
+/* A field was the last thing touched, and a shortcut must not fire while a
+ * field has focus, so move focus off it before testing them. */
 await page.evaluate(() => document.activeElement?.blur?.())
 await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 const before16 = await page.locator('.card').count()
@@ -473,32 +550,41 @@ await page.keyboard.press('n'); await page.waitForTimeout(450)
 ok('shortcut: N adds a note', await page.locator('.card').count() === before16 + 1)
 await page.keyboard.press('l'); await page.waitForTimeout(450)
 ok('shortcut: L adds a label', await page.locator('.card-label').count() > 0)
+/* And puts the caret in it, so the next key typed is the label's first letter
+   rather than a shortcut. Escape to hand the keyboard back. */
+ok('shortcut: L opens it ready to be written in', await page.locator('.label-write').count() === 1)
+await page.keyboard.press('Escape'); await page.waitForTimeout(300)
 const panelWas = await page.locator('.panel').count()
 await page.keyboard.press('e'); await page.waitForTimeout(450)
 ok('shortcut: E toggles the effects panel', await page.locator('.panel').count() !== panelWas)
 await page.keyboard.press('e'); await page.waitForTimeout(450)
 
 /* and must not fire while typing */
-await page.locator('.board-name').click()
-await page.locator('.board-name').fill('')
-await page.locator('.board-name').type('nls note', { delay: 30 })
-await page.waitForTimeout(500)
+await page.locator('.tab[data-on]').dblclick()
+await page.waitForTimeout(300)
+await page.locator('.tab-edit').fill('')
+await page.locator('.tab-edit').type('nls note', { delay: 30 })
+await page.waitForTimeout(400)
 ok('shortcut: keys do not fire while typing in a field',
-   (await page.locator('.board-name').inputValue()) === 'nls note',
-   await page.locator('.board-name').inputValue())
-await page.locator('.board-name').fill('Audit Board')
+   (await page.locator('.tab-edit').inputValue()) === 'nls note',
+   await page.locator('.tab-edit').inputValue())
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+await renameProject('Audit Board')
 await page.evaluate(() => document.activeElement?.blur?.())
 await page.waitForTimeout(400)
 
 // ---------- 16c. the top bar must stay one row and never spill ----------
-/* Down to a phone. The row held eleven buttons and clipped rather than
-   wrapped, so at 390px four of them — undo, redo, the command list and the
-   effects panel — were simply not on screen, and nothing said so. */
+/* Down to a phone. The row used to hold eleven buttons and clipped rather
+   than wrapped, so at 390px four of them — undo, redo, the command list and
+   the effects panel — were simply not on screen, and nothing said so. The
+   tools are down the left now, which is most of what fixed it; what is left
+   in the row still has to fit at every width. */
 for (const w of [1600, 1440, 1360, 1280, 1024, 900, 768, 430, 390, 360]) {
   await page.setViewportSize({ width: w, height: 900 })
   await page.waitForTimeout(300)
   const bar = await page.evaluate(() => {
-    const tools = document.querySelector('.tools')
+    const tools = document.querySelector('.topbar-right')
     /* Only the buttons that are actually drawn. A button the narrow layout
      * puts away has no box, and counting its zero as a row said the bar had
      * wrapped when it had not. */
@@ -538,8 +624,9 @@ await page.reload({ waitUntil:'domcontentloaded' })
 await page.waitForTimeout(3000)
 const countAfter = await page.locator('.card').count()
 ok('persist: cards survive reload', countAfter === countBefore, `${countBefore} -> ${countAfter}`)
-ok('persist: board name survives reload', (await page.locator('.board-name').inputValue()) === 'Audit Board',
-   await page.locator('.board-name').inputValue())
+ok('persist: the project name survives reload',
+   (await page.locator('.tab[data-on]').innerText()).includes('Audit Board'),
+   await page.locator('.tab[data-on]').innerText())
 
 // ---------- 18. stats ----------
 ok('stats: readout renders', (await page.locator('.stats').innerText()).includes('items'),

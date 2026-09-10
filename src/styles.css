@@ -174,7 +174,16 @@ input[type='checkbox']:focus-visible {
 
 /* ---------- shell ---------- */
 
-.app { display: flex; flex-direction: column; height: 100%; }
+/* Three regions: the row across the top, the rail of tools down the left, and
+   the board filling what is left. A grid rather than a column of flexes,
+   because the rail is beside the board and above nothing — it is not part of
+   the project panel, so it must not be inside it. */
+.app {
+  display: grid; height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.app > .topbar { grid-column: 1 / -1; }
 
 /* Three regions, not a row of things that happen to be in order: which
    project on the left, what you are looking for in the middle, and what acts
@@ -1402,16 +1411,33 @@ body[data-turning] .card-chrome { opacity: 0; }
   max-height: 190px; overflow: hidden; word-break: break-word;
 }
 
+/* Its own class rather than the sheet's `.swatches`: two rows of round
+   colour buttons on screen at once, answering to the same name, is a row
+   nobody can point at — not in a stylesheet and not in a test. */
+.type-inks { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.type-inks button[style] { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line); }
+.type-inks button[data-on] { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Not a colour, so not a circle: it is the absence of a choice. */
-.swatches .swatch-auto {
+.type-inks .swatch-auto {
   width: auto; height: 22px; padding: 0 9px; border-radius: 11px;
   font-size: var(--t-xs); color: var(--muted); border: 1.5px solid var(--line);
 }
-.swatches .swatch-any { width: 22px; height: 22px; flex: none; position: relative; display: block; }
-.swatches .swatch-any input {
-  width: 100%; height: 100%; padding: 0; border-radius: 50%;
-  border: 1.5px dashed var(--line); background: none; cursor: pointer;
+/* Any colour at all, and it has to read as one of the row rather than as the
+   grey square a browser draws for a colour field left alone. */
+.type-inks .swatch-any {
+  width: 22px; height: 22px; flex: none; display: block;
+  border-radius: 50%; overflow: hidden;
+  border: 1.5px dashed var(--line);
 }
+.type-inks .swatch-any input {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 100%; padding: 0; border: none;
+  background: none; cursor: pointer;
+}
+.type-inks .swatch-any input::-webkit-color-swatch-wrapper { padding: 0; }
+.type-inks .swatch-any input::-webkit-color-swatch { border: none; border-radius: 50%; }
+.type-inks .swatch-any input::-moz-color-swatch { border: none; border-radius: 50%; }
 
 .preset-row, .flip-row, .blend-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .preset-row button, .flip-row button, .blend-row button {
@@ -2332,9 +2358,12 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   .zoombar button, .zoombar .icon-btn { min-width: 40px; height: 38px; }
   /* The row of projects. A fingertip is not a cursor, and the × that closes
      one has to be hittable without hitting the tab it sits in. */
-  .tab { height: 36px; padding-left: var(--s3); }
-  .tab-close { width: 26px; height: 26px; opacity: 1; }
-  .tab-new { width: 36px; height: 32px; }
+  .tab { height: 40px; padding-left: var(--s3); }
+  /* The tabs are in the top row now, so these are finger targets like
+     everything else beside them — and this one deletes a project, which is the
+     worst button on the screen to have to hit exactly. */
+  .tab-close { width: 36px; height: 34px; opacity: 1; }
+  .tab-new { width: 40px; height: 36px; }
   /* There is no keyboard to press them on. */
   .first-do em, .search kbd { display: none; }
 }
