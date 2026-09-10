@@ -176,9 +176,17 @@ input[type='checkbox']:focus-visible {
 
 .app { display: flex; flex-direction: column; height: 100%; }
 
+/* Three regions, not a row of things that happen to be in order: which
+   project on the left, what you are looking for in the middle, and what acts
+   on the board on the right. A grid rather than flex with an auto margin,
+   because the middle has to be the middle of the *window* — with flex it is
+   the middle of whatever the two sides left over, which moves every time a tab
+   is opened. */
 .topbar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 0 14px; height: 52px; flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center; gap: 16px;
+  padding: 0 12px; height: 52px; flex: none;
   background: var(--surface-2);
   border-bottom: 1px solid var(--line);
   z-index: 20;
@@ -187,8 +195,24 @@ input[type='checkbox']:focus-visible {
   overflow: hidden;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
-.brand .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; }
+.topbar-left { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; overflow: hidden; }
+.topbar-mid { justify-self: center; display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.topbar-right { justify-self: end; display: flex; align-items: center; gap: var(--s2); flex: none; }
+
+/* Where you are inside a project, which only exists when you are inside one. */
+.topbar-where { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+
+.topbar-left .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); flex: none; }
+
+/* On a narrow window the tags go before the search does: a tag filter is a
+   second way to narrow a board and the search is the only way to find a card
+   by what it says. */
+@media (max-width: 1080px) {
+  .topbar-mid .tagfilter { display: none; }
+}
+@media (max-width: 820px) {
+  .topbar-where { display: none; }
+}
 
 /* Where you are in the tree. Only the ancestors are buttons; the board you are
    on is the name field itself, so there is one thing on screen standing for
@@ -217,7 +241,7 @@ input[type='checkbox']:focus-visible {
 /* Narrowest of all, and the brand mark goes so the name of the board you are
    on still has somewhere to sit. */
 @media (max-width: 1000px) {
-  .topbar[data-nested] .brand .dot { display: none; }
+  .topbar[data-nested] .topbar-left > .dot { display: none; }
   .topbar[data-nested] .crumbs { max-width: 76px; }
   .topbar[data-nested] .crumbs button { max-width: 48px; }
 }
@@ -383,8 +407,6 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   .tagfilter { padding: 0 6px; }
 }
 
-.tools { display: flex; align-items: center; gap: var(--s2); margin-left: auto; flex-wrap: nowrap; flex: none; }
-
 /* Buttons that belong together sit in one well, which is what says they
    belong together. It replaces a hairline rule between groups and reads at a
    glance rather than on inspection. */
@@ -401,8 +423,8 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 }
 .tool:hover { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); }
 .tool:active { background: var(--press); box-shadow: none; }
-.tools > .tool { background: var(--sunk); }
-.tools > .tool:hover { background: var(--surface); }
+.topbar-right > .tool { background: var(--sunk); }
+.topbar-right > .tool:hover { background: var(--surface); }
 
 /* The one thing in the row that is a mode rather than an action, so the one
    thing that keeps its name and can look pressed. */
@@ -441,17 +463,59 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   background: var(--accent);
 }
 
-/* Inside a board the row carries the trail as well. The two things with a
-   second way in — importing and exporting, which are also a drop, a menu
-   entry, a shortcut and a line in the command list — stand down first. */
+/* Inside a board the row carries the trail as well, so it is the first thing
+   to give up room. */
 @media (max-width: 1180px) {
-  .tools .tools-wide { display: none; }
   .crumbs button { font-size: var(--t-sm); }
   .topbar[data-nested] { gap: var(--s3); }
-  .topbar[data-nested] .search { margin-left: var(--s2); }
 }
 
 .main { flex: 1; display: flex; min-height: 0; position: relative; }
+
+/* ---------- the rail of tools ---------- */
+
+/* Where a toolbar has been in every drawing program for thirty years, and
+   opposite the effects panel: what goes on the board down one side, what is
+   done to it down the other. */
+.rail {
+  flex: none; z-index: 15;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+  padding: var(--s2) 6px;
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  overflow-y: auto; scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+
+/* Buttons that belong together sit in one well, the same way they do in the
+   top row — it is what says they belong together. */
+.rail-group {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 2px; border-radius: var(--r-md);
+  background: var(--sunk);
+}
+/* The board file, in and out. Pushed to the bottom because it is about the
+   file rather than about what is on this board. */
+.rail-foot { margin-top: auto; }
+
+.rail-tool {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm); color: var(--muted);
+}
+.rail-tool:hover { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); }
+.rail-tool:active { background: var(--press); box-shadow: none; }
+/* Armed. The two tools that wait for you to draw the box stay lit until you
+   have, which with the cursor on the board is the whole of the cue. */
+.rail-tool[data-on] { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.rail-tool[data-on]:hover { background: var(--ink); color: var(--on-ink); }
+
+/* A phone has no room for a rail and a board. The tools are all in the command
+   list, in the menu you get by holding a finger on the board, and on the empty
+   board's own buttons. */
+@media (max-width: 640px) {
+  .rail { display: none; }
+}
 
 /* Present to anything reading the page aloud, and to nothing else. Not
    display:none, which would take it out of the accessibility tree along with
@@ -863,9 +927,13 @@ body[data-turning] .card-chrome { opacity: 0; }
 .rich-p { white-space: pre-wrap; word-break: break-word; }
 .rich-gap { height: 7px; }
 .rich-h { font-weight: 650; line-height: 1.3; margin: 2px 0 1px; }
-.rich-h1 { font-size: var(--t-lg); }
-.rich-h2 { font-size: var(--t-lg); }
-.rich-h3 { font-size: var(--t-md); letter-spacing: 0.01em; }
+/* Relative to the card, not to the theme. A note set in 40px has 40px
+   headings under a rule in absolute pixels, which is a note whose heading is
+   smaller than its own body text. And three levels that are three sizes:
+   h1 and h2 used to be the same, so two of the three did nothing. */
+.rich-h1 { font-size: 1.6em; letter-spacing: -0.015em; }
+.rich-h2 { font-size: 1.3em; letter-spacing: -0.01em; }
+.rich-h3 { font-size: 1.1em; letter-spacing: 0.01em; }
 .rich-hr { border: 0; border-top: 1px solid currentColor; opacity: 0.22; margin: 7px 0; }
 /* Inside a note these follow the paper rather than the theme: a note can be
    any colour, black included, and a quote drawn in the theme's grey is
@@ -996,14 +1064,33 @@ body[data-turning] .card-chrome { opacity: 0; }
 .card-label {
   background: transparent; border: none; box-shadow: none;
   font: 600 var(--t-xl)/1.2 var(--sans); display: grid; align-items: center; padding: 0 6px;
+  /* The theme's own ink, for a label nobody has given a colour to. A colour
+     somebody picked is written onto the element and wins over this. */
+  color: var(--ink);
 }
+/* Lying exactly where the words are: no chrome of its own, and every type
+   setting inherited from the card, so what you type is what you get. */
+.label-write {
+  width: 100%; height: 100%; margin: 0; padding: 0;
+  border: none; outline: none; background: none; resize: none;
+  font: inherit; letter-spacing: inherit; line-height: inherit;
+  color: inherit; text-align: inherit; text-transform: inherit;
+  overflow: hidden;
+}
+
 .card-label[data-sel] { outline: 2px solid var(--sel); border-radius: var(--r-sm); box-shadow: none; }
 
 .card-section {
   background: var(--hover);
   border: 1.5px dashed var(--line);
-  box-shadow: none; pointer-events: none;
+  box-shadow: none;
+  /* It takes the pointer. It used to take it nowhere but on its title, which
+     meant a drag across a section drew a rubber band and selected everything
+     inside it — the gesture for "move this region" doing the opposite. It sits
+     behind its contents, so a press on a card inside is still that card's. */
+  pointer-events: auto; cursor: grab;
 }
+.card-section:active { cursor: grabbing; }
 /* Shown while a drag is holding over this section, so it is clear which one
    would take the drop. */
 .card-section[data-drop] {
@@ -1013,6 +1100,10 @@ body[data-turning] .card-chrome { opacity: 0; }
 }
 .card-section[data-drop] .section-bar { color: var(--sel); }
 
+/* Not excluded from the pointer: it has no handler of its own any more, so a
+   press on it bubbles to the section the same as a press anywhere else on
+   it. It keeps the cursor because it is still the part you can always get
+   hold of, whatever is sitting on top of the rest. */
 .section-bar {
   pointer-events: auto; cursor: grab;
   display: inline-flex; align-items: center;
@@ -1252,6 +1343,75 @@ body[data-turning] .card-chrome { opacity: 0; }
 .seg { display: flex; gap: 3px; background: var(--sunk); padding: 3px; border-radius: var(--r-sm); }
 .seg button { flex: 1; padding: 5px 4px; border-radius: var(--r-sm); font-size: var(--t-xs); color: var(--muted); }
 .seg button[data-on] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--sh-1); }
+
+/* ---------- a tool you draw with ---------- */
+
+/* The cue that a tool is armed. Nothing else about the board changes, so
+   without this the section button is a button you press and then wonder
+   about. */
+.viewport[data-tool='section'] { cursor: crosshair; }
+.viewport[data-tool='text'] { cursor: text; }
+/* Everything on the board stands aside while a box is being drawn, so the
+   crosshair does not turn into a grab hand halfway across a card. */
+.viewport[data-tool] .card { cursor: inherit; }
+
+/* Drawing a thing and selecting things are different gestures, so they do not
+   look the same: this is where a card is about to be, not what is about to be
+   picked up. */
+.marquee[data-tool] {
+  border-style: solid; border-width: 1.5px;
+  border-color: var(--accent); background: var(--accent-wash);
+}
+
+/* ---------- setting the words ---------- */
+
+/* The roles, drawn in the family they would be set in — a font picker that
+   shows you Helvetica in Helvetica and everything else in the UI font is
+   showing you one thing and telling you about the rest. */
+.type-roles { display: flex; flex-wrap: wrap; gap: 5px; }
+.type-role {
+  padding: 5px 10px; border-radius: var(--r-sm); font-size: var(--t-sm);
+  border: 1px solid var(--line); color: var(--ink-2); background: var(--surface);
+}
+.type-role:hover { border-color: var(--accent-line); color: var(--ink); background: var(--hover); }
+
+.type-family {
+  width: 100%; height: 32px; padding: 0 8px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); font-size: var(--t-md);
+}
+
+.type-typed { display: flex; gap: 5px; }
+.type-typed input {
+  flex: 1; min-width: 0; height: 28px; padding: 0 8px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); font-size: var(--t-sm);
+}
+.type-typed button {
+  flex: none; padding: 0 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink-2); font-size: var(--t-sm);
+}
+.type-typed button:disabled { opacity: 0.45; }
+
+/* What the settings actually look like, at the size they are set to, clipped
+   rather than allowed to push the panel about. */
+.type-preview {
+  padding: 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink);
+  max-height: 190px; overflow: hidden; word-break: break-word;
+}
+
+/* Not a colour, so not a circle: it is the absence of a choice. */
+.swatches .swatch-auto {
+  width: auto; height: 22px; padding: 0 9px; border-radius: 11px;
+  font-size: var(--t-xs); color: var(--muted); border: 1.5px solid var(--line);
+}
+.swatches .swatch-any { width: 22px; height: 22px; flex: none; position: relative; display: block; }
+.swatches .swatch-any input {
+  width: 100%; height: 100%; padding: 0; border-radius: 50%;
+  border: 1.5px dashed var(--line); background: none; cursor: pointer;
+}
 
 .preset-row, .flip-row, .blend-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .preset-row button, .flip-row button, .blend-row button {
@@ -1870,10 +2030,14 @@ body[data-pressing] .embed-frame { pointer-events: none; }
  * Not the breadcrumbs, which say where you are inside a project. These say
  * which project — two rows because they are two questions, and folding them
  * together would make a board four levels down look like a fifth project. */
+/* Inside the top row now rather than in a strip of their own underneath it.
+   Two rows to hold one row's worth of things costs a row of the board, and
+   this was the thinner of the two. A pill rather than a folder tab, because a
+   folder tab is drawn as part of the thing below it and there is nothing
+   directly below these any more. */
 .tabs {
-  display: flex; align-items: stretch; gap: var(--s1);
-  padding: 0 var(--s3); height: 34px; flex: none;
-  background: var(--bg); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: var(--s1);
+  min-width: 0; flex: 0 1 auto;
 }
 .tabs-strip {
   display: flex; align-items: stretch; gap: 2px; min-width: 0;
@@ -1883,17 +2047,15 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .tab {
   display: inline-flex; align-items: center; gap: 2px; flex: none;
   max-width: 190px; padding: 0 var(--s1) 0 var(--s3);
-  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  border-radius: var(--r-md);
   font-size: var(--t-sm); color: var(--muted); text-decoration: none;
-  border: 1px solid transparent; border-bottom: none;
-  align-self: flex-end; height: 27px;
+  border: 1px solid transparent;
+  height: 30px;
 }
 .tab:hover { color: var(--ink); background: var(--hover); }
-/* The one you are in reads as part of the board below it rather than as a
-   button sitting on top of it, which is what a tab is. */
 .tab[data-on] {
   color: var(--ink); background: var(--surface);
-  border-color: var(--line); margin-bottom: -1px; height: 28px;
+  border-color: var(--line); box-shadow: var(--sh-1);
 }
 .tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Renaming in place. Sized to the tab it is replacing rather than to its own
@@ -2130,31 +2292,20 @@ body[data-pressing] .embed-frame { pointer-events: none; }
  * the empty board's own buttons.
  * ------------------------------------------------------------------------- */
 @media (max-width: 760px) {
-  .tool[data-narrow] { display: none; }
-  /* The board's name gives up whatever is left rather than pushing the row
-     off the edge, and the mark goes: at this width every pixel is spoken for. */
-  .brand { flex: 1 1 auto; }
-  .brand .dot { display: none; }
+  /* The mark goes: at this width every pixel is spoken for, and the tabs are
+     the thing in this region that has to stay legible. */
+  .topbar-left > .dot { display: none; }
   .board-name { width: auto; min-width: 0; flex: 1 1 auto; font-size: var(--t-md); }
   /* A magnifier until it is asked for, and the width of the row once it is. */
-  .search { flex: 0 0 34px; min-width: 0; margin-left: var(--s2); padding: 0 6px; }
+  .search { flex: 0 0 34px; min-width: 0; padding: 0 6px; }
   .search input { min-width: 0; }
   .search kbd { display: none; }
   .search:focus-within { flex: 1 1 auto; }
   .search[data-active] { flex: 0 1 120px; }
-  /* Without this the free space goes to the auto margin that pushes the tools
-     right, and the board's name is squeezed to six letters beside it. */
-  .tools { margin-left: 0; }
-}
-
-/* Narrower still, and the name field has stood down entirely — see where it is
-   hidden, above. What is left of the brand is an empty forty pixels, so the
-   mark comes back into it: there is room for it again now that it is not
-   competing with a name, and a row that starts with nothing at all reads as a
-   toolbar somebody forgot to finish. */
-@media (max-width: 620px) {
-  .brand { flex: none; }
-  .brand .dot { display: block; }
+  /* The middle stops being the middle of the window and becomes whatever is
+     left between the tabs and the buttons: three fixed columns at this width
+     leave the tabs two letters each. */
+  .topbar { grid-template-columns: minmax(0, 1fr) auto auto; }
 }
 @media (max-width: 620px) {
   /* One control that narrows the board is enough on a screen this size, and
@@ -2170,6 +2321,8 @@ body[data-pressing] .embed-frame { pointer-events: none; }
    at every window size and not only on a phone. */
 @media (pointer: coarse) {
   .tool { width: 40px; height: 38px; }
+  .rail-tool { width: 42px; height: 40px; }
+  .rail { padding: var(--s2) 5px; }
   .tool-group { padding: 3px; gap: 2px; }
   .tool-mode { height: 42px; padding: 0 var(--s3); }
   .icon-btn { width: 40px; height: 40px; }
@@ -2179,9 +2332,7 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   .zoombar button, .zoombar .icon-btn { min-width: 40px; height: 38px; }
   /* The row of projects. A fingertip is not a cursor, and the × that closes
      one has to be hittable without hitting the tab it sits in. */
-  .tabs { height: 42px; }
-  .tab { height: 34px; padding-left: var(--s3); }
-  .tab[data-on] { height: 35px; }
+  .tab { height: 36px; padding-left: var(--s3); }
   .tab-close { width: 26px; height: 26px; opacity: 1; }
   .tab-new { width: 36px; height: 32px; }
   /* There is no keyboard to press them on. */

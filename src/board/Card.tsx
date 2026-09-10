@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useItem, store } from '../state/store'
 import { TAGS } from '../state/types'
 import { FxAnimCanvas, FxCanvas } from './FxCanvas'
@@ -13,11 +13,14 @@ import { useObjectURL } from '../store/media'
 import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
+import { startWriting, stopWriting, useWriting } from './writing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
 import { todoCount } from '../state/rich'
 import { canShade, hasPixels, isStill, pixelKey, isKnownKind } from '../state/kinds'
+import { inkOf, isText, typeStyle } from '../state/type'
+import { loadFamily } from '../state/fonts'
 import { nextPage, prevPage } from '../state/pages'
 import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
@@ -78,6 +81,14 @@ export const Card = memo(function Card({
   const moves = useMoves(it)
   /* Whether the compare key is being held over this card. */
   const plain = usePlain(id)
+  /* A family that has to be fetched is fetched here, where every way a card
+     can arrive set in one goes past: opened, undone, imported, pasted, or
+     changed in the panel. Doing it in the panel alone would mean a board
+     saved in Playfair came back in the fallback until somebody touched it. */
+  const font = it && isText(it) ? it.type?.font : undefined
+  useEffect(() => { loadFamily(font) }, [font])
+  /* Whether the words on this card are being typed on the board itself. */
+  const writing = useWriting() === id
 
   if (!it) return null
 
@@ -134,12 +145,22 @@ export const Card = memo(function Card({
           data-kind={it.kind}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
+          /* The whole of it drags, not just the strip with the name on.
+           *
+           * A section used to take the pointer nowhere but its title, so a
+           * drag that started anywhere inside one was a rubber band — and a
+           * rubber band drawn across a section picks up everything in it. The
+           * gesture that most obviously means "move this region" was the
+           * gesture that selected its entire contents instead.
+           *
+           * It still sits behind its contents, so a press that lands on a card
+           * inside is that card's; only the space between them is the
+           * section's. And a rubber band from inside a section is still there
+           * with shift held, which is the same key that makes one additive. */
+          onPointerDown={(e) => { if (!e.shiftKey) onPointerDown(e, id) }}
+          onContextMenu={(e) => onContextMenu(e, id)}
         >
-          <div
-            className="section-bar"
-            onPointerDown={(e) => onPointerDown(e, id)}
-            onContextMenu={(e) => onContextMenu(e, id)}
-          >
+          <div className="section-bar">
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
@@ -154,17 +175,22 @@ export const Card = memo(function Card({
         <div
           className="card card-label"
           data-id={id}
-          style={{ ...shell, color: it.color || '#111114' }}
+          style={{ ...shell, color: inkOf(it.color), ...typeStyle('label', it.type) }}
           /* Every other card says what it is; these two did not, so a rule or a
              question asked as `.card[data-kind=…]` quietly skipped them. */
           data-kind={it.kind}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
-          onPointerDown={(e) => onPointerDown(e, id)}
+          onPointerDown={(e) => { if (!writing) onPointerDown(e, id) }}
           onContextMenu={(e) => onContextMenu(e, id)}
-          onDoubleClick={() => onOpenEditor(id)}
+          /* In place rather than in a sheet. A label is one line of type lying
+             on the board; a dialogue to change one word of it is the whole
+             difference between a board you write on and one you file things
+             in. The sheet is still where a note is written, because a note has
+             headings and lists and a row of buttons for them. */
+          onDoubleClick={() => startWriting(id)}
         >
-          {it.text || 'Label'}
+          {writing ? <Writer id={id} text={it.text || ''} /> : it.text || 'Label'}
         </div>
         {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
         {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
@@ -402,7 +428,14 @@ export const Card = memo(function Card({
                dark paper is a note you cannot read — which was true before
                swatches existed and is unmissable now that a palette makes
                five dark ones at a time. */
-            <div className="note" style={{ background: it.color || '#FBEFC4', color: inkOn(it.color || '#FBEFC4') }}>
+            <div
+              className="note"
+              style={{
+                background: it.color || '#FBEFC4',
+                color: inkOn(it.color || '#FBEFC4'),
+                ...typeStyle('note', it.type),
+              }}
+            >
               <RichText id={id} text={it.text || ''} />
             </div>
           )}
@@ -548,6 +581,60 @@ function startWire(e: React.PointerEvent, id: string, side: Side) {
  * themselves, but the part you would reach for was outside the clip and took
  * no clicks, so dragging a corner started a selection rectangle instead.
  * ------------------------------------------------------------------------- */
+/* The field you type into, lying exactly where the words are.
+ *
+ * It inherits everything — family, size, weight, alignment, tracking, colour —
+ * because the point of writing on the board is that what you type is what you
+ * get. A field set in the UI font over type set in Playfair is a preview of
+ * something else.
+ *
+ * The text is written back when the field is left, not on every keystroke: a
+ * word typed one letter at a time is one thing you did, and an undo stack with
+ * a step per character is an undo stack nobody can walk back. */
+function Writer({ id, text }: { id: string; text: string }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null)
+  /* Escape means leave it as it was, and leaving the field is what commits —
+     so the refusal has to be remembered across the blur that follows it. */
+  const abandoned = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    /* Selected, so a card that arrived saying "Label" is replaced by the first
+       thing typed rather than appended to. */
+    el.select()
+  }, [])
+
+  return (
+    <textarea
+      ref={ref}
+      className="label-write"
+      defaultValue={text}
+      spellCheck={false}
+      /* The press that puts the caret somewhere must not also start dragging
+         the card out from under it. */
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onBlur={(e) => {
+        const next = e.target.value
+        if (!abandoned.current && next !== text) store.update(id, { text: next })
+        abandoned.current = false
+        stopWriting(id)
+      }}
+      onKeyDown={(e) => {
+        /* The board listens for keys on the window — every letter typed here
+           would otherwise be a shortcut. */
+        e.stopPropagation()
+        if (e.key === 'Escape') { abandoned.current = true; e.currentTarget.blur() }
+        /* Enter finishes it; a line break is Shift and Enter, the way it is in
+           every chat box written in the last ten years. */
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.blur() }
+      }}
+    />
+  )
+}
+
 function Handles({
   id, x, y, w, h, onContextMenu,
 }: {

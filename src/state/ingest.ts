@@ -421,16 +421,43 @@ export function boardItem(at: { x: number; y: number }, board: string, name = 'B
   }
 }
 
-export function sectionItem(at: { x: number; y: number }): Item {
+export function sectionItem(at: { x: number; y: number }, box?: { w: number; h: number }): Item {
   return {
     id: newId(), kind: 'section', x: Math.round(at.x), y: Math.round(at.y), z: 0,
-    w: 720, h: 480, name: 'Section', fx: { ...FX_0 }, tag: null,
+    /* A section drawn smaller than its own title bar is a section you cannot
+       read the name of or get hold of again. */
+    w: Math.max(120, Math.round(box?.w ?? 720)),
+    h: Math.max(80, Math.round(box?.h ?? 480)),
+    name: 'Section', fx: { ...FX_0 }, tag: null,
+  }
+}
+
+/* Words written straight onto the board, at the size they were drawn.
+ *
+ * The same kind as a label, because that is what a label already is: type
+ * lying on the board with no card under it. What is different is how it
+ * arrives — you draw the measure you want the line set to, and it opens
+ * empty with the caret in it, rather than appearing in the middle of the view
+ * saying "Label". */
+export function textItem(at: { x: number; y: number }, box?: { w: number; h: number }): Item {
+  return {
+    ...labelItem(at),
+    w: Math.max(40, Math.round(box?.w ?? 320)),
+    h: Math.max(24, Math.round(box?.h ?? 64)),
+    text: '',
+    /* Set as something to read rather than as a heading. A heading is one
+       press away in the panel, and a board of headings is not what somebody
+       drawing a text box across a board is after. */
+    type: { size: 24, weight: 400, leading: 1.3 },
   }
 }
 
 export function labelItem(at: { x: number; y: number }): Item {
   return {
     id: newId(), kind: 'label', x: Math.round(at.x), y: Math.round(at.y), z: 0,
-    w: 260, h: 56, text: 'Label', color: '#111114', fx: { ...FX_0 }, tag: null,
+    /* No colour written in. A label with one baked in is a label that is
+       near-black on a dark board, which is how text arrived invisible; unset
+       means the theme's ink, which is right on either ground. */
+    w: 260, h: 56, text: 'Label', fx: { ...FX_0 }, tag: null,
   }
 }

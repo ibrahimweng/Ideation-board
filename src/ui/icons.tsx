@@ -52,6 +52,15 @@ export const IconLabel = (p: P) => (
   </Svg>
 )
 
+/* Writing on the board itself: an I-beam, the shape every tool that means
+   "type here" has used since the first one did. */
+export const IconText = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 3.1v9.8M5.6 2.9h4.8M5.6 13.1h4.8" />
+    <path d="M2.6 4.6V2.9h3M13.4 4.6V2.9h-3" opacity="0.45" />
+  </Svg>
+)
+
 /* A section: a region drawn around things. */
 export const IconSection = (p: P) => (
   <Svg {...p}>

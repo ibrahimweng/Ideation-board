@@ -3,6 +3,7 @@ import { boardTree } from './boards'
 import { getBlob } from '../store/idb'
 import { renderCardPicture } from './exportImage'
 import { pixelKey, traitsOf } from './kinds'
+import { familyOf, inkOf, typeStyle } from './type'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
 import { safeName } from '../store/fs'
@@ -58,7 +59,6 @@ const SCALE = 2
 const MAX_EDGE = 1400
 
 /* The colour a label is made with, which is to say the one nobody picked. */
-const LABEL_INK = '#111114'
 
 /* WebP first: for a page whose whole point is being small enough to send, it
  * is a third of the size of PNG at a quality nobody can tell apart. Every
@@ -238,12 +238,20 @@ async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
     return { ...base, missing: true }
   }
 
-  if (item.kind === 'note') return { ...base, html: noteHtml(item.text || '') }
+  /* How the words are set, worked out by the same function the board and the
+   * poster ask, so all three agree on what a heading is. */
+  const set: Pick<PageItem, 'type' | 'font'> = {}
+  if (item.kind === 'note' || item.kind === 'label') {
+    const fam = familyOf(item.type?.font)
+    set.type = typeStyle(item.kind, item.type)
+    if (fam.google) set.font = fam.name
+  }
+  if (item.kind === 'note') return { ...base, ...set, html: noteHtml(item.text || '') }
   if (item.kind === 'label') {
     /* A label with the colour it is made with is a label nobody coloured, and
      * baking that near-black in would make it unreadable on a page being read
      * in the dark. One somebody actually chose is kept exactly. */
-    return { ...base, color: base.color === LABEL_INK ? '' : base.color, text: item.text || '' }
+    return { ...base, ...set, color: inkOf(base.color) || '', text: item.text || '' }
   }
   if (item.kind === 'section') return { ...base, text: item.text || '' }
   if (item.kind === 'link') return { ...base, url: item.url || '', text: item.text || '' }

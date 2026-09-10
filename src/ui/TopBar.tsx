@@ -1,21 +1,32 @@
 import { store } from '../state/store'
 import { SearchBar } from './SearchBar'
 import { TagFilter } from './TagFilter'
+import { BoardTabs } from './BoardTabs'
+import type { BoardTabsProps } from './BoardTabs'
 import { nameFor, titleFor } from './shortcuts'
 import type { ShortcutName } from './shortcuts'
-import {
-  IconBoard, IconCommand, IconDraw, IconEffects, IconExport, IconFiles, IconImport, IconLabel, IconLink,
-  IconNote, IconSection, IconUndo, IconRedo, IconHelp,
-} from './icons'
+import { IconCommand, IconEffects, IconUndo, IconRedo, IconHelp } from './icons'
 import type { Crumb } from '../state/boards'
 
 /* ---------------------------------------------------------------------------
  * The row across the top.
  *
- * All of it is presentation: where you are, what you are looking for, and the
- * things you can make. It knows nothing about how a board is opened or a file
- * is read — every one of those arrives as a prop — which is what lets the row
- * be read in one screenful and what took a hundred lines out of App.
+ * One row now, and three regions, each answering a different question.
+ *
+ * Left is which project — the tabs themselves, which used to sit in a strip of
+ * their own underneath. Two rows to hold one row's worth of things is two rows
+ * of the board given up, and the strip was the thinner of them.
+ *
+ * Middle is what you are looking for: the search and the tags, in the one
+ * place on a screen the eye goes to first for exactly that.
+ *
+ * Right is everything that acts on what is already there — undo, the command
+ * list, help, and the panel. Opposite the rail of tools down the left, which
+ * is the arrangement the whole window is now built on: what goes on the board
+ * on one side, what is done to it on the other.
+ *
+ * All of it is presentation. It knows nothing about how a board is opened or a
+ * file is read; every one of those arrives as a prop.
  * ------------------------------------------------------------------------- */
 
 interface Props {
@@ -29,121 +40,76 @@ interface Props {
   panelOpen: boolean
   onPanel: () => void
   onCommands: () => void
-  onAddFiles: () => void
-  onNote: () => void
-  onLabel: () => void
-  onSection: () => void
-  onBoard: () => void
-  onLink: () => void
-  onDraw: () => void
-  onImport: () => void
-  onExport: () => void
   onHelp: () => void
+  /* Everything the tabs need, passed straight through: this row is where they
+     live now, and nothing here has an opinion about them. */
+  tabs: BoardTabsProps
 }
 
 export function TopBar({
-  path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands,
-  onAddFiles, onNote, onLabel, onSection, onBoard, onLink, onDraw, onImport, onExport, onHelp,
+  path, name, onName, onOpenBoard, onGoTo, panelOpen, onPanel, onCommands, onHelp, tabs,
 }: Props) {
+  const nested = path.length > 1
   return (
-  <header className="topbar" data-nested={path.length > 1 || undefined}>
-    <div className="brand">
+  <header className="topbar" data-nested={nested || undefined}>
+    <div className="topbar-left">
       <span className="dot" />
-      {path.length > 1 && (
-        <nav className="crumbs">
-          {path.length > 3 && (
-            <span className="crumb">
-              <button onClick={() => onOpenBoard([path[0]])} title={path[0].name}>
-                …
-              </button>
-              <i>/</i>
-            </span>
-          )}
-          {path.slice(0, -1).slice(-2).map((c) => (
-            <span key={c.id} className="crumb">
-              <button
-                title={c.name}
-                onClick={() => onOpenBoard(path.slice(0, path.findIndex((p) => p.id === c.id) + 1))}
-              >
-                {c.name}
-              </button>
-              <i>/</i>
-            </span>
-          ))}
-        </nav>
+      <BoardTabs {...tabs} />
+
+      {/* Where you are *inside* the project, which the tabs cannot say: they
+          name projects, and a board four levels down is not a fifth project.
+          Only there when you are down one, so at the top of a project the tab
+          is the only thing naming it — and it renames in place, which is what
+          the field in this row used to be for. */}
+      {nested && (
+        <div className="topbar-where">
+          <nav className="crumbs">
+            {path.length > 3 && (
+              <span className="crumb">
+                <button onClick={() => onOpenBoard([path[0]])} title={path[0].name}>
+                  …
+                </button>
+                <i>/</i>
+              </span>
+            )}
+            {path.slice(0, -1).slice(-2).map((c) => (
+              <span key={c.id} className="crumb">
+                <button
+                  title={c.name}
+                  onClick={() => onOpenBoard(path.slice(0, path.findIndex((p) => p.id === c.id) + 1))}
+                >
+                  {c.name}
+                </button>
+                <i>/</i>
+              </span>
+            ))}
+          </nav>
+          <input
+            className="board-name"
+            value={name}
+            onChange={(e) => {
+              onName(e.target.value)
+              store.setName(e.target.value)
+            }}
+            spellCheck={false}
+            aria-label="Name for this board"
+          />
+        </div>
       )}
-      <input
-        className="board-name"
-        value={name}
-        onChange={(e) => {
-          onName(e.target.value)
-          store.setName(e.target.value)
-        }}
-        spellCheck={false}
-      />
     </div>
 
-    <SearchBar path={path} onGo={onGoTo} />
-    <TagFilter />
+    <div className="topbar-mid">
+      <SearchBar path={path} onGo={onGoTo} />
+      <TagFilter />
+    </div>
 
-    {/* Icons in three groups rather than eleven grey words in a row.
-        The words told you nothing the icon does not — they were all the
-        same size, weight and colour, so nothing in the row stood out and
-        the row itself was as wide as the window would allow. What each one
-        is, and the key that runs it, is on its tooltip and in the command
-        list. Effects keeps its name because it is the only thing here that
-        is a mode rather than an action. */}
-    <div className="tools">
-      {/* On a phone there is room for four buttons and the row held eleven,
-          so four of these fell off the right hand edge of the window with
-          nothing to say they were there — undo among them. Each one that
-          stands down on a narrow window has at least two other ways in: the
-          command list, the menu you get by holding a finger on the board, and
-          the empty board's own buttons. What is left is adding a file, undo,
-          the command list and the effects panel — and enough of the row for
-          the board to still be able to say what it is called. */}
-      <div className="tool-group">
-        <ToolButton name="addFiles" onClick={onAddFiles}>
-          <IconFiles />
-        </ToolButton>
-        <ToolButton name="note" onClick={onNote} narrow>
-          <IconNote />
-        </ToolButton>
-        <ToolButton name="label" onClick={onLabel} narrow>
-          <IconLabel />
-        </ToolButton>
-        <ToolButton name="section" onClick={onSection} narrow>
-          <IconSection />
-        </ToolButton>
-        <ToolButton name="board" onClick={onBoard} narrow>
-          <IconBoard />
-        </ToolButton>
-        <ToolButton name="link" onClick={onLink} narrow>
-          <IconLink />
-        </ToolButton>
-        <ToolButton name="draw" onClick={onDraw} narrow>
-          <IconDraw />
-        </ToolButton>
-      </div>
-
+    <div className="topbar-right">
       <div className="tool-group">
         <ToolButton name="undo" onClick={() => store.undo()}>
           <IconUndo />
         </ToolButton>
-        <ToolButton name="redo" onClick={() => store.redo()} narrow>
+        <ToolButton name="redo" onClick={() => store.redo()}>
           <IconRedo />
-        </ToolButton>
-      </div>
-
-      {/* First to go when the row runs short: both are also a drop, a menu
-          entry, a shortcut and a line in the command list, while nothing
-          else here has a second way in. */}
-      <div className="tool-group tools-wide">
-        <ToolButton name="import" onClick={onImport}>
-          <IconImport />
-        </ToolButton>
-        <ToolButton name="export" onClick={onExport}>
-          <IconExport />
         </ToolButton>
       </div>
 
@@ -178,18 +144,15 @@ export function TopBar({
 /* A button in the top row: an icon, and the name and key it runs on its
    tooltip and for anything reading the page aloud. */
 function ToolButton({
-  name, onClick, narrow, children,
+  name, onClick, children,
 }: {
   name: ShortcutName
   onClick: () => void
-  /* Stands down when the window is too narrow to hold the whole row. */
-  narrow?: boolean
   children: React.ReactNode
 }) {
   return (
     <button
       className="tool"
-      data-narrow={narrow || undefined}
       onClick={onClick}
       title={titleFor(name)}
       aria-label={nameFor(name)}

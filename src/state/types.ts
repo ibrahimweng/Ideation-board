@@ -7,6 +7,9 @@ export type Kind =
 export interface Item {
   id: string
   kind: Kind
+  /* How the words on it are set, for the cards that have words. Absent on
+     everything else and on every board written before it existed. */
+  type?: import('./type').TypeSet
   x: number
   y: number
   w: number

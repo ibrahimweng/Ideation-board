@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { store } from '../state/store'
-import { noteItem, labelItem, sectionItem } from '../state/ingest'
+import { armTool } from '../board/tool'
 import { isSection } from '../state/kinds'
 import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
@@ -47,6 +47,10 @@ export interface KeyActions {
    * report. */
   ready: boolean
   centreOfView: () => { x: number; y: number }
+  /* Made, picked up, and open to be written in — the same thing the rail and
+     the menu do, so a note made with the keyboard is not a different note. */
+  addNote: (at: { x: number; y: number }) => void
+  addLabel: (at: { x: number; y: number }) => void
   addBoard: (at: { x: number; y: number }) => void
   askForLink: (at: { x: number; y: number }) => void
   draw: () => void
@@ -170,9 +174,13 @@ export function useShortcuts(a: KeyActions) {
     if (!cmd && !e.altKey && !e.shiftKey) {
       const k = e.key.toLowerCase()
       const at = a.centreOfView()
-      if (k === KEYS.note.key) { e.preventDefault(); store.add(noteItem(at)); return }
-      if (k === KEYS.label.key) { e.preventDefault(); store.add(labelItem(at)); return }
-      if (k === KEYS.section.key) { e.preventDefault(); store.add(sectionItem(at)); return }
+      if (k === KEYS.note.key) { e.preventDefault(); a.addNote(at); return }
+      if (k === KEYS.label.key) { e.preventDefault(); a.addLabel(at); return }
+      /* These two arm rather than fire. The size is the point of both of them,
+         so the next drag on the board draws it — and until it does, the board
+         wears the cursor for it and the rail lights the button. */
+      if (k === KEYS.section.key) { e.preventDefault(); armTool('section'); return }
+      if (k === KEYS.text.key) { e.preventDefault(); armTool('text'); return }
       if (k === KEYS.board.key) { e.preventDefault(); a.addBoard(at); return }
       if (k === KEYS.link.key) { e.preventDefault(); a.askForLink(at); return }
       if (k === KEYS.draw.key) { e.preventDefault(); a.draw(); return }

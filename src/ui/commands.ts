@@ -1,5 +1,5 @@
 import { store } from '../state/store'
-import { noteItem, labelItem, sectionItem } from '../state/ingest'
+import { armTool } from '../board/tool'
 import { isSection, isWire, hasPixels } from '../state/kinds'
 import { isSound } from '../state/sounds'
 import type { Item } from '../state/types'
@@ -25,6 +25,11 @@ export interface CommandActions {
   panelOpen: boolean
   mirror: MirrorState
   centreOfView: () => { x: number; y: number }
+  /* Made, picked up, and open to be written in. Every way of making one goes
+     through the same pair, so a note made from this list is not a different
+     note from one made off the rail. */
+  addNote: (at: { x: number; y: number }) => void
+  addLabel: (at: { x: number; y: number }) => void
   addBoard: (at: { x: number; y: number }) => void
   askForLink: () => void
   draw: () => void
@@ -87,9 +92,15 @@ export function buildCommands(a: CommandActions): Command[] {
   })
   return [
     cmd('add.files', 'Add files', 'Add', () => a.pickFiles(), { hint: KEYS.addFiles.hint, keywords: 'image photo picture video upload import' }),
-    cmd('add.note', 'Note', 'Add', () => store.add(noteItem(at())), { hint: KEYS.note.hint, keywords: 'text write checklist' }),
-    cmd('add.label', 'Label', 'Add', () => store.add(labelItem(at())), { hint: KEYS.label.hint, keywords: 'title heading caption' }),
-    cmd('add.section', 'Section', 'Add', () => store.add(sectionItem(at())), { hint: KEYS.section.hint, keywords: 'group area frame' }),
+    cmd('add.note', 'Note', 'Add', () => a.addNote(at()), { hint: KEYS.note.hint, keywords: 'text write checklist paragraph body' }),
+    cmd('add.label', 'Label', 'Add', () => a.addLabel(at()), { hint: KEYS.label.hint, keywords: 'title heading caption type font typography' }),
+    /* Both of these arm the tool rather than making the thing: you draw the
+       box, because on both of them the size is the point. */
+    cmd('add.text', 'Draw a text box and write in it', 'Add', () => armTool('text'), {
+      hint: KEYS.text.hint,
+      keywords: 'type font typography heading title body write artboard',
+    }),
+    cmd('add.section', 'Draw a section around things', 'Add', () => armTool('section'), { hint: KEYS.section.hint, keywords: 'group area frame region' }),
     cmd('add.board', 'Board inside this one', 'Add', () => a.addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
     cmd('add.link', 'Link or video URL', 'Add', () => a.askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
     cmd('add.draw', 'Draw a picture from a prompt', 'Add', () => a.draw(), { hint: KEYS.draw.hint, keywords: 'ai generate image imagine gemini imagen prompt make' }),

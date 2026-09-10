@@ -28,7 +28,11 @@ export interface MenuState {
 export interface CanvasActions {
   addNote: (at: { x: number; y: number }) => void
   addLabel: (at: { x: number; y: number }) => void
-  addSection: (at: { x: number; y: number }) => void
+  /* The two that are drawn rather than dropped carry the box that was drawn.
+     Without one they arrive at the size the button would have made them, which
+     is what the menu and the command list ask for. */
+  addSection: (at: { x: number; y: number }, box?: { w: number; h: number }) => void
+  addText: (at: { x: number; y: number }, box?: { w: number; h: number }) => void
   addBoard: (at: { x: number; y: number }) => void
   importBoard: (at: { x: number; y: number }) => void
   addLink: (at: { x: number; y: number }) => void
