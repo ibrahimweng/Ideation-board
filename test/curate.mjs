@@ -74,14 +74,29 @@ const pointOn = (i) => page.evaluate((i) => {
   }
   return null
 }, i)
-for (const i of [0, 3, 6, 9, 11]) {
+/* Five cards spread across the board, and five that can actually be pressed.
+ *
+ * The tools float on the board now rather than sitting in a column beside it,
+ * so a small card at low zoom can be lying under one of them with no part of
+ * itself left to press. The old list of indices took whichever five it named
+ * and quietly skipped any it could not reach, which turned an unreachable card
+ * into four keepers and a setup that failed for a reason it did not say. */
+const total = await page.locator('.card').count()
+const wanted = [0, 3, 6, 9, 11]
+const kept = []
+for (let n = 0; n < total && kept.length < 5; n++) {
+  /* The ones it asked for first, then anything else that is reachable. */
+  const i = n < wanted.length ? wanted[n] : n
+  if (kept.includes(i)) continue
   const at = await pointOn(i)
   if (!at) continue
+  kept.push(i)
   await page.mouse.click(at.x, at.y)
   await page.waitForTimeout(140)
   await page.keyboard.press('i')
   await page.waitForTimeout(170)
 }
+ok('setup: five cards could be reached to mark', kept.length === 5, `${kept.length} of 5 reachable`)
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
 ok('setup: five of them kept', (await page.locator('.card[data-pick="in"]').count()) === 5)
