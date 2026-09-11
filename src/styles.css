@@ -19,6 +19,10 @@
   --surface: #ffffff;
   --surface-2: #fbfbfc;
   --sunk: #f1f1f3;
+  /* A well that is lying on the board rather than on a panel, so it carries
+     enough of its own ground to be read over a photograph and still lets a
+     little of what is behind it through. */
+  --well-float: rgba(251, 251, 252, 0.86);
   --well: #ececef;
   --well-2: #e2e2e6;
   --dot: #dcdce1;
@@ -99,6 +103,7 @@
   --surface: #191a1d;
   --surface-2: #141518;
   --sunk: #202126;
+  --well-float: rgba(26, 27, 32, 0.84);
   --well: #232429;
   --well-2: #2b2c32;
   --dot: #232429;
@@ -181,16 +186,23 @@ input[type='checkbox']:focus-visible {
 .app {
   display: grid; height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
-/* Placed rather than flowed. On a phone the rail is taken away, and an
-   auto-placed board then falls into the column the rail had left — the narrow
-   one — while the column that was meant to hold it took all the room and held
-   nothing. The board was zero pixels wide and a dropped card had nowhere to
-   be. */
+/* Placed rather than flowed, and the rail shares the board's cell rather than
+   taking a column beside it.
+ *
+ * A column of its own meant a strip of chrome down the side of every board —
+ * forty-odd pixels the board could never use, at every window size, to hold
+ * ten buttons that do not need a wall behind them. In the same cell the board
+ * runs the full width of the window and the tools float on it, which is where
+ * a toolbar has been in every drawing program for twenty years.
+ *
+ * Both are placed by name. Auto-placement put the board in whichever cell was
+ * left over, and on a phone — where the rail is taken away — that was a cell
+ * of no width at all. */
 .app > .topbar { grid-column: 1 / -1; grid-row: 1; }
-.app > .rail { grid-column: 1; grid-row: 2; }
-.app > .main { grid-column: 2; grid-row: 2; }
+.app > .main { grid-column: 1; grid-row: 2; }
+.app > .rail { grid-column: 1; grid-row: 2; justify-self: start; }
 
 /* Three regions, not a row of things that happen to be in order: which
    project on the left, what you are looking for in the middle, and what acts
@@ -494,12 +506,18 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
    opposite the effects panel: what goes on the board down one side, what is
    done to it down the other. */
 .rail {
-  flex: none; z-index: 15;
+  z-index: 15;
   display: flex; flex-direction: column; align-items: center; gap: var(--s2);
   padding: var(--s2) 6px;
-  background: var(--surface-2);
-  border-right: 1px solid var(--line);
+  /* No ground of its own. The wells the buttons sit in are what says they
+     belong together; a full-height panel behind those wells only says that
+     the board stops here. */
+  background: none; border: none;
   overflow-y: auto; scrollbar-width: none;
+  /* And the space between the groups is the board's. Without this the rail is
+     a transparent wall rather than no wall: a drag that starts in the gap
+     under the tools would hit the rail and do nothing. */
+  pointer-events: none;
 }
 .rail::-webkit-scrollbar { display: none; }
 
@@ -508,7 +526,13 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .rail-group {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   padding: 2px; border-radius: var(--r-md);
-  background: var(--sunk);
+  /* Floating on the board now rather than sitting on a panel, so the well has
+     to hold its own against whatever is behind it: a little more contrast, and
+     a shadow to lift it off the picture it may be lying on. */
+  background: var(--well-float);
+  box-shadow: var(--sh-1);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
 }
 /* The board file, in and out. Pushed to the bottom because it is about the
    file rather than about what is on this board. */
@@ -531,6 +555,8 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
    board's own buttons. */
 @media (max-width: 640px) {
   .rail { display: none; }
+  /* And with the rail gone there is nothing in that corner to clear. */
+  .zoombar { left: 14px; }
 }
 
 /* Present to anything reading the page aloud, and to nothing else. Not
@@ -1225,8 +1251,10 @@ body[data-turning] .card-chrome { opacity: 0; }
 
 /* ---------- zoom ---------- */
 
+/* Clear of the rail, which floats over this corner of the board rather than
+   sitting in a column beside it. */
 .zoombar {
-  position: absolute; left: 14px; bottom: 14px;
+  position: absolute; left: 56px; bottom: 14px;
   display: flex; align-items: center; gap: 2px;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-md); padding: 3px; box-shadow: var(--shadow);
@@ -1270,6 +1298,27 @@ body[data-turning] .card-chrome { opacity: 0; }
   display: flex; flex-direction: column;
   min-height: 0;
 }
+
+/* The drawer arrives rather than appearing.
+ *
+ * It is three hundred and twenty pixels that were not there a moment ago, and
+ * a thing that size snapping into place reads as a glitch — you look to see
+ * what broke. Slid in from the edge it came from, it reads as a drawer, and
+ * the eye follows it instead of hunting for it. Two hundred and sixty
+ * milliseconds on a curve that leaves quickly and lands slowly, which is what
+ * makes a movement feel like weight rather than like a timer. */
+@keyframes drawer-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.main > .panel:not(.panel-rail) {
+  animation: drawer-in 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+/* Movement is a preference, and a drawer that has to be waited for is worse
+   than one that is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  .main > .panel:not(.panel-rail) { animation: none; }
+}
 /* Beside the board on anything with room for both, and over it on anything
    without.
  *
@@ -1280,7 +1329,7 @@ body[data-turning] .card-chrome { opacity: 0; }
  * it was going to land, the view can still be fitted to it, and the panel is
  * one press from being put away again. */
 @media (max-width: 720px) {
-  .main > .panel {
+  .main > .panel:not(.panel-rail) {
     position: absolute; top: 0; right: 0; bottom: 0; z-index: 30;
     box-shadow: -8px 0 24px rgba(24, 24, 27, 0.18);
   }
@@ -1292,11 +1341,20 @@ body[data-turning] .card-chrome { opacity: 0; }
    controls it replaces. Quieter than a label, because it is read once. */
 .fx-hint { color: var(--faint); font-size: var(--t-xs); line-height: 1.5; margin: -2px 0 2px; }
 
-/* Open, with nothing selected. Everything the panel would say needs a picture
-   to say it about, so it stands down to a rail and hands the width back. */
+/* Open, with nothing selected.
+ *
+ * Everything the panel would say needs something selected to say it about, so
+ * it hands back not just most of its width but all of it: no ground, no edge,
+ * no shadow, and nothing in the flex row — one icon lying in the corner of the
+ * board to say where the drawer will come from. Sized to the icon rather than
+ * to the window, so the board underneath it takes its own presses everywhere
+ * else down that side. */
 .panel-rail {
+  position: absolute; top: 0; right: 0; z-index: 20;
   width: 52px; align-items: center; padding-top: var(--s4);
+  background: none; border: none; box-shadow: none;
   color: var(--faint);
+  animation: none;
 }
 
 .panel-tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }

@@ -254,3 +254,49 @@ describe('a whole batch', () => {
     expect(batchOfLooks(FX_0, 0)).toHaveLength(0)
   })
 })
+
+/* The spread of tones across one batch.
+ *
+ * Twelve treatments that come out looking the same are a worse answer than one
+ * treatment, so a batch has to be a spread. But how wide a spread twelve draws
+ * from nine presets happens to land on is a throw of the dice: measured over
+ * four thousand batches, fewer than seven distinct tones comes up 2.4% of the
+ * time — one run in forty-two. The browser suite asserted seven, and went red
+ * on a commit that had passed an hour earlier.
+ *
+ * So the browser asks only what one batch can answer — that the twelve are not
+ * all one thing — and the spread itself is measured here, where it is a rate
+ * over thousands of batches rather than a guess about one. */
+describe('how wide a batch spreads', () => {
+  const spread = (runs: number) => {
+    const sizes: number[] = []
+    for (let i = 0; i < runs; i++) {
+      const looks = batchOfLooks({ ...FX_0 }, VARIANTS)
+      /* The same key the board sees: the tone as CSS, and the grain over it. */
+      sizes.push(new Set(looks.map((l) => `${l.preset}|${l.con}|${l.sat}|${l.bri}|${l.warm}|${l.grain}`)).size)
+    }
+    return sizes
+  }
+
+  it('is wide, on average, and nothing like twelve of one thing', () => {
+    const sizes = spread(2000)
+    const mean = sizes.reduce((a, b) => a + b, 0) / sizes.length
+    /* Measured at 9.3. Eight leaves room for the dice and still catches a
+       change that collapsed the tones — one preset for the whole batch would
+       land near one. */
+    expect(mean).toBeGreaterThan(8)
+  })
+
+  it('and is nearly never narrow', () => {
+    const sizes = spread(2000)
+    const wide = sizes.filter((n) => n >= 6).length / sizes.length
+    /* Measured at 99.5%. */
+    expect(wide).toBeGreaterThan(0.97)
+  })
+
+  it('and is never one thing twelve times', () => {
+    /* The claim the browser makes, over enough draws to mean it: no batch is
+       ever a single tone repeated. */
+    expect(Math.min(...spread(2000))).toBeGreaterThan(1)
+  })
+})
