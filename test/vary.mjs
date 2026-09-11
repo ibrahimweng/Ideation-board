@@ -164,9 +164,17 @@ const shaded = batch.filter((c) => c.shaded).length
 check('nearly all of them have a shader on them', shaded >= 10, `${shaded} of 12`)
 
 /* The thing that makes a gallery worth looking at. Twelve treatments that come
-   out looking the same are a worse answer than one treatment. */
+   out looking the same are a worse answer than one treatment.
+ *
+ * Asked as "not one thing twelve times", which is what one batch can answer.
+ * It used to ask for seven distinct tones out of twelve — and twelve draws
+ * from nine presets land under seven 2.4% of the time, measured over four
+ * thousand batches, so this went red on a commit that had passed an hour
+ * earlier. How wide the spread actually is belongs to a rate over thousands of
+ * batches, and `test/unit/variations.test.ts` holds it: a mean of nine, and
+ * six or more in 99.5% of them. */
 const distinct = new Set(batch.map((c) => `${c.filter}|${c.grain}`)).size
-check('and they are not twelve of the same thing', distinct >= 7, `${distinct} distinct tones`)
+check('and they are not twelve of the same thing', distinct >= 3, `${distinct} distinct tones`)
 
 /* Which effect each one is running, straight out of what the board saved. */
 const effects = await page.evaluate(async (src) => {
