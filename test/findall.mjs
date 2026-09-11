@@ -47,10 +47,13 @@ await ready()
 
 /* ---------- somewhere to lose things ---------- */
 const rename = async (to) => {
-  await page.locator('.board-name').click()
-  await page.keyboard.press('Control+a')
-  await page.keyboard.type(to)
-  await page.keyboard.press('Tab')
+  /* On its own tab. There is no name field in the top row at the top of a
+     project any more — the tabs are in that row themselves, and one renames in
+     place. */
+  await page.locator('.tab[data-on]').dblclick()
+  await page.waitForTimeout(300)
+  await page.locator('.tab-edit').fill(to)
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(1400)
 }
 const writeNote = async (text) => {

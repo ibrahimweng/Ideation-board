@@ -48,10 +48,27 @@ const dragInto = async (cardSel, section) => {
   await page.waitForTimeout(500)
 }
 
-await page.getByRole('button', { name: 'Section', exact: true }).click()
-await page.waitForTimeout(500)
+/* A section is drawn now rather than dropped: the tool arms, the board takes
+ * a crosshair, and the drag says how big the region is. */
+const drawSection = async (x, y, w, h) => {
+  await page.getByRole('button', { name: 'Section', exact: true }).click()
+  await page.waitForTimeout(250)
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + w, y + h, { steps: 10 })
+  await page.mouse.up()
+  await page.waitForTimeout(500)
+}
+
+await drawSection(420, 190, 700, 470)
 const section = page.locator('.card-section').last()
 const bar = section.locator('.section-bar')
+
+ok('drawing: the tool made a section the size of the drag',
+   Math.abs((await section.boundingBox()).width - 700) < 12,
+   `${Math.round((await section.boundingBox()).width)} across`)
+ok('drawing: the tool stands down once it has made one',
+   (await page.locator('.viewport[data-tool]').count()) === 0)
 
 /* two notes dropped inside */
 for (let i = 0; i < 2; i++) {
@@ -129,6 +146,69 @@ await page.mouse.up()
 await page.waitForTimeout(700)
 const anyOrphan = (await stored()).some((i) => i.kind === 'note' && i.parent === null)
 ok('membership: dragging an item out clears its section', anyOrphan)
+
+/* --- the body drags the section, and does not draw a rubber band ---
+ *
+ * The bug: a section took the pointer nowhere but its own title, so a drag
+ * that started anywhere inside one was a marquee — and a marquee across a
+ * section picks up everything in it. The gesture that most obviously means
+ * "move this region" selected its entire contents instead. */
+const anySection = page.locator('.card-section').last()
+const ab = await anySection.boundingBox()
+/* Off the section entirely, so nothing is selected when the drag starts. A
+ * selected section wears resize handles at its corners, and a press on one of
+ * those is a resize — which moves nothing, and would fail this for the wrong
+ * reason. */
+await page.mouse.click(Math.max(60, ab.x - 80), Math.max(90, ab.y - 60))
+await page.waitForTimeout(300)
+/* Inside it, and clear of everything sitting on top of it. Worked out from
+ * where the cards actually are rather than guessed at: a section holds cards
+ * by definition, and a press that lands on one of them drags that card and
+ * tells us nothing about the section. */
+const spot = await page.evaluate((box) => {
+  const cards = [...document.querySelectorAll('.card:not(.card-section)')].map((e) => e.getBoundingClientRect())
+  for (let y = box.y + 40; y < box.y + box.height - 20; y += 10) {
+    for (let x = box.x + 20; x < box.x + box.width - 20; x += 10) {
+      if (!cards.some((r) => x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6)) return { x, y }
+    }
+  }
+  return null
+}, ab)
+ok('drag: there is somewhere on the section to press that is not a card', !!spot)
+const emptyX = spot.x
+const emptyY = spot.y
+/* By its own id: there is more than one section on the board by now, and
+ * measuring a different one from the one that was dragged would pass or fail
+ * for reasons that have nothing to do with this. */
+const draggedId = await anySection.getAttribute('data-id')
+const wasAt = (await stored()).find((i) => i.id === draggedId)
+await page.mouse.move(emptyX, emptyY)
+await page.mouse.down()
+await page.mouse.move(emptyX - 70, emptyY - 50, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(700)
+const nowAt = (await stored()).find((i) => i.id === draggedId)
+ok('drag: a press on the body of a section moves the section',
+   Math.abs(nowAt.x - wasAt.x + 70) < 14 && Math.abs(nowAt.y - wasAt.y + 50) < 14,
+   `moved ${nowAt.x - wasAt.x}, ${nowAt.y - wasAt.y}`)
+const picked = await page.evaluate(() => [...document.querySelectorAll('.card[data-sel]')].map((e) => e.dataset.kind))
+ok('drag: and picks up the section rather than everything inside it',
+   picked.length === 1 && picked[0] === 'section', picked.join(', ') || 'nothing selected')
+
+/* Which leaves nowhere to draw a band from inside a section, so shift still
+ * does it — the same key that makes one additive. */
+await page.mouse.click(80, 400)
+await page.waitForTimeout(300)
+const sb2 = await anySection.boundingBox()
+await page.keyboard.down('Shift')
+await page.mouse.move(sb2.x + 6, sb2.y + sb2.height - 6)
+await page.mouse.down()
+await page.mouse.move(sb2.x + sb2.width - 6, sb2.y + 6, { steps: 14 })
+await page.mouse.up()
+await page.keyboard.up('Shift')
+await page.waitForTimeout(500)
+const banded = await page.evaluate(() => document.querySelectorAll('.card[data-kind="note"][data-sel]').length)
+ok('drag: shift still draws a band from inside a section', banded > 0, `${banded} notes caught`)
 
 /* --- survives a reload --- */
 const beforeReload = (await stored()).filter((i) => i.parent).length

@@ -3,7 +3,7 @@ import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import type { PanelTab } from './ui/EffectsPanel'
 import { store, useQuery, useSelection, useTagFilter } from './state/store'
-import { dropColumns, ingest, noteItem, labelItem, sectionItem, boardItem, addUrl } from './state/ingest'
+import { dropColumns, ingest, noteItem, labelItem, sectionItem, textItem, boardItem, addUrl } from './state/ingest'
 import { createBoard, emptyBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
@@ -19,6 +19,9 @@ import { sketchItem, runSketch } from './state/sketches'
 import { isStaged } from './state/staging'
 import { zip } from './store/zip'
 import { NoteEditor } from './ui/NoteEditor'
+import { ToolRail } from './ui/ToolRail'
+import { startWriting } from './board/writing'
+import { isText } from './state/type'
 import { SketchEditor } from './ui/SketchEditor'
 import { Stats } from './ui/Stats'
 import { CommandPalette } from './ui/CommandPalette'
@@ -31,7 +34,7 @@ import { Compare } from './ui/Compare'
 import { GenerateSheet } from './ui/GenerateSheet'
 import { RelaySheet } from './ui/RelaySheet'
 import { UpdateBar } from './ui/UpdateBar'
-import { BoardTabs, BOARD_PANEL } from './ui/BoardTabs'
+import { BOARD_PANEL } from './ui/BoardTabs'
 import { exportPage, saySize } from './state/exportPage'
 import { Help } from './ui/Help'
 import { resumeRelay } from './mcp/bridge'
@@ -366,6 +369,32 @@ export default function App() {
     void runSketch(it.id, undefined, false)
   }, [])
 
+  /* Made, picked up, and open to be typed in.
+   *
+   * Every one of these used to appear and then sit there: selected by nothing,
+   * so the panel had nothing to work on, and empty or saying "Label", so the
+   * first thing anybody did was hunt for the way to change it. A card you have
+   * just asked for is the card you want to be working on. */
+  const writeNote = useCallback((at: { x: number; y: number }) => {
+    const it = store.add(noteItem(at))
+    store.select([it.id])
+    /* Picked up, not opened. A note is written in the sheet that has the
+       buttons for headings and lists, and that sheet covers the board — so
+       putting three notes down in a row would mean dismissing three dialogues.
+       Double-click opens it, as it always has. A label is different: there is
+       no sheet, you type on the board itself, so nothing is in the way. */
+    return it
+  }, [])
+
+  const writeLabel = useCallback((at: { x: number; y: number }, box?: { w: number; h: number }) => {
+    const it = store.add(box ? textItem(at, box) : labelItem(at))
+    store.select([it.id])
+    /* And a label is one line of type lying on the board, so it is written
+       where it lies. */
+    startWriting(it.id)
+    return it
+  }, [])
+
   const addBoard = useCallback(async (at: { x: number; y: number }) => {
     /* The record is written first so that opening the card straight away
      * finds a board rather than making one. */
@@ -390,6 +419,13 @@ export default function App() {
       y: (-v.y + r.height / 2) / v.z - 100 + step,
     }
   }, [])
+
+  /* Two frames, which is what it takes for a change of layout to be laid out
+   * and then measured. Anything that moves the view straight after changing
+   * what is on screen has to wait for this, or it is fitting the view to a
+   * board that is about to be a different size. */
+  const settled = () =>
+    new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())))
 
   /* A line along the bottom that takes itself away again.
    *
@@ -862,6 +898,31 @@ export default function App() {
        question is only ever whether what arrived is on screen, and that is the
        question revealItems asks — it moves nothing when the drop landed in
        front of you, whatever its size. */
+    /* And the words that arrived are what you are now working on.
+     *
+     * A drop used to land selected by nothing. On a photograph that is merely
+     * inconvenient — you can see it, so you can click it. On text it was the
+     * bug: a run of words dropped onto a dark board was drawn in near-black,
+     * and with nothing selected there was no outline either, so the whole
+     * thing was invisible and indistinguishable from a drop that failed. The
+     * ink is fixed underneath this; picking it up is what makes it findable
+     * whatever colour it turned out to be.
+     *
+     * Only the words, and only when there are some. Picking up a picture opens
+     * the panel out to its full width, which on a phone leaves seventy pixels
+     * of board — a cost worth paying for the thing that was invisible, and not
+     * worth paying for the thing that was never hard to see. */
+    const words = made.filter(isText)
+    if (words.length) store.select(words.map((m) => m.id))
+    /* And then the view goes to them — after the layout has settled rather
+     * than in the same breath.
+     *
+     * Picking a picture up opens the panel out from a rail to its full width,
+     * which takes three hundred pixels off the board. Fitting the view to the
+     * board as it was a frame ago put the card that had just been revealed
+     * straight back under the panel. Two frames: one for the panel to be laid
+     * out, one for the board to have measured itself again. */
+    await settled()
     if (revealItems(made)) {
       say(made.length > 1 ? `Added ${made.length} — the board moved to show them` : 'The board moved to show it', 2400)
     } else {
@@ -1187,6 +1248,8 @@ export default function App() {
         panelOpen,
         mirror,
         centreOfView,
+        addNote: (at) => void writeNote(at),
+        addLabel: (at) => void writeLabel(at),
         addBoard: (at) => void addBoard(at),
         askForLink: () => askForLink(),
         draw: () => setDrawSheet(true),
@@ -1231,7 +1294,7 @@ export default function App() {
         projects: projectCount,
       }),
     [
-      selection, query, tagFilter, panelOpen, mirror, centreOfView, addBoard, askForLink, writeSketch,
+      selection, query, tagFilter, panelOpen, mirror, centreOfView, writeNote, writeLabel, addBoard, askForLink, writeSketch,
       exportBoard, exportPictures, exportSolids, exportHeard, exportSheet, pullColours, depthOf, sharpenNow, forgetDepthModel, keepInFolder, copyToFolder,
       gather, compare, varyNow, shuffleNow, takeAway, putHere, clippedCount, reclaim, deleteBoard,
       newProject, stepProject, closeProject, projectCount, exportHtml,
@@ -1242,6 +1305,8 @@ export default function App() {
   useShortcuts({
     ready: booted,
     centreOfView,
+    addNote: (at) => void writeNote(at),
+    addLabel: (at) => void writeLabel(at),
     addBoard: (at) => void addBoard(at),
     askForLink,
     draw: () => setDrawSheet(true),
@@ -1302,9 +1367,13 @@ export default function App() {
   const pendingAt = useRef<{ x: number; y: number } | null>(null)
   const canvasActions = useMemo(
     () => ({
-      addNote: (at: { x: number; y: number }) => store.add(noteItem(at)),
-      addLabel: (at: { x: number; y: number }) => store.add(labelItem(at)),
-      addSection: (at: { x: number; y: number }) => store.add(sectionItem(at)),
+      addNote: (at: { x: number; y: number }) => writeNote(at),
+      addLabel: (at: { x: number; y: number }) => writeLabel(at),
+      addSection: (at: { x: number; y: number }, box?: { w: number; h: number }) => {
+        const it = store.add(sectionItem(at, box))
+        store.select([it.id])
+      },
+      addText: (at: { x: number; y: number }, box?: { w: number; h: number }) => writeLabel(at, box),
       addBoard: (at: { x: number; y: number }) => void addBoard(at),
       importBoard: (at: { x: number; y: number }) => {
         pendingAt.current = at
@@ -1352,7 +1421,7 @@ export default function App() {
         }
       },
     }),
-    [onDropFiles, addBoard]
+    [onDropFiles, addBoard, writeNote, writeLabel]
   )
 
   return (
@@ -1365,9 +1434,10 @@ export default function App() {
          and saying so out here is what lets anything else know. */
       data-ready={booted || undefined}
     >
-      {/* The trail is one more thing in a row that is already full, so the
-          narrow-width rules that make room for it only apply while it is
-          there. */}
+      {/* One row: which project on the left, what you are looking for in the
+          middle, and what acts on the board on the right. The tabs are inside
+          it rather than in a strip underneath, which is a whole row of the
+          board given back. */}
       <TopBar
         path={path}
         name={name}
@@ -1377,34 +1447,39 @@ export default function App() {
         panelOpen={panelOpen}
         onPanel={() => setPanelOpen((v) => !v)}
         onCommands={() => setPalette(true)}
+        onHelp={() => setHelpOpen(true)}
+        tabs={{
+          current: path[0].id,
+          /* The tab you are in shows what you are typing in the name field,
+             without waiting for the save and the re-read — but only while the
+             field is naming the project. One board down it names that board,
+             and a tab that renamed itself to whatever you had walked into
+             would be saying the wrong thing about where you are. */
+          currentName: path.length === 1 ? name : undefined,
+          onCount: setProjectCount,
+          onOpen: (id: string) => void openRoot(id),
+          onNew: (id: string) => void openRoot(id),
+          onClose: (id: string, was: string) => void closeRoot(id, was),
+          onRename: (id: string, next: string) => void renameRoot(id, next),
+          /* Bumped when a project is made, deleted or imported. Renames do not
+             need it: the tab you are in is told the name directly. */
+          revision: boardRev,
+        }}
+      />
+
+      {/* Opposite the effects panel, which is the whole arrangement: what goes
+          on the board down one side, what is done to it down the other. Beside
+          the board rather than inside it — it is not part of the project the
+          tabs are showing, it is what you do to one. */}
+      <ToolRail
         onAddFiles={() => fileRef.current?.click()}
-        onNote={() => store.add(noteItem(centreOfView()))}
-        onLabel={() => store.add(labelItem(centreOfView()))}
-        onSection={() => store.add(sectionItem(centreOfView()))}
+        onNote={() => writeNote(centreOfView())}
+        onLabel={() => writeLabel(centreOfView())}
         onBoard={() => void addBoard(centreOfView())}
         onLink={() => askForLink()}
         onDraw={() => setDrawSheet(true)}
         onImport={() => importRef.current?.click()}
         onExport={() => void exportBoard()}
-        onHelp={() => setHelpOpen(true)}
-      />
-
-      <BoardTabs
-        current={path[0].id}
-        /* The tab you are in shows what you are typing in the name field,
-           without waiting for the save and the re-read — but only while the
-           field is naming the project. One board down it names that board,
-           and a tab that renamed itself to whatever you had walked into would
-           be saying the wrong thing about where you are. */
-        currentName={path.length === 1 ? name : undefined}
-        onCount={setProjectCount}
-        onOpen={(id) => void openRoot(id)}
-        onNew={(id) => void openRoot(id)}
-        onClose={(id, name) => void closeRoot(id, name)}
-        onRename={(id, next) => void renameRoot(id, next)}
-        /* Bumped when a project is made, deleted or imported. Renames do not
-           need it: the tab you are in is told the name directly. */
-        revision={boardRev}
       />
 
       {/* Named as what the row of tabs is showing. The board inside keeps its

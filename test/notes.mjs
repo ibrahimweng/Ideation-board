@@ -43,7 +43,8 @@ const check = (name, ok, extra) => {
 }
 
 /* The toolbar is icons: found by accessible name, not by printed words. */
-const tool = (t) => page.locator(`.tools button[aria-label="${t}"]`).first()
+/* The making tools live down the left now, not in the top row. */
+const tool = (t) => page.locator(`.rail button[aria-label="${t}"]`).first()
 const note = () => page.locator('.card[data-kind="note"]').first()
 const blur = () => page.evaluate(() => document.activeElement?.blur?.())
 const textOf = () =>
@@ -173,7 +174,12 @@ fs.writeFileSync(path.join(OUT, 'note-editor.png'), await page.screenshot())
 /* ---------- a plain note is still a plain note ---------- */
 await tool('Note').click()
 await page.waitForTimeout(400)
-await page.locator('.card[data-kind="note"]').last().dblclick({ position: { x: 60, y: 90 } })
+/* The one just made, which arrives picked up. Two notes made in a row overlap
+   by design — the second is offset by a cascade, not put somewhere else — so
+   "the last one in the document" is not the same as "the one on top", and
+   reaching for the wrong one means reaching for a card with another sitting
+   over it. */
+await page.locator('.card[data-kind="note"][data-sel]').dblclick({ position: { x: 60, y: 90 } })
 await page.waitForSelector('.sheet textarea', { timeout: 5000 })
 await page.locator('.sheet textarea').fill('just some words\nand a second line')
 await page.locator('.sheet-actions button', { hasText: 'Save' }).click()
@@ -198,7 +204,8 @@ check('plain text is left alone', plain.paras === 2 && plain.text.includes('just
  * either — this is the shape one would really have to take. */
 await tool('Note').click()
 await page.waitForTimeout(400)
-await page.locator('.card[data-kind="note"]').last().dblclick({ position: { x: 60, y: 90 } })
+/* Again the one just made, not the last one in the document. */
+await page.locator('.card[data-kind="note"][data-sel]').dblclick({ position: { x: 60, y: 90 } })
 await page.waitForSelector('.sheet textarea', { timeout: 5000 })
 await page.locator('.sheet textarea').fill(
   '[run me](javascript:location=`https://evil.example`)\n' +

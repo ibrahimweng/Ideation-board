@@ -52,6 +52,16 @@ export const IconLabel = (p: P) => (
   </Svg>
 )
 
+/* Writing on the board itself: a box you draw, with an I-beam standing in it.
+   Not another piece of type — the label icon is already that, and two Ts in a
+   row is a rail you have to read the tooltips of. */
+export const IconText = (p: P) => (
+  <Svg {...p}>
+    <rect x="1.7" y="3.4" width="12.6" height="9.2" rx="1.6" strokeDasharray="2.4 1.9" opacity="0.6" />
+    <path d="M8 5.9v4.6M6.6 5.9h2.8M6.6 10.5h2.8" />
+  </Svg>
+)
+
 /* A section: a region drawn around things. */
 export const IconSection = (p: P) => (
   <Svg {...p}>

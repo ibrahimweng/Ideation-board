@@ -202,9 +202,10 @@ await page.waitForTimeout(1400)
 ok('and typing a new one renames the project',
    (await page.locator('.tab[data-on] .tab-name').innerText()) === 'Autumn palette',
    await page.locator('.tab[data-on] .tab-name').innerText())
-ok('which the name field in the bar agrees with',
-   (await page.locator('.board-name').inputValue()) === 'Autumn palette',
-   await page.locator('.board-name').inputValue())
+/* And that is the only place it is said. The field in the top row used to say
+   it as well, in a row that now has to hold the tabs themselves. */
+ok('and the tab is the only thing in the row naming it',
+   (await page.locator('.board-name').count()) === 0)
 
 /* Escape means the name it had. */
 await page.locator('.tab[data-on]').dblclick()

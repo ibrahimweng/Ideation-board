@@ -103,10 +103,13 @@ const writeNote = async (text) => {
   await page.waitForTimeout(1400)
 }
 
-await page.locator('.board-name').click()
-await page.keyboard.press('Control+a')
-await page.keyboard.type('Sending this on')
-await page.keyboard.press('Tab')
+/* On its own tab. There is no name field in the top row at the top of a
+   project any more — the tabs are in that row themselves, and one renames in
+   place. */
+await page.locator('.tab[data-on]').dblclick()
+await page.waitForTimeout(300)
+await page.locator('.tab-edit').fill('Sending this on')
+await page.keyboard.press('Enter')
 await page.waitForTimeout(1200)
 
 await drop(png(400, 300, 40), 'first.png', 420, 340)

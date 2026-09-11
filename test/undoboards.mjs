@@ -45,6 +45,10 @@ const add = async (key, n = 1) => {
     await page.waitForTimeout(150)
     await page.keyboard.press(key)
     await page.waitForTimeout(450)
+    /* A label opens ready to be written on, and a field with the focus eats
+       the next key this presses. */
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
   }
   /* The save is debounced, and a board switched away from a moment too early
      comes back without what was just put on it. */
@@ -130,7 +134,10 @@ await page.locator('.tab-new').click()
 await page.waitForFunction(() => document.querySelectorAll('.tab').length === 2, { timeout: 15000 })
 await page.waitForTimeout(1200)
 ok('a second project, empty', (await cards()) === 0, `${await cards()} cards`)
-await add('s', 2)
+/* Notes, not sections: S arms the section tool now and waits for a drag to
+   say how big, so pressing it makes nothing. What this is about is a step of
+   undo in a second project, and any card is a step. */
+await add('n', 2)
 await undo()
 ok('undo works there', (await cards()) === 1, `${await cards()} cards`)
 await page.locator('.tab:not([data-on])').first().click()

@@ -42,7 +42,8 @@ const check = (name, ok, extra) => {
 }
 
 /* The toolbar is icons: found by accessible name, not by printed words. */
-const tool = (label) => page.locator(`.tools button[aria-label="${label}"]`).first()
+/* The making tools live down the left now, not in the top row. */
+const tool = (label) => page.locator(`.rail button[aria-label="${label}"]`).first()
 const cards = () => page.locator('.card')
 const boardCards = () => page.locator('.card[data-kind="board"]')
 const crumbs = () => page.locator('.crumbs button')
@@ -108,9 +109,9 @@ for (const w of [900, 1120, 1280, 1440, 1600]) {
       const el = document.querySelector(sel)
       return el ? el.getBoundingClientRect() : null
     }
-    const brand = box('.brand')
+    const brand = box('.topbar-left')
     const search = box('.search')
-    const tools = box('.tools')
+    const tools = box('.topbar-right')
     const top = box('.topbar')
     const name = box('.board-name')
     /* The trail drops its older steps on a narrow window, so the one to
@@ -150,7 +151,11 @@ check('and its contents came back', (await cards().count()) === 1)
 await crumbs().first().click()
 await page.waitForTimeout(900)
 check('a crumb jumps straight to that level', (await crumbs().count()) === 0)
-check('which is the root board', (await boardCards().count()) === 1 && (await boardName().inputValue()) === 'Untitled board')
+/* At the top of a project the tab is what names it — there is no field in the
+   row up there any more, because the tabs are in the row themselves. */
+check('which is the root board',
+   (await boardCards().count()) === 1 &&
+   (await page.locator('.tab[data-on] .tab-name').innerText()).includes('Untitled board'))
 
 /* ---------- duplicating copies what is inside ---------- */
 await boardCards().first().click({ position: { x: 60, y: 10 } })

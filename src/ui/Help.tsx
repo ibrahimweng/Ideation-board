@@ -104,9 +104,20 @@ function parts(): Part[] {
           <p>
             Drag pictures, video, audio, PDFs, Photoshop or Illustrator files, 3D models or
             anything else from your computer onto the board — a folder at a time is fine. Paste a link and it becomes a card; paste a YouTube or Vimeo link and it
-            becomes something you can play. <K>{KEYS.note.hint}</K> writes a note,{' '}
-            <K>{KEYS.label.hint}</K> a label, <K>{KEYS.section.hint}</K> a section to group things
-            in. Drag from one card to another to draw a line between them.
+            becomes something you can play. <K>{KEYS.note.hint}</K> writes a note and{' '}
+            <K>{KEYS.label.hint}</K> a label. <K>{KEYS.text.hint}</K> and <K>{KEYS.section.hint}</K>{' '}
+            are drawn rather than dropped: press one and the next drag on the board says how big it
+            is — a text box you type straight into, or a section to group things in. Drag from one
+            card to another to draw a line between them.
+          </p>
+          <p>
+            Words are set in the panel on the right, which turns into a Text panel whenever a note
+            or a label is selected: a title, a heading, body or a caption in one press, then the
+            family, size, weight, alignment, line height and tracking underneath. Twelve families
+            come from Google Fonts and are fetched the first time one is chosen — a board that
+            stays on the two the app carries never asks anyone for anything, and offline a chosen
+            family falls back to something already on your machine rather than leaving you with a
+            board you cannot read.
           </p>
           <p>
             <K>{KEYS.draw.hint}</K> makes a picture from a description, or from pictures already on
@@ -457,7 +468,8 @@ const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'addFiles', what: 'Add files' },
   { name: 'note', what: 'Note' },
   { name: 'label', what: 'Label' },
-  { name: 'section', what: 'Section' },
+  { name: 'text', what: 'Draw a text box and write in it' },
+  { name: 'section', what: 'Draw a section around things' },
   { name: 'board', what: 'A board inside this one' },
   { name: 'link', what: 'Link, or a video URL' },
   { name: 'draw', what: 'Draw a picture from a description' },

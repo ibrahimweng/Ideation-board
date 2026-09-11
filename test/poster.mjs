@@ -335,7 +335,13 @@ await page.waitForTimeout(400)
 /* ---------- a section and a wire ---------- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(200)
+/* Drawn rather than dropped: the tool arms and the drag says how big. */
 await page.getByRole('button', { name: 'Section', exact: true }).click()
+await page.waitForTimeout(250)
+await page.mouse.move(430, 200)
+await page.mouse.down()
+await page.mouse.move(1000, 620, { steps: 10 })
+await page.mouse.up()
 await page.waitForTimeout(500)
 ok('setup: a section on the board', (await page.locator('.card-section').count()) >= 1)
 

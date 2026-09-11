@@ -19,7 +19,10 @@ export const KEYS = {
   addFiles: { key: 'f', hint: 'F', label: 'Add files' },
   note: { key: 'n', hint: 'N', label: 'Note' },
   label: { key: 'l', hint: 'L', label: 'Label' },
-  section: { key: 's', hint: 'S', label: 'Section' },
+  /* Both of these arm rather than fire: you draw the box, because the size is
+     the point. */
+  section: { key: 's', hint: 'S', label: 'Draw a section around things', short: 'Section' },
+  text: { key: 't', hint: 'T', label: 'Draw a text box and write in it', short: 'Text' },
   board: { key: 'b', hint: 'B', label: 'A board inside this one', short: 'Board' },
   link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
   /* Not cmd+D, which duplicates. A picture that did not exist before. */

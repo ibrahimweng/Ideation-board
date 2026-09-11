@@ -63,8 +63,11 @@ ok('there is a button for it in the top row, next to the command list',
    (await helpButton.count()) === 1)
 /* It is the one button that must not fall off a narrow window: the smaller
    the window, the likelier this is somebody's first look at the app. */
-ok('and it does not stand down when the row runs short',
-   (await page.locator('.topbar .tool[aria-label="Help"][data-narrow]').count()) === 0)
+await page.setViewportSize({ width: 390, height: 844 })
+await page.waitForTimeout(400)
+ok('and it does not stand down when the row runs short', await helpButton.isVisible())
+await page.setViewportSize({ width: 1440, height: 900 })
+await page.waitForTimeout(400)
 await helpButton.click()
 await page.waitForSelector('.help', { timeout: 5000 })
 ok('the button opens it', (await open()) === 1)
@@ -106,7 +109,7 @@ const rows = await page.locator('.help-keys tr').count()
 ok('every key is written down in one place', rows >= 20, `${rows} keys`)
 /* Generated from the same table the toolbar reads, so this is really a check
    that nobody has written a second list by hand. */
-const hint = await page.locator('.topbar .tool[aria-label="Note"]').getAttribute('title')
+const hint = await page.locator('.rail .rail-tool[aria-label="Note"]').getAttribute('title')
 const noteKey = hint.match(/\(([^)]+)\)$/)[1]
 ok('and they are the keys the buttons claim, not a list that has drifted',
    (await page.locator('.help-keys kbd').allInnerTexts()).includes(noteKey), `note is ${noteKey}`)

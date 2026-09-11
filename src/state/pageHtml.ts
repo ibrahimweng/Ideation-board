@@ -46,6 +46,15 @@ export interface PageItem {
   wave?: string
   bars?: number
   secs?: number
+  /* How the words on it are set, already worked out as CSS. The board, the
+     poster and this page all ask the same function, so a heading exported to a
+     page is the heading that was on the board rather than a near miss. */
+  type?: Record<string, string>
+  /* The Google family this card was set in, when it was set in one. Only
+     these are worth a request: a family the app carries is not on the page, so
+     it falls back through its own stack to something the machine has — which
+     is what every exported page has always done. */
+  font?: string
   text?: string
   url?: string
   board?: string
@@ -387,10 +396,12 @@ function show(id, keepView) {
     } else if (it.kind === 'note') {
       n.classList.add('thing', 'note')
       if (it.color) n.style.background = it.color
+      if (it.type) Object.assign(n.style, it.type)
       n.innerHTML = it.html || ''
     } else if (it.kind === 'label') {
       n.classList.add('label')
       n.textContent = it.text || ''
+      if (it.type) Object.assign(n.style, it.type)
       if (it.color) n.style.color = it.color
     } else if (it.kind === 'section') {
       n.classList.add('section')
@@ -523,17 +534,36 @@ window.addEventListener('resize', () => { if (view.z) apply() })
 show(D.root)
 `
 
+/* The stylesheet links a page needs, worked out from what is on it.
+ *
+ * Nothing at all for a board nobody chose a Google family on, which is the
+ * usual case and the one worth protecting: an exported page is a file people
+ * open on planes and hand to clients, and a file that phones home to render
+ * its own words is a worse file than one that does not. */
+function googleLinks(data: PageData): string {
+  const want = new Set<string>()
+  for (const b of data.boards) for (const it of b.items) if (it.font) want.add(it.font)
+  if (!want.size) return ''
+  const families = [...want].sort().map((n) => `family=${encodeURIComponent(n).replace(/%20/g, '+')}:wght@300;400;500;600;700;800`)
+  return `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?${families.join('&amp;')}&amp;display=swap">\n`
+}
+
 export function pageHtml(data: PageData): string {
   const root = data.boards.find((b) => b.id === data.root)
   const title = escText(root?.name || 'Board')
   const made = new Date(data.made).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  /* Only for a page that actually uses one. A board set in the two families
+   * the app carries makes a page that asks nobody for anything, which is what
+   * a file you can open on a plane has to do — and every stack names a real
+   * fallback, so a page that does ask and is refused still reads. */
+  const fonts = googleLinks(data)
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title}</title>
-<style>${CSS}</style>
+${fonts}<style>${CSS}</style>
 </head>
 <body>
 <header id="top">

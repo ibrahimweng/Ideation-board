@@ -18,6 +18,7 @@ import { justLongPressed, noteLongPress, onLongPress } from './longpress'
 import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
+import { DRAWN, FALLBACK, disarm, toolNow, useTool } from './tool'
 import { canFrame, reframeWheel, startReframe } from './reframe'
 import { canTurn, startTurn, turnWheel } from './turning'
 import { ThemeButton } from '../ui/ThemeButton'
@@ -71,6 +72,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   const touches = useRef(new Map<number, { x: number; y: number }>())
   const [visible, setVisible] = useState<string[]>([])
   const [marquee, setMarquee] = useState<Rect | null>(null)
+  /* For the cursor and for what the drawn box looks like. The gesture itself
+     reads the module directly; this is only what is on screen. */
+  const tool = useTool()
   const [dragOver, setDragOver] = useState(false)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
@@ -226,6 +230,15 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     commitRef.current = window.setTimeout(() => store.commitView(), 180)
   }, [])
 
+  /* An armed tool is put down by Escape, wherever the focus is. A mode you
+     cannot get out of without using it is a trap, and Escape is where
+     everybody looks first. */
+  useEffect(() => {
+    const off = (e: KeyboardEvent) => { if (e.key === 'Escape') disarm() }
+    window.addEventListener('keydown', off)
+    return () => window.removeEventListener('keydown', off)
+  }, [])
+
   /* ---------- pointer: drag, marquee, pan ---------- */
   const onSurfacePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -273,6 +286,48 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
         return
       }
 
+      /* A tool is armed, so this drag draws the box the new thing takes rather
+         than selecting what is already on the board. Read out of the module
+         rather than out of a hook, because this is inside a gesture and a
+         re-render is a frame too late. */
+      const tool = toolNow()
+      if (tool) {
+        const from = screenToBoard(startView, sx, sy)
+        let box: Rect | null = null
+        const drawing = (ev: PointerEvent) => {
+          const cur = screenToBoard(startView, ev.clientX - r.left, ev.clientY - r.top)
+          box = {
+            x: Math.min(from.x, cur.x),
+            y: Math.min(from.y, cur.y),
+            w: Math.abs(cur.x - from.x),
+            h: Math.abs(cur.y - from.y),
+          }
+          setMarquee(box)
+        }
+        const drawn = () => {
+          window.removeEventListener('pointermove', drawing)
+          window.removeEventListener('pointerup', drawn)
+          setMarquee(null)
+          /* A click rather than a drag still makes one, at the size the button
+             would have made it. Nothing at all is the worst answer to a press
+             on an armed tool: it looks like the tool is broken. */
+          const made =
+            box && box.w > DRAWN && box.h > DRAWN
+              ? box
+              : { x: from.x, y: from.y, ...FALLBACK[tool] }
+          /* Down before the card is made, so the thing that arrives selected
+             is not immediately drawn over by a second one. */
+          disarm()
+          const at = { x: Math.round(made.x), y: Math.round(made.y) }
+          const size = { w: Math.round(made.w), h: Math.round(made.h) }
+          if (tool === 'section') canvasActions.addSection(at, size)
+          else canvasActions.addText(at, size)
+        }
+        window.addEventListener('pointermove', drawing)
+        window.addEventListener('pointerup', drawn)
+        return
+      }
+
       if (!e.shiftKey) store.clearSel()
       const start = screenToBoard(startView, sx, sy)
       const move = (ev: PointerEvent) => {
@@ -308,7 +363,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [paintTransform]
+    [paintTransform, canvasActions]
   )
 
 /* Dragging a card moves the whole selection, and dragging a section takes
@@ -317,6 +372,12 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
    * drag becomes a single undo step. */
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
+    /* A tool is armed, so this press is drawing a box rather than picking
+     * anything up — and it must be able to draw over what is already there.
+     * Left to bubble rather than handled, so the surface underneath gets it:
+     * without this a section could not have a text box written on it, which is
+     * the first place anybody would put one. */
+    if (toolNow()) return
     e.stopPropagation()
 
     /* Alt and drag pushes the picture around inside its card instead of moving
@@ -619,6 +680,11 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
          and is untouched by this. */
       onDragStart={(e) => e.preventDefault()}
       data-dragover={dragOver || undefined}
+      /* The cursor is the cue. A tool that is armed and looks exactly like a
+         tool that is not is a tool you press and then wonder about — so the
+         board takes a crosshair for a section and a caret for text, and the
+         rail lights the button that did it. */
+      data-tool={tool || undefined}
     >
       <div className="surface" ref={surfaceRef}>
         <Wires ids={edgeIds} selected={selection} />
@@ -643,6 +709,10 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
         {marquee && (
           <div
             className="marquee"
+            /* Drawing a thing and selecting things are different gestures and
+               must not look the same: one is where a card is about to be, the
+               other is what is about to be picked up. */
+            data-tool={tool || undefined}
             style={{ transform: `translate3d(${marquee.x}px, ${marquee.y}px, 0)`, width: marquee.w, height: marquee.h }}
           />
         )}

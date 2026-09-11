@@ -149,7 +149,9 @@ await page.waitForTimeout(600)
 ok('it can be put away', (await page.locator('.alarm').count()) === 0)
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
-await page.keyboard.press('s')
+/* A note, not a section: S arms the section tool now and waits for a drag,
+   so on its own it writes nothing — and what this needs is a write. */
+await page.keyboard.press('n')
 await page.waitForTimeout(3000)
 ok('and comes back on the next thing that will not save',
    (await page.locator('.alarm').count()) === 1)

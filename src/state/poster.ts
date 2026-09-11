@@ -6,6 +6,7 @@ import type { PaperName } from './posterPage'
 import { parse } from './rich'
 import type { Block, Span } from './rich'
 import { inkOn } from './palette'
+import { DEFAULTS, familyOf, inkOf } from './type'
 import { peekSummary } from './boards'
 import { renderCardPicture } from './exportImage'
 import type { ExportedImage } from './exportImage'
@@ -253,11 +254,27 @@ function drawSection(cx: Ctx, it: Item, t: Tokens) {
 }
 
 function drawLabel(cx: Ctx, it: Item, t: Tokens) {
+  const set = it.type
+  const d = DEFAULTS.label
   cx.save()
-  cx.fillStyle = it.color || '#111114'
-  cx.font = `600 20px ${t.sans}`
+  /* The theme's ink for a label nobody coloured. It used to be a flat
+   * near-black, which is the same bug the board had: a sheet printed on a dark
+   * ground had labels on it that could not be read. */
+  cx.fillStyle = inkOf(it.color) || t.ink
+  const size = set?.size ?? d.size
+  const style = set?.italic ? 'italic ' : ''
+  cx.font = `${style}${set?.weight ?? d.weight} ${size}px ${familyOf(set?.font).stack}`
   cx.textBaseline = 'middle'
-  cx.fillText(ellipsis(cx, it.text || 'Label', Math.max(10, it.w - 12)), it.x + 6, it.y + it.h / 2)
+  const words = set?.caps ? (it.text || 'Label').toUpperCase() : it.text || 'Label'
+  const room = Math.max(10, it.w - 12)
+  const drawn = ellipsis(cx, words, room)
+  const align = set?.align ?? d.align
+  /* Set to the measure it was drawn at, not always from the left edge: an
+   * alignment you set on the board and lose on the sheet is an alignment you
+   * cannot use. */
+  cx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left'
+  const x = align === 'center' ? it.x + it.w / 2 : align === 'right' ? it.x + it.w - 6 : it.x + 6
+  cx.fillText(drawn, x, it.y + it.h / 2)
   cx.restore()
 }
 
@@ -265,9 +282,16 @@ function drawLabel(cx: Ctx, it: Item, t: Tokens) {
  * of it — a poster is read across a room — but the shape of the writing:
  * headings heavier, list items indented behind their marker, done boxes
  * ticked. */
-function drawNote(cx: Ctx, it: Item, t: Tokens) {
+function drawNote(cx: Ctx, it: Item) {
   const paper = it.color || '#FBEFC4'
   const ink = inkOn(paper)
+  /* The face it is set in, and how far off the default size it is. Every
+   * figure below was written against a 15px note; multiplying by this is what
+   * makes a note set in 30px come out of the printer twice the size rather
+   * than at the size every note used to be. */
+  const face = familyOf(it.type?.font).stack
+  const k = (it.type?.size ?? DEFAULTS.note.size) / DEFAULTS.note.size
+  const px = (n: number) => Math.round(n * k * 10) / 10
   cx.save()
   rrect(cx, it.x, it.y, it.w, it.h, R_MD)
   cx.clip()
@@ -300,14 +324,14 @@ function drawNote(cx: Ctx, it: Item, t: Tokens) {
       continue
     }
     if (b.t === 'h') {
-      const size = b.level === 1 ? 18 : b.level === 2 ? 16 : 14
-      cx.font = `650 ${size}px ${t.sans}`
+      const size = px(b.level === 1 ? 18 : b.level === 2 ? 16 : 14)
+      cx.font = `650 ${size}px ${face}`
       cx.fillStyle = ink
       y = lines(cx, wrap(cx, plain(b.spans), right - left), left, y + 2, size * 1.3, bottom) + 1
       continue
     }
     if (b.t === 'quote') {
-      cx.font = `italic 14px ${t.sans}`
+      cx.font = `italic ${px(14)}px ${face}`
       cx.fillStyle = ink
       cx.globalAlpha = 0.75
       cx.fillRect(left, y + 1, 2, 15)
@@ -316,7 +340,7 @@ function drawNote(cx: Ctx, it: Item, t: Tokens) {
       continue
     }
     if (b.t === 'todo') {
-      cx.font = `14px ${t.sans}`
+      cx.font = `${px(14)}px ${face}`
       const box = 12
       cx.strokeStyle = ink
       cx.globalAlpha = b.done ? 0.55 : 0.8
@@ -337,16 +361,16 @@ function drawNote(cx: Ctx, it: Item, t: Tokens) {
       continue
     }
     if (b.t === 'li') {
-      cx.font = `14px ${t.sans}`
+      cx.font = `${px(14)}px ${face}`
       cx.fillStyle = ink
       const marker = b.ordered ? `${b.n}.` : '•'
       cx.fillText(marker, left + 2, y)
       y = lines(cx, wrap(cx, plain(b.spans), right - left - 18), left + 18, y, 21, bottom)
       continue
     }
-    cx.font = `14px ${t.sans}`
+    cx.font = `${px(14)}px ${face}`
     cx.fillStyle = ink
-    y = lines(cx, wrap(cx, plain(b.spans), right - left), left, y, 21, bottom)
+    y = lines(cx, wrap(cx, plain(b.spans), right - left), left, y, px(21), bottom)
   }
   cx.restore()
 }
@@ -618,7 +642,7 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
     /* The player's pixels belong to the provider, so the sheet gets the
      * shape of a video rather than a frame of one. */
     case 'embed': drawEmbed(cx, it, t); break
-    case 'note': drawNote(cx, it, t); break
+    case 'note': drawNote(cx, it); break
     case 'link': drawLink(cx, it, t); break
     case 'file': drawFile(cx, it, t); break
     case 'audio': drawAudio(cx, it, t); break
