@@ -39,7 +39,7 @@ describe('the corner that stays put', () => {
   it('and really does stay put, whichever corner is dragged', () => {
     for (const c of CORNERS) {
       const at = anchorOf(b, c)
-      const [out] = scaleAll([b], b, c, 60, 40)
+      const [out] = scaleAll([b], b, c, 60, 40, true)
       const corner = {
         x: c.includes('w') ? out.x + out.w : out.x,
         y: c.includes('n') ? out.y + out.h : out.y,
@@ -61,20 +61,19 @@ describe('what a drag asks for', () => {
     expect(factorsFor(b, 'se', -200, 0, true).kx).toBe(0.5)
   })
 
-  /* A free corner drag across four photographs squashes all four, and nobody
-     drags the corner of a group of photographs in order to squash them. */
-  it('scales both axes by one factor unless asked not to', () => {
-    const tied = factorsFor(b, 'se', 400, 0, false)
-    expect(tied.kx).toBe(tied.ky)
-    const free = factorsFor(b, 'se', 400, 0, true)
+  /* The key every drawing program has used for this since the eighties. */
+  it('moves the two axes apart until shift ties them together', () => {
+    const free = factorsFor(b, 'se', 400, 0, false)
     expect(free.kx).not.toBe(free.ky)
+    const locked = factorsFor(b, 'se', 400, 0, true)
+    expect(locked.kx).toBe(locked.ky)
   })
 
-  it('takes that factor from whichever way the drag went further', () => {
+  it('takes the locked factor from whichever way the drag went further', () => {
     /* Along the box's width: 400 of 400 is a doubling; 40 of 200 is a fifth. */
-    expect(factorsFor(b, 'se', 400, 40, false).kx).toBe(2)
+    expect(factorsFor(b, 'se', 400, 40, true).kx).toBe(2)
     /* And the other way round. */
-    expect(factorsFor(b, 'se', 40, 200, false).kx).toBe(2)
+    expect(factorsFor(b, 'se', 40, 200, true).kx).toBe(2)
   })
 
   it('leaves an axis alone rather than dividing by a box with no size', () => {
@@ -100,7 +99,7 @@ describe('the floor', () => {
 
   it('stops a drag rather than turning the selection inside out', () => {
     const items = [box(0, 0, 100, 100)]
-    const out = scaleAll(items, boundsOf(items)!, 'se', -400, -400)
+    const out = scaleAll(items, boundsOf(items)!, 'se', -400, -400, true)
     expect(out[0].w).toBeGreaterThanOrEqual(FLOOR)
     expect(out[0].h).toBeGreaterThanOrEqual(FLOOR)
   })
@@ -111,28 +110,28 @@ describe('scaling the selection', () => {
   const b = boundsOf(items)!
 
   it('takes every card with it, not just the one under the pointer', () => {
-    const out = scaleAll(items, b, 'se', b.w, b.h)
+    const out = scaleAll(items, b, 'se', b.w, b.h, true)
     expect(out[0]).toEqual({ x: 0, y: 0, w: 200, h: 200 })
     expect(out[1]).toEqual({ x: 400, y: 200, w: 200, h: 200 })
   })
 
   it('moves them apart by the same factor it grows them', () => {
-    const out = scaleAll(items, b, 'se', b.w, b.h)
+    const out = scaleAll(items, b, 'se', b.w, b.h, true)
     const gapWas = items[1].x - (items[0].x + items[0].w)
     const gapNow = out[1].x - (out[0].x + out[0].w)
     expect(gapNow).toBe(gapWas * 2)
   })
 
-  it('keeps every card the shape it was', () => {
+  it('keeps every card the shape it was, with shift held', () => {
     const odd = [box(0, 0, 300, 100), box(0, 200, 100, 400)]
-    const out = scaleAll(odd, boundsOf(odd)!, 'se', 150, 20)
+    const out = scaleAll(odd, boundsOf(odd)!, 'se', 150, 20, true)
     for (let i = 0; i < odd.length; i++) {
       expect(out[i].w / out[i].h).toBeCloseTo(odd[i].w / odd[i].h, 1)
     }
   })
 
-  it('and squashes them only when asked to', () => {
-    const [out] = scaleAll([box(0, 0, 200, 200)], box(0, 0, 200, 200), 'se', 200, 0, true)
+  it('and squashes them without it, which is what a free drag is for', () => {
+    const [out] = scaleAll([box(0, 0, 200, 200)], box(0, 0, 200, 200), 'se', 200, 0)
     expect(out.w).toBe(400)
     expect(out.h).toBe(200)
   })
@@ -147,7 +146,7 @@ describe('scaling the selection', () => {
 
   it('never hands back a card with no size', () => {
     const tiny = [box(0, 0, 3, 3)]
-    const out = scaleAll(tiny, boundsOf(tiny)!, 'se', -1000, -1000)
+    const out = scaleAll(tiny, boundsOf(tiny)!, 'se', -1000, -1000, true)
     expect(out[0].w).toBeGreaterThan(0)
     expect(out[0].h).toBeGreaterThan(0)
   })

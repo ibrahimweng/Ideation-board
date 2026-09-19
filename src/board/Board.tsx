@@ -812,7 +812,8 @@ function GroupHandles({ ids }: { ids: string[] }) {
  * same factor, which is what keeps an arrangement an arrangement. The
  * arithmetic is in `scaling.ts`; this is the gesture around it: one snapshot
  * for the whole drag, positions written with recording off, and the shift key
- * passed through for the one case where squashing is what was wanted. */
+ * passed through, which ties the two axes together so everything in the box
+ * comes out the shape it went in. */
 function startGroupScale(e: React.PointerEvent, ids: string[], corner: Corner) {
   e.stopPropagation()
   e.preventDefault()

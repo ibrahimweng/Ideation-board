@@ -11,14 +11,16 @@
  * each card's size and its distance from that corner go up by the same factor,
  * which is what keeps an arrangement an arrangement rather than a pile.
  *
- * ## Proportional, unless you say otherwise
+ * ## Shift locks the shape
  *
- * A corner drag scales by one factor on both axes. A single card resizes
- * freely — width and height are independent — and that is right for one card,
- * where you are cropping a box to fit something. It is wrong for a group: a
- * free corner drag across four photographs squashes all four, and nobody drags
- * the corner of a group of photographs in order to squash them. Shift asks for
- * the independent axes back.
+ * A corner drag scales width and height independently, so a card can be made
+ * wider without being made taller. Holding shift ties them to one factor, and
+ * whatever is being scaled comes out the shape it went in — one card or forty.
+ *
+ * That is the key every drawing program has used for this since the eighties,
+ * which is the whole argument for it: the hand already knows. It is also the
+ * one rule for both cases, so scaling four photographs is the same gesture as
+ * scaling one and not a second thing to learn.
  *
  * ## Everything in here is arithmetic
  *
@@ -46,6 +48,12 @@ export type Corner = 'nw' | 'ne' | 'sw' | 'se'
  * pixels is the point at which a card stops being a thing you can see and get
  * hold of again. */
 export const FLOOR = 12
+
+/* And where a single card stops. Wider than the floor above, because one card
+ * being resized is a box you are fitting to something rather than one of forty
+ * being scaled together: it should not be possible to lose it by accident. */
+export const MIN_W = 80
+export const MIN_H = 60
 
 /* The box that holds all of them. Null for nothing, which is the one case the
  * caller has to answer rather than draw. */
@@ -93,13 +101,13 @@ export function floorScale(items: Box[]): number {
 }
 
 /* The factors a drag asks for, before anything is done about the floor. */
-export function factorsFor(box: Box, corner: Corner, dx: number, dy: number, free: boolean) {
+export function factorsFor(box: Box, corner: Corner, dx: number, dy: number, lock: boolean) {
   const { sx, sy } = signOf(corner)
   /* A box with no width cannot be scaled by a width, so that axis stands at
    * one rather than dividing by nothing. */
   const kx = box.w > 0 ? (box.w + dx * sx) / box.w : 1
   const ky = box.h > 0 ? (box.h + dy * sy) / box.h : 1
-  if (free) return { kx, ky }
+  if (!lock) return { kx, ky }
   /* One factor, taken from whichever axis the drag moved further along
    * relative to the box. Averaging the two reads as mush — the box lags the
    * corner in both directions at once — and taking x always means a vertical
@@ -118,11 +126,11 @@ export function scaleAll(
   corner: Corner,
   dx: number,
   dy: number,
-  free = false
+  lock = false
 ): Box[] {
   const at = anchorOf(box, corner)
   const low = floorScale(items)
-  const want = factorsFor(box, corner, dx, dy, free)
+  const want = factorsFor(box, corner, dx, dy, lock)
   /* Past the floor the drag simply stops, rather than flipping the selection
    * inside out the moment the corner crosses the anchor. */
   const kx = Math.max(want.kx, low)

@@ -121,11 +121,13 @@ ok('and the cards inside it stand their own handles down',
 const before = await cards()
 const se = await grip('.group-handles .handle-se')
 ok('the box has a corner that can be got hold of', !!se, se ? `${se.x},${se.y}` : 'covered')
-await drag(se, 200, 140)
+/* Shift held: the key every drawing program has used to keep a shape since the
+ * eighties, and the one this board uses for it on one card and on forty. */
+await drag(se, 200, 140, { shift: true })
 const after = await cards()
 
 const grew = before.map((b, i) => after[i].w / b.w)
-ok('dragging it scales every card, not just the one under the pointer',
+ok('dragging its corner scales every card, not just the one under the pointer',
    grew.every((k) => k > 1.1), grew.map((k) => k.toFixed(2)).join(', '))
 ok('and scales them all by the same amount',
    Math.max(...grew) - Math.min(...grew) < 0.02, grew.map((k) => k.toFixed(3)).join(', '))
@@ -138,10 +140,9 @@ ok('the space between them grows by the same factor',
    spreadWas > 0 && Math.abs(spreadNow / spreadWas - grew[0]) < 0.06,
    `${spreadWas} -> ${spreadNow}, cards ×${grew[0].toFixed(2)}`)
 
-/* And nothing is squashed: a corner drag on a group is proportional, because
- * nobody drags the corner of four photographs in order to squash them. */
+/* And with shift held nothing is squashed, however the pointer went. */
 const shapeKept = before.every((b, i) => Math.abs(after[i].w / after[i].h - b.w / b.h) < 0.02)
-ok('every card keeps the shape it was', shapeKept,
+ok('and with shift held every card keeps the shape it was', shapeKept,
    after.map((c) => (c.w / c.h).toFixed(2)).join(', '))
 
 /* ---------- one undo, not three ---------- */
@@ -152,13 +153,13 @@ ok('one undo puts the whole scale back',
    undone.every((c, i) => c.w === before[i].w && c.h === before[i].h),
    undone.map((c) => `${c.w}x${c.h}`).join(' '))
 
-/* ---------- shift asks for the squash back ---------- */
+/* ---------- and without it, the axes come apart ---------- */
 await page.keyboard.press('Control+a')
 await page.waitForTimeout(400)
 const flat = await grip('.group-handles .handle-se')
-await drag(flat, 260, 0, { shift: true })
+await drag(flat, 260, 0)
 const squashed = await cards()
-ok('shift scales the axes apart, for when squashing is what was wanted',
+ok('a plain drag moves one axis without the other, which is what free means',
    squashed.every((c, i) => c.w > undone[i].w * 1.1 && Math.abs(c.h - undone[i].h) <= 2),
    squashed.map((c) => `${c.w}x${c.h}`).join(' '))
 await page.keyboard.press('Control+z')
@@ -184,6 +185,19 @@ ok('and still resizes freely, width without height',
    `${solo[0].w}x${solo[0].h} -> ${soloAfter[0].w}x${soloAfter[0].h}`)
 ok('and takes none of the others with it',
    soloAfter[1].w === solo[1].w && soloAfter[2].w === solo[2].w)
+
+/* One card gets the same key, which it never had: before this, a single card
+ * could only ever be resized freely and there was no way to keep a photograph
+ * the shape it was. */
+const wasShape = soloAfter[0].w / soloAfter[0].h
+const oneAgain = await grip('.card-handles .handle-se')
+await drag(oneAgain, 140, 20, { shift: true })
+const locked = await cards()
+ok('and shift keeps one card the shape it was, the same as it does for many',
+   Math.abs(locked[0].w / locked[0].h - wasShape) < 0.02 && locked[0].w > soloAfter[0].w + 40,
+   `${soloAfter[0].w}x${soloAfter[0].h} -> ${locked[0].w}x${locked[0].h}`)
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(700)
 
 /* ---------- the panel says what it is working on ---------- */
 await page.evaluate(async () => {

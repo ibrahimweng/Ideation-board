@@ -581,11 +581,15 @@ of that box scales everything in it about the opposite corner: each card's size
 and its distance from that corner go up by the same factor, so an arrangement
 comes out an arrangement rather than a pile.
 
-It is proportional, because a free corner drag across four photographs squashes
-all four and nobody drags that corner in order to squash them. Shift asks for
-the independent axes back. One card selected on its own keeps its own handles
-and still resizes freely, which is right when you are fitting one box to
-something. The whole drag is one step of undo.
+**Hold shift and the shape is kept**: width and height are tied to one factor,
+so everything in the box comes out exactly the shape it went in. Without it the
+two axes are independent and a drag can squash, which is what you want when you
+are fitting a box to something. That is the same key on one card as on forty —
+a single card gets it too, which it never used to have — and it is the key
+every drawing program has used for this since the eighties.
+
+One card selected on its own keeps its own handles rather than a box. The whole
+drag, however many cards it moved, is one step of undo.
 
 Everything in the panel has always applied to the whole selection — the effect,
 the tone, a saved look. Nothing said so, because the panel shows one card's
@@ -1993,9 +1997,10 @@ two against a server it starts itself.
   it instead.
 - `test:group` selects several cards and works on them as one: that a selection
   of more than one draws a single box rather than a set of handles per card,
-  that dragging its corner scales every card and the space between them by the
-  same factor, that shift squashes and nothing else does, that one undo puts
-  the whole scale back, that one card on its own still resizes freely, and that
+  that a shift-drag on its corner scales every card and the space between them
+  by the same factor and leaves every card the shape it was, that a plain drag
+  moves the axes independently, that one undo puts the whole scale back, that
+  one card on its own resizes freely and keeps its shape under shift, and that
   the panel says how many cards an effect is about to land on — and that it
   really lands on all of them.
 - `test:type` is the suite for text you can see and text you can set. On a dark
