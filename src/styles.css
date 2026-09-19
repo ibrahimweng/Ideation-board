@@ -1162,6 +1162,22 @@ body[data-turning] .card-chrome { opacity: 0; }
   will-change: transform;
 }
 
+/* The box round a selection of more than one.
+ *
+ * Its own layer over the cards, taking the pointer only on the four corners —
+ * the middle of it belongs to whatever card is under it, so a press inside the
+ * box still picks up the card it landed on. The outline is what says the
+ * selection is one thing now; the cards keep their own. */
+.group-handles {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none;
+  z-index: 9100;
+  will-change: transform;
+  outline: 1px dashed var(--sel);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
 /* Small enough not to sit on the picture, with a target twice its size so it
    can still be caught. The dot used to be its own hit area, which made an
    11px circle the whole of what you had to hit, and left the very corner of
@@ -1334,6 +1350,17 @@ body[data-turning] .card-chrome { opacity: 0; }
     box-shadow: -8px 0 24px rgba(24, 24, 27, 0.18);
   }
 }
+
+/* How many cards the controls are about to touch. Quiet, but above the
+   controls rather than beside them: it is the thing you would want to have
+   read before pressing, not after. */
+.panel-many {
+  margin: 0; padding: 8px var(--s3);
+  font-size: var(--t-sm); line-height: 1.5; color: var(--ink-2);
+  background: var(--accent-wash);
+  border-bottom: 1px solid var(--line);
+}
+.panel-many b { font-weight: 600; color: var(--ink); }
 
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }

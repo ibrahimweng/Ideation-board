@@ -41,6 +41,10 @@ interface Props {
   selected: boolean
   /* Faded out because a search is running and this card does not match. */
   dim?: boolean
+  /* One of several selected, so the handles belong to the box round the lot
+     rather than to this card. Four sets of handles on four cards is four ways
+     to resize one of them and no way to scale the four. */
+  grouped?: boolean
   distance: number
   onPointerDown: (e: React.PointerEvent, id: string) => void
   onOpenEditor: (id: string) => void
@@ -48,7 +52,7 @@ interface Props {
 }
 
 export const Card = memo(function Card({
-  id, selected, dim, distance, onPointerDown, onOpenEditor, onContextMenu,
+  id, selected, dim, grouped, distance, onPointerDown, onOpenEditor, onContextMenu,
 }: Props) {
   const it = useItem(id)
   const objectUrl = useObjectURL(it?.media)
@@ -164,7 +168,7 @@ export const Card = memo(function Card({
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -193,7 +197,7 @@ export const Card = memo(function Card({
           {writing ? <Writer id={id} text={it.text || ''} /> : it.text || 'Label'}
         </div>
         {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -482,7 +486,7 @@ export const Card = memo(function Card({
 
     </div>
     {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
-    {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+    {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
     </>
   )
 })
