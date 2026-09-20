@@ -573,6 +573,30 @@ Anything you add arrives selected, which is the other half of the same problem:
 a card that lands with nothing marking it is a card you have to go looking for,
 and on text you could not see it was a card that appeared not to have arrived.
 
+## Working on several at once
+
+Select more than one — shift-click, a rubber band, or ⌘A — and one dashed box
+is drawn round the lot instead of a set of handles on each. Dragging a corner
+of that box scales everything in it about the opposite corner: each card's size
+and its distance from that corner go up by the same factor, so an arrangement
+comes out an arrangement rather than a pile.
+
+**Hold shift and the shape is kept**: width and height are tied to one factor,
+so everything in the box comes out exactly the shape it went in. Without it the
+two axes are independent and a drag can squash, which is what you want when you
+are fitting a box to something. That is the same key on one card as on forty —
+a single card gets it too, which it never used to have — and it is the key
+every drawing program has used for this since the eighties.
+
+One card selected on its own keeps its own handles rather than a box. The whole
+drag, however many cards it moved, is one step of undo.
+
+Everything in the panel has always applied to the whole selection — the effect,
+the tone, a saved look. Nothing said so, because the panel shows one card's
+settings and one card's preview strip, so treating four photographs looked
+exactly like treating one and hoping. It now says how many it is about to
+touch.
+
 ## Tidying up
 
 Cards line themselves up as you drag them: edges with edges, middles with
@@ -1971,6 +1995,14 @@ two against a server it starts itself.
   the tool rather than dropping it, and drags one from the middle of its own
   body — which used to draw a selection rectangle and pick up everything inside
   it instead.
+- `test:group` selects several cards and works on them as one: that a selection
+  of more than one draws a single box rather than a set of handles per card,
+  that a shift-drag on its corner scales every card and the space between them
+  by the same factor and leaves every card the shape it was, that a plain drag
+  moves the axes independently, that one undo puts the whole scale back, that
+  one card on its own resizes freely and keeps its shape under shift, and that
+  the panel says how many cards an effect is about to land on — and that it
+  really lands on all of them.
 - `test:type` is the suite for text you can see and text you can set. On a dark
   board it measures the ink a new label is drawn in against the ground behind
   it, does the same for a board saved with the old baked-in near-black, checks

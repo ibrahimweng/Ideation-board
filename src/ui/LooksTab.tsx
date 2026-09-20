@@ -56,11 +56,11 @@ export function LooksTab({ ids, fx, previewKey, onApplied }: Props) {
   return (
     <div className="panel-scroll">
       <section className="fx-controls">
-        <h4>This card</h4>
+        <h4>{ids.length > 1 ? `These ${ids.length} cards` : 'This card'}</h4>
         {isPlain(current) ? (
           <p className="panel-note">
-            Nothing on this card yet. Pick an effect or move the sliders, then save it here to put the
-            same treatment on others.
+            {ids.length > 1 ? 'Nothing on these yet' : 'Nothing on this card yet'}. Pick an effect or
+            move the sliders, then save it here to put the same treatment on others.
           </p>
         ) : naming ? (
           <div className="look-name">

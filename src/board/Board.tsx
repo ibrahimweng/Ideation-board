@@ -19,6 +19,8 @@ import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
 import { DRAWN, FALLBACK, disarm, toolNow, useTool } from './tool'
+import { boundsOf, scaleAll } from './scaling'
+import type { Box, Corner } from './scaling'
 import { canFrame, reframeWheel, startReframe } from './reframe'
 import { canTurn, startTurn, turnWheel } from './turning'
 import { ThemeButton } from '../ui/ThemeButton'
@@ -79,6 +81,16 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
   const selSet = useMemo(() => new Set(selection), [selection])
+  /* The cards a single box is drawn round. A wire has no box of its own — it
+     is drawn from the two cards it joins — so it comes along when they move
+     and has nothing to scale. */
+  const scaling = useMemo(
+    () => selection.filter((id) => { const i = store.getItem(id); return !!i && !isWire(i) }),
+    [selection]
+  )
+  /* One card keeps its own handles: resizing it freely is right, and there is
+     no arrangement to hold together. */
+  const grouped = scaling.length > 1
   /* Recomputed only when the text changes, not on every render. */
   const words = useMemo(() => parseQuery(query), [query])
   const edgeIds = useMemo(() => order.filter((id) => isWire(store.getItem(id))), [order])
@@ -698,6 +710,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
               key={id}
               id={id}
               selected={selSet.has(id)}
+              grouped={grouped}
               dim={isFiltering && !passes(it, words, tagFilter)}
               distance={distanceToCentre(it, rect)}
               onPointerDown={onCardPointerDown}
@@ -706,6 +719,10 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
             />
           )
         })}
+        {/* Drawn after the cards so it sits over them, and keyed on the
+            selection so a new one gets a fresh box rather than an old one
+            catching up. */}
+        {grouped && <GroupHandles key={scaling.join(',')} ids={scaling} />}
         {marquee && (
           <div
             className="marquee"
@@ -743,6 +760,101 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       )}
     </div>
   )
+}
+
+/* ---------------------------------------------------------------------------
+ * The box round a selection, and the corner that scales it.
+ *
+ * It keeps itself up to date by writing its own transform rather than by going
+ * through React, the same way the surface and the guides do. The box changes
+ * every frame of a drag, and a re-render of the board per frame is a re-render
+ * of every card on it — which is the one thing this board's structure exists
+ * to avoid.
+ * ------------------------------------------------------------------------- */
+function GroupHandles({ ids }: { ids: string[] }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+
+  const draw = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const box = boundsOf(ids.map((id) => store.getItem(id)).filter(Boolean) as Box[])
+    if (!box) return
+    el.style.transform = `translate3d(${box.x}px, ${box.y}px, 0)`
+    el.style.width = `${box.w}px`
+    el.style.height = `${box.h}px`
+  }, [ids])
+
+  useEffect(() => {
+    draw()
+    /* One subscription per card in it: the box has to follow whichever of them
+       moves, and they move one at a time. */
+    const offs = ids.map((id) => store.subscribeItem(id, draw))
+    return () => { for (const off of offs) off() }
+  }, [ids, draw])
+
+  return (
+    <div className="group-handles" ref={ref} aria-hidden="true">
+      {(['nw', 'ne', 'sw', 'se'] as const).map((c) => (
+        <i
+          key={c}
+          className={`handle handle-${c}`}
+          data-resize={c}
+          onPointerDown={(e) => startGroupScale(e, ids, c)}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* A corner of that box, dragged.
+ *
+ * Every card's size and its distance from the opposite corner go up by the
+ * same factor, which is what keeps an arrangement an arrangement. The
+ * arithmetic is in `scaling.ts`; this is the gesture around it: one snapshot
+ * for the whole drag, positions written with recording off, and the shift key
+ * passed through, which ties the two axes together so everything in the box
+ * comes out the shape it went in. */
+function startGroupScale(e: React.PointerEvent, ids: string[], corner: Corner) {
+  e.stopPropagation()
+  e.preventDefault()
+  const items = ids.map((id) => store.getItem(id))
+  /* Read once, at the start. Scaling from where each card is *now* would
+     compound every frame and run away from the pointer. */
+  const start = items.map((i) => (i ? { x: i.x, y: i.y, w: i.w, h: i.h } : null))
+  const live = ids.filter((_, n) => start[n])
+  const from = start.filter(Boolean) as Box[]
+  const box = boundsOf(from)
+  if (!box) return
+
+  const z = store.peekView().z || 1
+  const sx = e.clientX
+  const sy = e.clientY
+  const target = e.currentTarget as HTMLElement
+  target.setPointerCapture(e.pointerId)
+  /* Same reason a card drag holds the players: a gesture that crosses an
+     embedded player would lose its own pointerup inside it. */
+  holdPress()
+  let began = false
+
+  const move = (ev: PointerEvent) => {
+    const dx = (ev.clientX - sx) / z
+    const dy = (ev.clientY - sy) / z
+    if (!began && Math.hypot(dx, dy) >= 2) {
+      store.beginGesture()
+      began = true
+    }
+    const next = scaleAll(from, box, corner, dx, dy, ev.shiftKey)
+    for (let n = 0; n < live.length; n++) store.update(live[n], next[n], false)
+  }
+  const up = () => {
+    target.releasePointerCapture(e.pointerId)
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    window.removeEventListener('pointercancel', up)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+  window.addEventListener('pointercancel', up)
 }
 
 function ZoomBar({ onZoom, onReset }: { onZoom: (factor: number) => void; onReset: () => void }) {

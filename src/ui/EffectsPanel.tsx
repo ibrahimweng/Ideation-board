@@ -248,6 +248,19 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
         </div>
       )}
 
+      {/* What the controls below will touch.
+       *
+       * Every one of them already wrote to the whole selection — an effect, a
+       * tone, a look, all of them loop the selected cards. Nothing on screen
+       * said so: the panel shows one card's settings and one card's preview
+       * strip, so putting an effect on four photographs looked exactly like
+       * putting it on one and hoping. A line is the whole fix. */}
+      {ids.length > 1 && (
+        <p className="panel-many">
+          Working on <b>{ids.length}</b> cards. Everything here goes on all of them.
+        </p>
+      )}
+
       {tab === 'looks' && (
         <LooksTab
           ids={ids}

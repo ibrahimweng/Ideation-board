@@ -26,6 +26,8 @@ import { inkOn } from '../state/palette'
 import { wireToPoint } from './wire'
 import type { Side } from './wire'
 import { screenToBoard } from './viewport'
+import { MIN_H, MIN_W, factorsFor } from './scaling'
+import type { Corner } from './scaling'
 
 /* ---------------------------------------------------------------------------
  * One card.
@@ -41,6 +43,10 @@ interface Props {
   selected: boolean
   /* Faded out because a search is running and this card does not match. */
   dim?: boolean
+  /* One of several selected, so the handles belong to the box round the lot
+     rather than to this card. Four sets of handles on four cards is four ways
+     to resize one of them and no way to scale the four. */
+  grouped?: boolean
   distance: number
   onPointerDown: (e: React.PointerEvent, id: string) => void
   onOpenEditor: (id: string) => void
@@ -48,7 +54,7 @@ interface Props {
 }
 
 export const Card = memo(function Card({
-  id, selected, dim, distance, onPointerDown, onOpenEditor, onContextMenu,
+  id, selected, dim, grouped, distance, onPointerDown, onOpenEditor, onContextMenu,
 }: Props) {
   const it = useItem(id)
   const objectUrl = useObjectURL(it?.media)
@@ -164,7 +170,7 @@ export const Card = memo(function Card({
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -193,7 +199,7 @@ export const Card = memo(function Card({
           {writing ? <Writer id={id} text={it.text || ''} /> : it.text || 'Label'}
         </div>
         {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
-        {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )
   }
@@ -482,7 +488,7 @@ export const Card = memo(function Card({
 
     </div>
     {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
-    {selected && !dim && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+    {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
     </>
   )
 })
@@ -684,7 +690,13 @@ const hostOf = (u?: string) => {
 const extOf = (n?: string) => (n || 'file').split('.').pop()!.slice(0, 5).toUpperCase()
 
 /* Resize drags write straight to the store; the pointer capture keeps the
- * gesture alive even when the cursor leaves the card. */
+ * gesture alive even when the cursor leaves the card.
+ *
+ * Width and height are independent, so a card can be made wider without being
+ * made taller — which is the point of resizing one card, where you are fitting
+ * a box to something. Holding shift ties them together and the card comes out
+ * the shape it went in, the same key that does it for a selection of many and
+ * the same key every drawing program has used for it since the eighties. */
 function startResize(e: React.PointerEvent, id: string, corner: string) {
   e.stopPropagation()
   e.preventDefault()
@@ -712,17 +724,32 @@ function startResize(e: React.PointerEvent, id: string, corner: string) {
       began = true
     }
     let { x, y, w, h } = s
-    if (corner.includes('e')) w = Math.max(80, s.w + dx)
-    if (corner.includes('s')) h = Math.max(60, s.h + dy)
-    if (corner.includes('w')) {
-      w = Math.max(80, s.w - dx)
-      x = s.x + (s.w - w)
+    if (ev.shiftKey) {
+      /* One factor for both sides, worked out by the same rule a selection of
+       * many uses — whichever way the drag went further, relative to the card
+       * — so the two gestures cannot drift apart. */
+      const k = Math.max(
+        factorsFor(s, corner as Corner, dx, dy, true).kx,
+        MIN_W / s.w,
+        MIN_H / s.h
+      )
+      w = s.w * k
+      h = s.h * k
+      if (corner.includes('w')) x = s.x + (s.w - w)
+      if (corner.includes('n')) y = s.y + (s.h - h)
+    } else {
+      if (corner.includes('e')) w = Math.max(MIN_W, s.w + dx)
+      if (corner.includes('s')) h = Math.max(MIN_H, s.h + dy)
+      if (corner.includes('w')) {
+        w = Math.max(MIN_W, s.w - dx)
+        x = s.x + (s.w - w)
+      }
+      if (corner.includes('n')) {
+        h = Math.max(MIN_H, s.h - dy)
+        y = s.y + (s.h - h)
+      }
     }
-    if (corner.includes('n')) {
-      h = Math.max(60, s.h - dy)
-      y = s.y + (s.h - h)
-    }
-    store.update(id, { x, y, w: Math.round(w), h: Math.round(h) }, false)
+    store.update(id, { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }, false)
   }
   const up = () => {
     target.releasePointerCapture(e.pointerId)
