@@ -98,6 +98,14 @@ export const DASHES: { id: string; name: string; dash: string }[] = [
   { id: 'dashdot', name: 'Dash-dot', dash: '6 2 0.1 2' },
 ]
 
+/* The least a shape's box can be, in board units.
+ *
+ * Room for a stroke to sit in and for a corner to be grabbed. A line drawn
+ * dead horizontal has a box of no height at all, and a card of no height is
+ * one nobody can ever pick up again — so the box is opened out around it and
+ * the line runs through the middle of what it opened out to. */
+export const MIN_BOX = 12
+
 export const DEFAULTS: Required<Pick<ShapeSpec, 'fill' | 'stroke' | 'width' | 'dash' | 'cap' | 'join' | 'radius' | 'sides' | 'inner' | 'heads' | 'turn'>> = {
   fill: '#2F6FEB',
   stroke: null,
@@ -379,20 +387,25 @@ export function simplify(points: [number, number][], tol = 0.004): [number, numb
  * that actually passes through the points it is given. A smoothing that only
  * comes near them is no use for a drawing, because the points are where the
  * hand went. */
-export function smoothNodes(points: [number, number][], tension = 0.25): Node[] {
+export function smoothNodes(points: [number, number][], tension = 0.25, closed = false): Node[] {
   const p = points
   if (p.length < 2) return p.map(([x, y]) => ({ x, y }))
+  const wrap = (i: number) => p[(i + p.length) % p.length]
   return p.map(([x, y], i) => {
-    const prev = p[Math.max(0, i - 1)]
-    const next = p[Math.min(p.length - 1, i + 1)]
+    /* On an open stroke the two ends have only one neighbour and take
+       themselves as the other, which is the standard way to end a
+       Catmull-Rom. On a closed one they have two like everybody else, or the
+       curve would come back round to a corner at the join. */
+    const prev = closed ? wrap(i - 1) : p[Math.max(0, i - 1)]
+    const next = closed ? wrap(i + 1) : p[Math.min(p.length - 1, i + 1)]
     const tx = (next[0] - prev[0]) * tension
     const ty = (next[1] - prev[1]) * tension
     const node: Node = { x, y }
-    if (i > 0) {
+    if (closed || i > 0) {
       node.ix = neg(tx)
       node.iy = neg(ty)
     }
-    if (i < p.length - 1) {
+    if (closed || i < p.length - 1) {
       node.ox = tx
       node.oy = ty
     }
@@ -486,31 +499,43 @@ export function toggleSmooth(nodes: Node[], at: number): Node[] {
 export const isSmooth = (node: Node) =>
   node.ix !== undefined || node.iy !== undefined || node.ox !== undefined || node.oy !== undefined
 
-/* The box a set of points really occupies, in fractions.
+/* The box a set of points really occupies.
  *
  * A path drawn with the pen is placed by its points rather than by a box, so
  * the box has to be worked out from them afterwards and the points rewritten
  * to fill it. Without that a squiggle in the corner of a huge invisible card
- * has handles nowhere near itself. */
+ * has handles nowhere near itself.
+ *
+ * The handles count as well as the points. A curve bulges out past the line
+ * between the two points it joins, and never out past the box round its four
+ * control points — so a box that stopped at the points would be a box a
+ * stroke leans out of and gets clipped at the edge of its own card.
+ *
+ * In whatever units it is handed. Fractions, from `normalise`; board units,
+ * from the pen, which does not know what box it is in until this says. */
 export function boundsOfNodes(nodes: Node[]) {
   if (!nodes.length) return { x: 0, y: 0, w: 1, h: 1 }
   let x0 = Infinity
   let y0 = Infinity
   let x1 = -Infinity
   let y1 = -Infinity
+  const see = (x: number, y: number) => {
+    if (x < x0) x0 = x
+    if (y < y0) y0 = y
+    if (x > x1) x1 = x
+    if (y > y1) y1 = y
+  }
   for (const p of nodes) {
-    if (p.x < x0) x0 = p.x
-    if (p.y < y0) y0 = p.y
-    if (p.x > x1) x1 = p.x
-    if (p.y > y1) y1 = p.y
+    see(p.x, p.y)
+    if (p.ix !== undefined || p.iy !== undefined) see(p.x + (p.ix ?? 0), p.y + (p.iy ?? 0))
+    if (p.ox !== undefined || p.oy !== undefined) see(p.x + (p.ox ?? 0), p.y + (p.oy ?? 0))
   }
   return { x: x0, y: y0, w: Math.max(1e-6, x1 - x0), h: Math.max(1e-6, y1 - y0) }
 }
 
-/* The same path, rewritten to fill its own box. Handles scale with it. */
-export function normalise(nodes: Node[]): { nodes: Node[]; box: { x: number; y: number; w: number; h: number } } {
-  const box = boundsOfNodes(nodes)
-  const out = nodes.map((p) => {
+/* The same points written as fractions of a box. Handles scale with them. */
+export function intoBox(nodes: Node[], box: { x: number; y: number; w: number; h: number }): Node[] {
+  return nodes.map((p) => {
     const q: Node = { x: (p.x - box.x) / box.w, y: (p.y - box.y) / box.h }
     if (p.ix !== undefined) q.ix = p.ix / box.w
     if (p.iy !== undefined) q.iy = p.iy / box.h
@@ -518,5 +543,10 @@ export function normalise(nodes: Node[]): { nodes: Node[]; box: { x: number; y: 
     if (p.oy !== undefined) q.oy = p.oy / box.h
     return q
   })
-  return { nodes: out, box }
+}
+
+/* The same path, rewritten to fill its own box. */
+export function normalise(nodes: Node[]): { nodes: Node[]; box: { x: number; y: number; w: number; h: number } } {
+  const box = boundsOfNodes(nodes)
+  return { nodes: intoBox(nodes, box), box }
 }

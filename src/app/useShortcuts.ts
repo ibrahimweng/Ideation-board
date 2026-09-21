@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { store } from '../state/store'
-import { armTool } from '../board/tool'
+import { armTool, walkGroup } from '../board/tool'
 import { isSection } from '../state/kinds'
 import { matches, narrowed } from '../state/subject'
 import { announce, step } from '../state/walk'
@@ -181,6 +181,10 @@ export function useShortcuts(a: KeyActions) {
          wears the cursor for it and the rail lights the button. */
       if (k === KEYS.section.key) { e.preventDefault(); armTool('section'); return }
       if (k === KEYS.text.key) { e.preventDefault(); armTool('text'); return }
+      /* One key per group rather than one per tool: it walks the group and
+         then puts it down, so six shapes cost one letter. */
+      if (k === KEYS.shape.key) { e.preventDefault(); walkGroup('shape'); return }
+      if (k === KEYS.pen.key) { e.preventDefault(); walkGroup('pen'); return }
       if (k === KEYS.board.key) { e.preventDefault(); a.addBoard(at); return }
       if (k === KEYS.link.key) { e.preventDefault(); a.askForLink(at); return }
       if (k === KEYS.draw.key) { e.preventDefault(); a.draw(); return }

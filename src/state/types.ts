@@ -2,7 +2,7 @@ import type { FxState } from '../engine/types'
 
 export type Kind =
   | 'image' | 'video' | 'audio' | 'note' | 'link' | 'file' | 'label' | 'section' | 'embed' | 'board'
-  | 'pdf' | 'design' | 'model' | 'sketch' | 'edge'
+  | 'pdf' | 'design' | 'model' | 'sketch' | 'edge' | 'shape'
 
 export interface Item {
   id: string
@@ -10,6 +10,10 @@ export interface Item {
   /* How the words on it are set, for the cards that have words. Absent on
      everything else and on every board written before it existed. */
   type?: import('./type').TypeSet
+  /* What a shape card draws: the kind, its numbers and its paint. A handful
+     of bytes rather than a picture, and the thing the card is — the poster
+     beside it, if there is one, is only what it was baked into. */
+  shape?: import('./shapes').ShapeSpec
   x: number
   y: number
   w: number
@@ -138,7 +142,7 @@ export interface Board {
 export const TYPE_LABEL: Record<Kind, string> = {
   image: 'IMG', video: 'VID', audio: 'AUD', note: 'TXT',
   link: 'URL', file: 'DOC', label: 'LBL', section: 'SEC', embed: 'VID', board: 'BRD',
-  pdf: 'PDF', design: 'ART', model: '3D', sketch: 'JS', edge: 'ARR',
+  pdf: 'PDF', design: 'ART', model: '3D', sketch: 'JS', edge: 'ARR', shape: 'VEC',
 }
 
 export const TAGS = [

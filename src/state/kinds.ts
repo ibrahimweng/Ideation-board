@@ -64,6 +64,11 @@ export const TRAITS: Record<Kind, Traits> = {
      `poster` — so the card is a picture in every respect that matters here,
      and the code is the thing you edit rather than the thing you look at. */
   sketch: { thing: true, pixels: true, graded: true, media: false, words: false },
+  /* A drawing rather than a picture: a handful of numbers, drawn afresh at
+     whatever size it is being looked at, so it is exact at 4% and at 400%.
+     It has pixels only once somebody asks for them — see `hasPixels`, which
+     is where that one question is settled. */
+  shape: { thing: true, pixels: true, graded: true, media: false, words: false },
   audio: { ...CARD, media: true },
   file: { ...CARD, media: true },
   note: { ...CARD, words: true },
@@ -115,8 +120,17 @@ const trait =
 
 /* A box to move, resize, line up and tidy. */
 export const isThing = trait('thing')
-/* Pixels this side can read: export it, shade it, take its colours. */
-export const hasPixels = trait('pixels')
+/* Pixels this side can read: export it, shade it, take its colours.
+ *
+ * The one question here the kind does not settle on its own. A drawing has no
+ * pixels — that is what makes it a drawing, and what lets it be exact at four
+ * per cent and at four hundred — so until somebody bakes some there is
+ * nothing for a shader to run on, nothing to pull colours out of and nothing
+ * to make a depth map from. The same refinement `canShade` makes below for a
+ * video whose host will not let its pixels be read: the kind says what is
+ * possible, the card says what is so. */
+export const hasPixels = (i?: Item | null): i is Item =>
+  !!i && (i.kind === 'shape' ? !!i.poster : traitsOf(i.kind).pixels)
 /* Can wear a look. */
 export const isGradeable = trait('graded')
 /* Holds a file in the media store. */
@@ -153,7 +167,7 @@ export const canShade = (i?: Item | null): i is Item => hasPixels(i) && i.readab
  * still kept beside it under `poster`. Three places were asking this with the
  * same ternary written out by hand, and the third kind was the one that would
  * have been missed. */
-const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model', 'sketch'])
+const BESIDE = new Set<string>(['video', 'pdf', 'design', 'model', 'sketch', 'shape'])
 export const pixelKey = (i?: Item | null): string | undefined =>
   !i ? undefined : BESIDE.has(i.kind) ? i.poster : i.media
 

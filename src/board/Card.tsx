@@ -17,6 +17,7 @@ import { startWriting, stopWriting, useWriting } from './writing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
+import { ShapeArt } from './ShapeArt'
 import { todoCount } from '../state/rich'
 import { canShade, hasPixels, isStill, pixelKey, isKnownKind } from '../state/kinds'
 import { inkOf, isText, typeStyle } from '../state/type'
@@ -170,6 +171,47 @@ export const Card = memo(function Card({
             <span>{it.name || 'Section'}</span>
           </div>
         </div>
+        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+      </>
+    )
+  }
+
+  /* A drawing.
+   *
+   * Not a card with a picture on it: the shape is the card. There is no
+   * ground, no border and no name across the top, because a rectangle you
+   * drew should look like a rectangle rather than like a rectangle in a
+   * frame — and because the whole point of it being vector is that the
+   * browser draws it afresh at whatever zoom the board is at.
+   *
+   * It is also hit where it is painted rather than anywhere in its box, which
+   * is what lets you press through the middle of a ring onto the photograph
+   * underneath, and what stops a big transparent circle swallowing every
+   * press that lands inside it. */
+  if (it.kind === 'shape') {
+    return (
+      <>
+        <div
+          className="card card-shape"
+          data-id={id}
+          style={{ ...shell, ...(filter ? { filter } : null) }}
+          data-kind={it.kind}
+          data-sel={selected || undefined}
+          data-dim={dim || undefined}
+          data-pick={it.pick || undefined}
+          onPointerDown={(e) => onPointerDown(e, id)}
+          onContextMenu={(e) => onContextMenu(e, id)}
+          onDoubleClick={() => onOpenEditor(id)}
+        >
+          <ShapeArt spec={it.shape} w={it.w} h={it.h} hit />
+          {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
+          {it.pick && (
+            <i className="card-pick" data-pick={it.pick} title={it.pick === 'in' ? 'Kept' : 'Cut'}>
+              {it.pick === 'in' ? <TickIcon /> : <CrossIcon />}
+            </i>
+          )}
+        </div>
+        {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
         {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
       </>
     )

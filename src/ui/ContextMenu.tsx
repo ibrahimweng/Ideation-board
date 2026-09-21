@@ -33,6 +33,7 @@ export interface CanvasActions {
      is what the menu and the command list ask for. */
   addSection: (at: { x: number; y: number }, box?: { w: number; h: number }) => void
   addText: (at: { x: number; y: number }, box?: { w: number; h: number }) => void
+  addShape: (at: { x: number; y: number }, box: { w: number; h: number }, spec: import('../state/shapes').ShapeSpec) => void
   addBoard: (at: { x: number; y: number }) => void
   importBoard: (at: { x: number; y: number }) => void
   addLink: (at: { x: number; y: number }) => void

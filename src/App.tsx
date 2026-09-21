@@ -3,7 +3,8 @@ import { Board } from './board/Board'
 import { EffectsPanel } from './ui/EffectsPanel'
 import type { PanelTab } from './ui/EffectsPanel'
 import { store, useQuery, useSelection, useTagFilter } from './state/store'
-import { dropColumns, ingest, noteItem, labelItem, sectionItem, textItem, boardItem, addUrl } from './state/ingest'
+import { dropColumns, ingest, noteItem, labelItem, sectionItem, shapeItem, textItem, boardItem, addUrl } from './state/ingest'
+import type { ShapeSpec } from './state/shapes'
 import { createBoard, emptyBoard, renameCardIn, invalidateSummary } from './state/boards'
 import { getEngine } from './engine/client'
 import { getBoard, putBoard } from './store/idb'
@@ -1374,6 +1375,10 @@ export default function App() {
         store.select([it.id])
       },
       addText: (at: { x: number; y: number }, box?: { w: number; h: number }) => writeLabel(at, box),
+      addShape: (at: { x: number; y: number }, box: { w: number; h: number }, spec: ShapeSpec) => {
+        const it = store.add(shapeItem(at, box, spec))
+        store.select([it.id])
+      },
       addBoard: (at: { x: number; y: number }) => void addBoard(at),
       importBoard: (at: { x: number; y: number }) => {
         pendingAt.current = at
