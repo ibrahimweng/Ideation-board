@@ -232,8 +232,14 @@ async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
       y: Math.round(item.y - pad),
       w: Math.round(item.w + pad * 2),
       h: Math.round(item.h + pad * 2),
-      vec: true,
-      img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgFor(item.shape, item.w, item.h, pad))}`,
+      /* Written into the page rather than handed to an <img> as data.
+       *
+       * An SVG inside an <img> is a document of its own: it cannot see the
+       * page around it, so `currentColor` in it is black whatever the page
+       * is. A line nobody gave a colour would come out black on a page being
+       * read in the dark — which is the whole bug this was written to stop.
+       * Inline, it is part of the page and takes the page's ink. */
+      svg: svgFor(item.shape, item.w, item.h, pad),
       alt: item.name || 'Shape',
     }
   }

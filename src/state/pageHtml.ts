@@ -38,10 +38,15 @@ export interface PageItem {
   /* A baked picture, as data. */
   img?: string
   alt?: string
-  /* A drawing rather than a photograph. It comes out as an SVG in the same
-     <img>, which draws crisply at whatever the page is zoomed to and costs a
-     few hundred bytes instead of a few hundred kilobytes — and it has no card
-     under it, here as on the board. */
+  /* A drawing rather than a photograph, as the SVG itself. Written into the
+     page rather than handed to an <img> as data: an SVG in an <img> is a
+     document of its own and cannot see the page around it, so a line nobody
+     gave a colour would come out black on a page being read in the dark. It
+     also draws crisply at whatever the page is zoomed to and costs a few
+     hundred bytes rather than a few hundred thousand. */
+  svg?: string
+  /* And a drawing that was baked is a picture, which still has no card under
+     it: what is behind it on the board is the board. */
   vec?: boolean
   /* A note, already turned into markup. */
   html?: string
@@ -129,8 +134,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .thing img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 /* A drawing has no card under it, on the page as on the board: a rectangle
    you drew should read as a rectangle rather than as one in a frame. */
-.vec{background:none;box-shadow:none;overflow:visible}
+.vec{background:none;box-shadow:none;overflow:visible;color:var(--ink)}
 .vec img{object-fit:contain;cursor:default}
+.vec svg{display:block;overflow:visible}
 .note{padding:12px 14px;overflow:hidden;font-size:13px;line-height:1.55;
   background:#fffdf5;color:#18181b}
 .note h1{font-size:17px;margin:.2em 0 .3em}.note h2{font-size:15px;margin:.2em 0 .3em}
@@ -312,7 +318,13 @@ function show(id, keepView) {
     if (it.mix && it.mix !== 'normal') n.style.mixBlendMode = it.mix
     if (it.pick) n.dataset.pick = it.pick
 
-    if (it.img) {
+    if (it.svg) {
+      /* Ours, written by svgFor, which escapes everything it is handed: a
+         colour comes off a record that anything could have written. No
+         backticks in here — this whole script is a template literal. */
+      n.classList.add('thing', 'vec')
+      n.innerHTML = it.svg
+    } else if (it.img) {
       n.classList.add('thing')
       if (it.vec) n.classList.add('vec')
       const img = el('img', null, n)

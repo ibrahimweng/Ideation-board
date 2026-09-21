@@ -790,6 +790,10 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
  * but nothing of it is painted. */
 .card-shape {
   background: none; border: none; box-shadow: none;
+  /* What a line nobody has given a colour is drawn in. Not a colour on the
+     record — see state/shapes.ts — so it is the theme's, and it reads on a
+     pale board and on a dark one. */
+  color: var(--ink);
   /* A card clips to its own box and paints inside it. A stroke straddles the
      path it is on, so half of a thick one lives outside the box — clipped, a
      shape gets thinner at its own edges. */

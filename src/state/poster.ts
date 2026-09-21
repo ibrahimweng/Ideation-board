@@ -605,7 +605,7 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
      goes down the picture road below like anything else; unbaked there is
      nothing to photograph, so the sheet draws the drawing. */
   if (it.kind === 'shape' && it.shape && !it.poster) {
-    await drawShape(cx, it)
+    await drawShape(cx, it, t)
     return
   }
 
@@ -679,12 +679,14 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
  * rather than a second opinion about it. The box is opened out by the outset,
  * because a stroke straddles the line it is on and a picture of the box alone
  * would be a circle with four flat sides. */
-async function drawShape(cx: Ctx, it: Item) {
+async function drawShape(cx: Ctx, it: Item, t: Tokens) {
   if (!it.shape) return
   const pad = outsetOf(it.shape)
   let img: HTMLImageElement
   try {
-    img = await svgImage(svgFor(it.shape, it.w, it.h, pad))
+    /* A line nobody gave a colour is drawn in the sheet's own ink, which is
+       the theme the sheet is being made in. */
+    img = await svgImage(svgFor(it.shape, it.w, it.h, pad, t.ink))
   } catch {
     return
   }
