@@ -495,6 +495,148 @@ export function toggleSmooth(nodes: Node[], at: number): Node[] {
   return out
 }
 
+/* A point moved, taking its handles with it — they are offsets from it, so
+ * they come along for nothing. */
+export function moveNode(nodes: Node[], at: number, dx: number, dy: number): Node[] {
+  if (at < 0 || at >= nodes.length) return nodes
+  const out = nodes.slice()
+  out[at] = { ...out[at], x: out[at].x + dx, y: out[at].y + dy }
+  return out
+}
+
+/* One handle put somewhere, as an offset from its own point.
+ *
+ * Its opposite follows it round unless it is being broken off, which is how
+ * a point gets a curve on one side of it and a corner on the other. */
+export function moveHandle(nodes: Node[], at: number, side: 'in' | 'out', x: number, y: number, together = true): Node[] {
+  if (at < 0 || at >= nodes.length) return nodes
+  const out = nodes.slice()
+  const node = { ...out[at] }
+  if (side === 'out') {
+    node.ox = x
+    node.oy = y
+    if (together) {
+      node.ix = neg(x)
+      node.iy = neg(y)
+    }
+  } else {
+    node.ix = x
+    node.iy = y
+    if (together) {
+      node.ox = neg(x)
+      node.oy = neg(y)
+    }
+  }
+  out[at] = node
+  return out
+}
+
+/* A segment pulled out of shape.
+ *
+ * Dragging the line itself is how somebody who has never held a pen bends a
+ * curve, and it is the whole of the curvature tool. The two controls either
+ * side of the segment take the movement between them — the least each of
+ * them can move and still put the curve under the pointer, which is what
+ * keeps a small pull from throwing the rest of the line about.
+ *
+ * A straight segment gets handles at the thirds first, because a straight
+ * line has nowhere to put a bend. And the grab is held away from the two
+ * ends, where neither control has any say in where the curve goes and the
+ * arithmetic for "move it there" divides by nothing. */
+export function bendSegment(nodes: Node[], closed: boolean, at: number, t: number, dx: number, dy: number): Node[] {
+  const n = nodes.length
+  if (at < 0 || at >= (closed ? n : n - 1)) return nodes
+  const out = nodes.slice()
+  const a = { ...out[at] }
+  const b = { ...out[(at + 1) % n] }
+  const hasA = isSmoothOut(a)
+  const hasB = isSmoothIn(b)
+  const ax = hasA ? a.ox ?? 0 : (b.x - a.x) / 3
+  const ay = hasA ? a.oy ?? 0 : (b.y - a.y) / 3
+  const bx = hasB ? b.ix ?? 0 : (a.x - b.x) / 3
+  const by = hasB ? b.iy ?? 0 : (a.y - b.y) / 3
+  const k = clamp(t, 0.12, 0.88)
+  const w1 = 3 * k * (1 - k) * (1 - k)
+  const w2 = 3 * k * k * (1 - k)
+  const sum = w1 * w1 + w2 * w2
+  a.ox = ax + (dx * w1) / sum
+  a.oy = ay + (dy * w1) / sum
+  b.ix = bx + (dx * w2) / sum
+  b.iy = by + (dy * w2) / sum
+  out[at] = a
+  out[(at + 1) % n] = b
+  return out
+}
+
+/* Where a segment is at a given fraction along it — the cubic itself, so
+ * that "how far along did I grab" and "where is the line now" are the same
+ * question answered the same way.
+ *
+ * The controls are the ones `nodesPath` draws with, with one exception: a
+ * segment with a handle at neither end is a straight line, and a cubic whose
+ * controls sit on its own endpoints runs along that line at an easing pace —
+ * fast in the middle, slow at the ends. Put the controls at the thirds and
+ * it is the same line travelled evenly, which is what "half way along" has
+ * to mean to somebody dragging it. It is also exactly where `bendSegment`
+ * puts them the moment that line is bent. */
+export function pointOnSegment(nodes: Node[], at: number, t: number): { x: number; y: number } {
+  const n = nodes.length
+  const a = nodes[at]
+  const b = nodes[(at + 1) % n]
+  const bare = !isSmoothOut(a) && !isSmoothIn(b)
+  const c1x = bare ? a.x + (b.x - a.x) / 3 : a.x + (a.ox ?? 0)
+  const c1y = bare ? a.y + (b.y - a.y) / 3 : a.y + (a.oy ?? 0)
+  const c2x = bare ? b.x - (b.x - a.x) / 3 : b.x + (b.ix ?? 0)
+  const c2y = bare ? b.y - (b.y - a.y) / 3 : b.y + (b.iy ?? 0)
+  const u = 1 - t
+  const w0 = u * u * u
+  const w1 = 3 * t * u * u
+  const w2 = 3 * t * t * u
+  const w3 = t * t * t
+  return {
+    x: w0 * a.x + w1 * c1x + w2 * c2x + w3 * b.x,
+    y: w0 * a.y + w1 * c1y + w2 * c2y + w3 * b.y,
+  }
+}
+
+const isSmoothOut = (p: Node) => p.ox !== undefined || p.oy !== undefined
+const isSmoothIn = (p: Node) => p.ix !== undefined || p.iy !== undefined
+
+/* The place on the path nearest a point, as a segment and how far along it.
+ *
+ * Sampled along the curve rather than measured against the straight line
+ * between each pair. On a path that bends those are not the same place, and
+ * the whole of bending is putting the line where the pointer is. */
+export function nearestOn(nodes: Node[], closed: boolean, x: number, y: number, steps = 24) {
+  let best = { at: -1, t: 0, d: Infinity }
+  const last = closed ? nodes.length : nodes.length - 1
+  for (let i = 0; i < last; i++) {
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps
+      const p = pointOnSegment(nodes, i, t)
+      const d = Math.hypot(p.x - x, p.y - y)
+      if (d < best.d) best = { at: i, t, d }
+    }
+  }
+  return best
+}
+
+/* Which point of a path a press landed on, or -1. In the same units as the
+ * points, and with the reach handed in because how near counts is a question
+ * about the pointer rather than about the path. */
+export function nodeAt(nodes: Node[], x: number, y: number, reach: number): number {
+  let best = -1
+  let near = reach
+  nodes.forEach((p, i) => {
+    const d = Math.hypot(p.x - x, p.y - y)
+    if (d <= near) {
+      near = d
+      best = i
+    }
+  })
+  return best
+}
+
 /* Whether a point is a smooth one. */
 export const isSmooth = (node: Node) =>
   node.ix !== undefined || node.iy !== undefined || node.ox !== undefined || node.oy !== undefined

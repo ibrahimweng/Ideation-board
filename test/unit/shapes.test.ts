@@ -3,11 +3,17 @@ import {
   DASHES,
   DEFAULTS,
   addNode,
+  bendSegment,
+  moveHandle,
+  moveNode,
+  nodeAt,
+  pointOnSegment,
   boundsOfNodes,
   dropNode,
   ellipsePath,
   headsFor,
   isSmooth,
+  nearestOn,
   nearestSegment,
   nodesPath,
   normalise,
@@ -425,6 +431,163 @@ describe('editing the points', () => {
 
   it('leaves everything alone when asked about a point that is not there', () => {
     expect(toggleSmooth(square, 7)).toBe(square)
+  })
+})
+
+describe('moving the points about', () => {
+  const square: Node[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }]
+
+  it('moves a point and leaves the rest where they were', () => {
+    const out = moveNode(square, 2, -0.5, 0.25)
+    expect(out[2]).toEqual({ x: 0.5, y: 1.25 })
+    expect(out[0]).toEqual(square[0])
+    expect(square[2]).toEqual({ x: 1, y: 1 })
+  })
+
+  it('takes the handles with it, because they are offsets from the point', () => {
+    const curvy: Node[] = [{ x: 0.5, y: 0.5, ox: 0.2, oy: 0, ix: -0.2, iy: 0 }]
+    const out = moveNode(curvy, 0, 0.25, 0.25)
+    expect(out[0]).toEqual({ x: 0.75, y: 0.75, ox: 0.2, oy: 0, ix: -0.2, iy: 0 })
+  })
+
+  it('leaves everything alone for a point that is not there', () => {
+    expect(moveNode(square, 9, 1, 1)).toBe(square)
+  })
+
+  it('swings the other handle round with the one being moved', () => {
+    const out = moveHandle(square, 1, 'out', 0.3, 0.1)
+    expect(out[1]).toMatchObject({ ox: 0.3, oy: 0.1, ix: -0.3, iy: -0.1 })
+  })
+
+  it('and leaves it alone when the point is being broken', () => {
+    const start = moveHandle(square, 1, 'out', 0.3, 0.1)
+    const broken = moveHandle(start, 1, 'in', 0.05, 0.4, false)
+    expect(broken[1]).toMatchObject({ ox: 0.3, oy: 0.1, ix: 0.05, iy: 0.4 })
+  })
+})
+
+describe('bending a segment by pulling on it', () => {
+  const line: Node[] = [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }]
+
+  it('gives a straight segment handles, because a straight line has nowhere to put a bend', () => {
+    expect(isSmooth(line[0])).toBe(false)
+    const bent = bendSegment(line, false, 0, 0.5, 0, 0.2)
+    expect(isSmooth(bent[0])).toBe(true)
+    expect(isSmooth(bent[1])).toBe(true)
+  })
+
+  it('puts the line where it was pulled to', () => {
+    const bent = bendSegment(line, false, 0, 0.5, 0, 0.25)
+    const mid = pointOnSegment(bent, 0, 0.5)
+    expect(mid.x).toBeCloseTo(0.5, 6)
+    expect(mid.y).toBeCloseTo(0.75, 6)
+  })
+
+  it('puts it where it was pulled to from anywhere along it', () => {
+    for (const t of [0.2, 0.35, 0.5, 0.65, 0.8]) {
+      const bent = bendSegment(line, false, 0, t, 0.05, -0.3)
+      const was = pointOnSegment(line, 0, t)
+      const now = pointOnSegment(bent, 0, t)
+      expect(now.x - was.x, `t=${t}`).toBeCloseTo(0.05, 6)
+      expect(now.y - was.y, `t=${t}`).toBeCloseTo(-0.3, 6)
+    }
+  })
+
+  it('travels a straight segment evenly, which is what half way along means', () => {
+    /* A cubic whose controls sit on its own endpoints runs along its line
+       fast in the middle and slow at the ends, so "a fifth of the way" would
+       not be where anybody dragging it thinks it is. */
+    for (const t of [0.2, 0.5, 0.8]) {
+      expect(pointOnSegment(line, 0, t).x, `t=${t}`).toBeCloseTo(t, 6)
+    }
+  })
+
+  it('moves an already-curved segment by exactly what it was pulled', () => {
+    const arc: Node[] = [
+      { x: 0, y: 0.5, ox: 0.3, oy: -0.3 },
+      { x: 1, y: 0.5, ix: -0.3, iy: -0.3 },
+    ]
+    for (const t of [0.3, 0.5, 0.7]) {
+      const bent = bendSegment(arc, false, 0, t, -0.1, 0.2)
+      const was = pointOnSegment(arc, 0, t)
+      const now = pointOnSegment(bent, 0, t)
+      expect(now.x - was.x, `t=${t}`).toBeCloseTo(-0.1, 6)
+      expect(now.y - was.y, `t=${t}`).toBeCloseTo(0.2, 6)
+    }
+  })
+
+  it('never moves the two ends of the segment it bends', () => {
+    const bent = bendSegment(line, false, 0, 0.4, 0.2, 0.4)
+    expect([bent[0].x, bent[0].y]).toEqual([0, 0.5])
+    expect([bent[1].x, bent[1].y]).toEqual([1, 0.5])
+  })
+
+  it('leaves the rest of the path alone', () => {
+    const three: Node[] = [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 1, y: 0 }]
+    const bent = bendSegment(three, false, 0, 0.5, 0, 0.3)
+    expect(bent[2]).toEqual(three[2])
+  })
+
+  it('will not be asked to bend a segment that is not there', () => {
+    expect(bendSegment(line, false, 1, 0.5, 0, 0.2)).toBe(line)
+    expect(bendSegment(line, false, -1, 0.5, 0, 0.2)).toBe(line)
+    /* Closed, that last segment is the one joining the ends and is real. */
+    expect(bendSegment(line, true, 1, 0.5, 0, 0.2)).not.toBe(line)
+  })
+
+  it('still bends when the grab was right on an end, where neither control has a say', () => {
+    const bent = bendSegment(line, false, 0, 0, 0, 0.3)
+    expect(Number.isFinite(bent[0].ox)).toBe(true)
+    expect(pointOnSegment(bent, 0, 0.5).y).toBeGreaterThan(0.5)
+  })
+})
+
+describe('finding the place on the line', () => {
+  const bowed: Node[] = [
+    { x: 0, y: 0.5, ox: 0.3, oy: -0.4 },
+    { x: 1, y: 0.5, ix: -0.3, iy: -0.4 },
+  ]
+
+  it('finds it on the curve rather than on the line between the points', () => {
+    /* The top of the bow is well above the straight run between its ends, so
+       a point just under the bow is near the curve and far from the chord. */
+    const top = pointOnSegment(bowed, 0, 0.5)
+    expect(top.y).toBeLessThan(0.35)
+    const found = nearestOn(bowed, false, top.x, top.y)
+    expect(found.at).toBe(0)
+    expect(found.t).toBeCloseTo(0.5, 1)
+    expect(found.d).toBeLessThan(0.02)
+  })
+
+  it('picks the right segment out of several', () => {
+    const zig: Node[] = [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 0.5, y: 1 }]
+    expect(nearestOn(zig, false, 0.25, 0.02).at).toBe(0)
+    expect(nearestOn(zig, false, 0.52, 0.7).at).toBe(1)
+  })
+
+  it('offers the closing segment only on a closed path', () => {
+    const tri: Node[] = [{ x: 0.5, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }]
+    expect(nearestOn(tri, false, 0.25, 0.5).at).not.toBe(2)
+    expect(nearestOn(tri, true, 0.25, 0.5).at).toBe(2)
+  })
+})
+
+describe('finding the point under the pointer', () => {
+  const square: Node[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }]
+
+  it('names the nearest one within reach', () => {
+    expect(nodeAt(square, 0.02, 0.02, 0.1)).toBe(0)
+    expect(nodeAt(square, 0.97, 1.01, 0.1)).toBe(2)
+  })
+
+  it('says nothing at all when the press was nowhere near one', () => {
+    expect(nodeAt(square, 0.5, 0.5, 0.1)).toBe(-1)
+  })
+
+  it('takes the nearer of two that are both within reach', () => {
+    const pair: Node[] = [{ x: 0, y: 0 }, { x: 0.1, y: 0 }]
+    expect(nodeAt(pair, 0.07, 0, 0.5)).toBe(1)
+    expect(nodeAt(pair, 0.03, 0, 0.5)).toBe(0)
   })
 })
 

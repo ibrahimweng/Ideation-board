@@ -636,6 +636,50 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   pointer-events: none;
 }
 
+/* ---------- moving the points of a drawing ---------- */
+
+/* Over the cards, and taking the pointer only on the line and the marks: the
+   space between them belongs to whatever is underneath, so a press that
+   misses puts the points away rather than doing nothing. */
+.nodes {
+  position: absolute; top: 0; left: 0;
+  z-index: 9200;
+  pointer-events: none;
+  will-change: transform;
+}
+.nodes svg { position: absolute; top: 0; left: 0; }
+
+/* The line, drawn as a fat invisible stroke over the real one — press it to
+   bend it, press it twice to put a point on it. A hairline that could only be
+   bent by hitting one pixel of it could not be bent. */
+.node-line {
+  fill: none; stroke: transparent;
+  pointer-events: stroke;
+  cursor: crosshair;
+}
+
+/* A handle on its leash. Thin, and behind the anchors, because it is the
+   anchor you aim at and the handle you find once you are there. */
+.node-leash {
+  stroke: var(--accent); stroke-width: 1; opacity: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+.node-grip {
+  fill: var(--accent); stroke: var(--surface); stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all; cursor: grab;
+}
+.node-grip:hover { fill: var(--sel); }
+
+/* And the anchors. Round for a smooth point and square for a corner, so what
+   a point is can be seen rather than found out by dragging it. */
+.node-dot {
+  fill: var(--surface); stroke: var(--accent); stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all; cursor: move;
+}
+.node-dot:hover { fill: var(--accent); }
+
 /* The empty board. Drawn on the canvas rather than over it, so it reads as
    "there is nothing here yet" rather than as a dialog to get past. */
 .first {

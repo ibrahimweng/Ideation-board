@@ -21,6 +21,8 @@ import { isSection, isThing, isWire } from '../state/kinds'
 import { DRAWN, DRAWS, FALLBACK, disarm, isShapeTool, toolNow, useTool } from './tool'
 import type { ShapeTool } from './tool'
 import { curveShape, drawnShape, freehandShape, pathShape, pressedShape, strokeDraft } from './drawing'
+import { Nodes } from './Nodes'
+import { editNodes, hasNodes, useEditing } from './editing'
 import type { Drawn, Pt } from './drawing'
 import { pathFor } from '../state/shapes'
 import type { Node } from '../state/shapes'
@@ -105,6 +107,8 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   /* For the cursor and for what the drawn box looks like. The gesture itself
      reads the module directly; this is only what is on screen. */
   const tool = useTool()
+  /* Which drawing, if any, is having its points moved about. */
+  const editing = useEditing()
   const [dragOver, setDragOver] = useState(false)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
@@ -406,6 +410,13 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
      being placed a point at a time. */
   const shown = draft || penDraft
 
+  /* Going to something else puts the points away. A press on the board or on
+     another card changes the selection, which is the same thing said in the
+     one place that already knows about it. */
+  useEffect(() => {
+    if (editing && !selection.includes(editing)) editNodes(null)
+  }, [editing, selection])
+
   /* ---------- pointer: drag, marquee, pan ---------- */
   const onSurfacePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -601,6 +612,16 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
    * drag becomes a single undo step. */
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
+    /* The curvature tool on a line that already exists means that line: it
+       is the one tool here whose whole job is bending something rather than
+       making it, so pressing a path with it opens the path's own points. */
+    if (toolNow() === 'curve' && hasNodes(store.getItem(id))) {
+      e.stopPropagation()
+      disarm()
+      store.select([id])
+      editNodes(id)
+      return
+    }
     /* A tool is armed, so this press is drawing a box rather than picking
      * anything up — and it must be able to draw over what is already there.
      * Left to bubble rather than handled, so the surface underneath gets it:
@@ -940,6 +961,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
             selection so a new one gets a fresh box rather than an old one
             catching up. */}
         {grouped && <GroupHandles key={scaling.join(',')} ids={scaling} />}
+        {editing && <Nodes id={editing} />}
         {/* What is about to exist, drawn as itself. */}
         {shown && (
           <svg

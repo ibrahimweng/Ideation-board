@@ -136,6 +136,26 @@ export function freehandShape(pts: Pt[], tol: number): Drawn | null {
   return pathShape('pencil', smoothNodes(kept, 0.22), false)
 }
 
+/* A shape's box pulled back round its own points.
+ *
+ * Moving a point can push a drawing outside the card it is on. Nothing is
+ * clipped — a shape has no card under it — but the box is what the corner
+ * handles scale, what decides whether the card is on screen and what the
+ * fractions on the record are fractions of. A drawing that has wandered out
+ * of its own box is one that stops being drawn when its box goes over the
+ * edge, and one whose handles are nowhere near it.
+ *
+ * Only when the drag lets go, never during it: a box that followed the points
+ * would be a card sliding about under the hand that is dragging them. */
+export function refit(it: Rect, nodes: Node[]): { box: Rect; nodes: Node[] } {
+  const b = boundsOfNodes(nodes)
+  const box = opened({ x: it.x + b.x * it.w, y: it.y + b.y * it.h, w: b.w * it.w, h: b.h * it.h })
+  /* The new box said in the old box's fractions, which is the space the
+     points are still written in. */
+  const same = { x: (box.x - it.x) / it.w, y: (box.y - it.y) / it.h, w: box.w / it.w, h: box.h / it.h }
+  return { box, nodes: intoBox(nodes, same) }
+}
+
 /* What is under the pointer while a stroke is still being drawn: the raw
  * samples, straight, because tidying a stroke that is not finished would
  * make the line move about under the hand that is drawing it. */

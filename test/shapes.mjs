@@ -291,6 +291,131 @@ await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
 ok('and one point on its own makes nothing', (await shapes()).length === alone)
 
+/* ---------------------------------------------------------------------------
+ * Moving the points about.
+ *
+ * A mode of its own, because four corner handles that stretch the whole thing
+ * and an anchor on every point are two different jobs that must not be on
+ * screen at once.
+ * ------------------------------------------------------------------------- */
+
+const marks = () => page.evaluate(() => ({
+  dots: document.querySelectorAll('.node-dot').length,
+  grips: document.querySelectorAll('.node-grip').length,
+  corners: document.querySelectorAll('.card-handles .handle').length,
+  round: document.querySelectorAll('circle.node-dot').length,
+}))
+/* Where each anchor is on screen, which is what must not move when the box is
+   pulled back round them. */
+const anchors = () => page.evaluate(() =>
+  [...document.querySelectorAll('.node-dot')].map((el) => {
+    const r = el.getBoundingClientRect()
+    return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]
+  })
+)
+/* A point that really is on the drawn line, in screen coordinates. Guessing
+   at one and missing puts the points away instead of bending anything. */
+const onLine = (t) => page.evaluate((t) => {
+  const el = [...document.querySelectorAll('.card[data-kind="shape"]')].at(-1)
+  const path = el.querySelector('svg path:not(.shape-hit)')
+  const at = path.getPointAtLength(path.getTotalLength() * t)
+  const r = el.getBoundingClientRect()
+  const z = r.width / el.offsetWidth
+  return [Math.round(r.x + at.x * z), Math.round(r.y + at.y * z)]
+}, t)
+const boxOfLast = () => page.evaluate(() => {
+  const r = [...document.querySelectorAll('.card[data-kind="shape"]')].at(-1).getBoundingClientRect()
+  return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }
+})
+
+/* A fresh three-point path to work on, well clear of everything else. */
+await page.mouse.click(160, 830)
+await page.waitForTimeout(200)
+await pick('Pen', 'Pens')
+await clicks([[300, 300], [600, 300], [600, 600]])
+await page.keyboard.press('Enter')
+await page.waitForTimeout(400)
+ok('a drawn path is a straight run of lines to start with', (await last())?.d === 'M0 0L300 0L300 300', (await last())?.d)
+
+/* --- in --- */
+await page.mouse.dblclick(380, 301)
+await page.waitForTimeout(400)
+const opened2 = await marks()
+ok('twice on a drawing opens its points', opened2.dots === 3, `${opened2.dots} anchors`)
+ok('and its corner handles stand down while they are open', opened2.corners === 0, `${opened2.corners} corner handles`)
+
+/* --- drag an anchor --- */
+const before2 = await last()
+await page.mouse.move(600, 300)
+await page.mouse.down()
+await page.mouse.move(680, 240, { steps: 10 })
+await page.mouse.up()
+await page.waitForTimeout(400)
+const moved = await last()
+ok('dragging an anchor moves that point', !!moved && moved.d !== before2?.d, moved?.d)
+ok('and the box is pulled back round the points', !!moved && moved.w === 380 && moved.h === 360, `${moved?.w}x${moved?.h}`)
+const kept2 = await anchors()
+ok('without the drawing moving on screen',
+   kept2.some(([x, y]) => Math.abs(x - 680) <= 2 && Math.abs(y - 240) <= 2), JSON.stringify(kept2))
+
+/* --- bend the line --- */
+const straight = await last()
+const [gx, gy] = await onLine(0.8)
+await page.mouse.move(gx, gy)
+await page.mouse.down()
+await page.mouse.move(gx + 90, gy + 20, { steps: 10 })
+await page.mouse.up()
+await page.waitForTimeout(400)
+const bent = await last()
+ok('dragging the line bends that segment', !!bent && (bent.d.match(/C/g) || []).length > (straight.d.match(/C/g) || []).length,
+   cmds(bent?.d || ''))
+
+/* --- put a point on the line --- */
+const had = (await marks()).dots
+const [ax, ay] = await onLine(0.25)
+await page.mouse.dblclick(ax, ay)
+await page.waitForTimeout(400)
+ok('twice on the line puts a point on it', (await marks()).dots === had + 1, `${had} -> ${(await marks()).dots}`)
+
+/* --- take one away --- */
+const many = (await marks()).dots
+const spot = (await anchors())[1]
+await page.keyboard.down('Alt')
+await page.mouse.click(spot[0], spot[1])
+await page.keyboard.up('Alt')
+await page.waitForTimeout(400)
+ok('alt on an anchor takes it away', (await marks()).dots === many - 1, `${many} -> ${(await marks()).dots}`)
+
+/* --- corner to smooth and back --- */
+const first = (await anchors())[0]
+const wasRound = (await marks()).round
+await page.mouse.dblclick(first[0], first[1])
+await page.waitForTimeout(400)
+const nowRound = (await marks()).round
+ok('twice on an anchor turns a corner smooth', nowRound === wasRound + 1, `${wasRound} -> ${nowRound} round`)
+ok('and gives it handles to pull on', (await marks()).grips >= 1, `${(await marks()).grips} handles`)
+await page.mouse.dblclick(first[0], first[1])
+await page.waitForTimeout(400)
+ok('and again turns it back into a corner', (await marks()).round === wasRound)
+
+/* --- out --- */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+const shut2 = await marks()
+ok('escape puts the points away', shut2.dots === 0)
+ok('and the corner handles come back', shut2.corners === 4, `${shut2.corners} corner handles`)
+
+/* --- the curvature tool opens an existing line --- */
+await pick('Curvature', 'Pens')
+const [cx2, cy2] = await onLine(0.5)
+await page.mouse.click(cx2, cy2)
+await page.waitForTimeout(400)
+ok('the curvature tool on a line that exists opens that line', (await marks()).dots > 0, `${(await marks()).dots} anchors`)
+ok('and stands down rather than drawing a second one',
+   (await page.evaluate(() => document.querySelector('.viewport')?.getAttribute('data-tool'))) === null)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
 /* --- it is hit where it is painted --- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)

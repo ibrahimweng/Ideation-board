@@ -14,6 +14,7 @@ import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
 import { startWriting, stopWriting, useWriting } from './writing'
+import { editNodes, hasNodes, useEditing } from './editing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
@@ -96,6 +97,10 @@ export const Card = memo(function Card({
   useEffect(() => { loadFamily(font) }, [font])
   /* Whether the words on this card are being typed on the board itself. */
   const writing = useWriting() === id
+  /* And whether its points are being moved about, which puts its own corner
+     handles away: four handles that stretch the whole thing and an anchor on
+     every point are two different jobs and must not be on screen at once. */
+  const editing = useEditing() === id
 
   if (!it) return null
 
@@ -201,7 +206,9 @@ export const Card = memo(function Card({
           data-pick={it.pick || undefined}
           onPointerDown={(e) => onPointerDown(e, id)}
           onContextMenu={(e) => onContextMenu(e, id)}
-          onDoubleClick={() => onOpenEditor(id)}
+          /* Twice on a drawing opens its points, which is what twice on a
+             thing you can get inside means everywhere else on this board. */
+          onDoubleClick={() => (hasNodes(it) ? editNodes(id) : onOpenEditor(id))}
         >
           <ShapeArt spec={it.shape} w={it.w} h={it.h} hit />
           {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
@@ -211,8 +218,10 @@ export const Card = memo(function Card({
             </i>
           )}
         </div>
-        {!dim && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
-        {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+        {!dim && !editing && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && !grouped && !editing && (
+          <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />
+        )}
       </>
     )
   }
