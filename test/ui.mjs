@@ -108,6 +108,22 @@ for (const label of ['Note','Label']) {
 /* A label arrives with the caret in it, so it can be typed into without going
    looking for the way to. */
 ok('rail: Label opens ready to be written in', await page.locator('.label-write').count() === 1)
+
+/* And the corner says how many there are at once rather than eventually.
+ *
+ * That number used to be read off the same second-and-a-half timer that asks
+ * the GPU how much memory it is using, so a card you had just put down went
+ * uncounted until the next tick — and every test that reads it had to wait
+ * for it to catch up. It is subscribed now, like everything else. */
+const said = () => page.evaluate(() =>
+  Number((document.querySelector('.stats')?.textContent || '').match(/(\d+) item/)?.[1] ?? -1))
+const held = await page.locator('.card').count()
+ok('rail: and the corner already knows how many there are', (await said()) === held, `says ${await said()} of ${held}`)
+await page.getByRole('button', { name: 'Note', exact: true }).click()
+await page.waitForTimeout(120)
+ok('rail: and counts the next one the moment it lands', (await said()) === held + 1, `says ${await said()} of ${held + 1}`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
 await page.keyboard.press('Escape')
 await page.waitForTimeout(200)
 
