@@ -7,7 +7,7 @@ import type { ShortcutName } from './shortcuts'
 import {
   IconArrow, IconBoard, IconCurve, IconDraw, IconEllipse, IconExport, IconFiles,
   IconImport, IconLabel, IconLine, IconLink, IconNote, IconPen, IconPencil,
-  IconPolygon, IconRect, IconSection, IconStar, IconText,
+  IconMore, IconPolygon, IconRect, IconSection, IconStar, IconText,
 } from './icons'
 
 /* Each tool drawn as the thing it makes. */
@@ -165,7 +165,9 @@ function RailGroup({ group }: { group: Group }) {
         aria-expanded={!!open}
         aria-label={nameFor(group)}
         title={titleFor(group)}
-      />
+      >
+        <IconMore />
+      </button>
       {/* Out into the page, not down the rail. The rail is a scrolling column
           and its wells are blurred, and either of those on its own is enough
           to make a flyout hung off a button in it a flyout you cannot see:

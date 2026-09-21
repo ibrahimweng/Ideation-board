@@ -556,10 +556,8 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .rail-more {
   position: absolute; right: 0; bottom: 0;
   width: 11px; height: 11px; padding: 0;
+  display: grid; place-items: end;
   border-radius: 0 0 var(--r-sm) 0;
-  /* A little triangle in the corner, which is the mark every drawing program
-     has used for "there are more of these" for thirty years. */
-  background: linear-gradient(-45deg, currentColor 0 4.5px, transparent 4.5px);
   color: var(--muted);
   opacity: 0.85;
 }

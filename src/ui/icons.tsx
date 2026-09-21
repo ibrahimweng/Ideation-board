@@ -202,6 +202,17 @@ export const IconEye = ({ className }: P) => (
   </Svg>
 )
 
+/* The corner mark on a tool group: a small triangle saying there are more of
+   these behind this one, which is what that corner has meant in every drawing
+   program for thirty years. Filled and tiny rather than a 16-grid stroke,
+   because it is a mark rather than a picture — but still an element, so a
+   button that carries it is a button with something in it. */
+export const IconMore = ({ className }: P) => (
+  <svg viewBox="0 0 8 8" width="8" height="8" fill="currentColor" className={className} aria-hidden="true" focusable="false">
+    <path d="M8 1v7H1Z" />
+  </svg>
+)
+
 /* ---------------------------------------------------------------------------
  * The shapes, and the three pens.
  *
