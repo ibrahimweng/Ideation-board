@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DASHES,
   DEFAULTS,
+  inksByDefault,
   addNode,
   bendSegment,
   moveHandle,
@@ -27,6 +28,8 @@ import {
   smoothNodes,
   specFor,
   starPoints,
+  strokeChosen,
+  strokeOf,
   svgFor,
   toggleSmooth,
 } from '../../src/state/shapes'
@@ -638,11 +641,77 @@ describe('fitting a drawing to its own box', () => {
   })
 })
 
+describe('the colour of a line, which is not a colour', () => {
+  /* This app made this mistake once, wrote state/type.ts about it, and then
+   * made it again in a new feature — with the light theme's own `--ink`
+   * copied out of the stylesheet by hand. */
+
+  it('draws a line nobody has coloured in the theme it is being looked at in', () => {
+    expect(strokeOf({ kind: 'line' })).toBe('currentColor')
+    expect(strokeOf({ kind: 'arrow' })).toBe('currentColor')
+    expect(strokeOf({ kind: 'path' })).toBe('currentColor')
+    /* And says which, for anything making a picture that will have no theme
+       to follow afterwards. */
+    expect(strokeOf({ kind: 'line' }, '#f4f4f5')).toBe('#f4f4f5')
+  })
+
+  it('reads the near-black every line used to be made with as nobody having chosen', () => {
+    expect(strokeOf({ kind: 'line', stroke: '#18181B' })).toBe('currentColor')
+    expect(strokeOf({ kind: 'line', stroke: '#18181b' })).toBe('currentColor')
+    expect(strokeChosen({ kind: 'line', stroke: '#18181B' })).toBe(false)
+  })
+
+  it('keeps a colour somebody really chose, exactly', () => {
+    expect(strokeOf({ kind: 'line', stroke: '#E5484D' })).toBe('#E5484D')
+    expect(strokeChosen({ kind: 'line', stroke: '#E5484D' })).toBe(true)
+    /* Near-black is still available to anybody who wants it — one press. */
+    expect(strokeOf({ kind: 'line', stroke: '#111114' })).toBe('#111114')
+  })
+
+  it('keeps no line at all as a different answer from not having said', () => {
+    expect(strokeOf({ kind: 'line', stroke: null })).toBeNull()
+    expect(strokeChosen({ kind: 'line', stroke: null })).toBe(false)
+  })
+
+  it('gives a shape no line when nobody asked for one, because a shape is its fill', () => {
+    expect(strokeOf({ kind: 'rect' })).toBeNull()
+    expect(strokeOf({ kind: 'ellipse' })).toBeNull()
+    expect(strokeOf({ kind: 'star' })).toBeNull()
+    expect(inksByDefault('line')).toBe(true)
+    expect(inksByDefault('rect')).toBe(false)
+  })
+
+  it('never puts the baked-in near-black on a new line again', () => {
+    for (const kind of ['line', 'arrow', 'path'] as const) {
+      expect(specFor(kind).stroke, kind).toBeUndefined()
+    }
+  })
+
+  it('carries it all the way into the paint and the file', () => {
+    expect(paintOf({ kind: 'line' }).stroke).toBe('currentColor')
+    expect(paintOf({ kind: 'line' }, '#f4f4f5').stroke).toBe('#f4f4f5')
+    expect(svgFor({ kind: 'line' }, 100, 10)).toContain('stroke="currentColor"')
+    expect(svgFor({ kind: 'line' }, 100, 10, 0, '#f4f4f5')).toContain('stroke="#f4f4f5"')
+  })
+
+  it('and into how far the paint reaches outside the box', () => {
+    /* An unsaid stroke on a line is a real line, so it takes up room. */
+    expect(outsetOf({ kind: 'line', width: 20 })).toBe(10)
+    /* And on a rectangle it is no line, so it takes up none. */
+    expect(outsetOf({ kind: 'rect', width: 20 })).toBe(0)
+  })
+})
+
 describe('a shape before anybody has said anything about it', () => {
   it('gives a line and a path no fill, because a fill on an open squiggle is a shape nobody drew', () => {
     expect(specFor('line').fill).toBeNull()
     expect(specFor('path').fill).toBeNull()
     expect(specFor('arrow').fill).toBeNull()
+  })
+
+  it('and says nothing about what colour its line is, because nobody has', () => {
+    expect(specFor('line').stroke).toBeUndefined()
+    expect(strokeOf(specFor('line'))).toBe('currentColor')
   })
 
   it('gives an arrow its head, which is the only thing making it not a line', () => {

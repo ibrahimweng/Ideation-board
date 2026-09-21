@@ -25,6 +25,14 @@ import { store } from './store'
 const OVER = 2
 const CAP = 2048
 
+/* The ink the board is being looked at in.
+ *
+ * A picture has no theme to follow once it is pixels, so a drawing baked on a
+ * dark board is baked in the ink it was drawn in. That is the honest answer:
+ * you baked it while you were looking at it, so it bakes as it looked. */
+export const inkNow = (): string =>
+  getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#18181b'
+
 /* A piece of SVG markup as something a canvas will draw.
  *
  * Shared, because three things want it: baking a drawing into a card's own
@@ -45,7 +53,7 @@ export async function bake(it: Item): Promise<Blob | null> {
   const bw = it.w + pad * 2
   const bh = it.h + pad * 2
   const over = Math.min(OVER, CAP / Math.max(bw, bh))
-  const img = await svgImage(svgFor(it.shape, it.w, it.h, pad))
+  const img = await svgImage(svgFor(it.shape, it.w, it.h, pad, inkNow()))
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(bw * over))
   canvas.height = Math.max(1, Math.round(bh * over))

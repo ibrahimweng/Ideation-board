@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { store } from '../state/store'
+import { useOrder } from '../state/store'
 import { getEngine } from '../engine/client'
 import { describeSpace, measure, spaceNow, subscribeSpace, TIGHT as SPACE_TIGHT } from '../store/space'
 import type { Space } from '../store/space'
@@ -24,7 +24,16 @@ const TIGHT = 0.82
 
 export function Stats({ count }: { count: number }) {
   const [gpu, setGpu] = useState<{ textures: number; textureBytes: number } | null>(null)
-  const [items, setItems] = useState(0)
+  /* Subscribed rather than sampled.
+   *
+   * This number used to be read every second and a half off the same timer
+   * that asks the GPU how much memory it is using — so a card you had just
+   * put down went uncounted until the next tick, and a board you had just
+   * opened said nothing was on it. The two are not the same kind of question:
+   * the GPU and the disk are measurements, taken by asking, and what is on
+   * the board is a fact the store already tells everything else about the
+   * moment it changes. */
+  const items = useOrder().length
   const [space, setSpace] = useState<Space>(spaceNow)
   const [mirror, setMirror] = useState<MirrorState>(mirrorState)
 
@@ -37,7 +46,6 @@ export function Stats({ count }: { count: number }) {
     const engine = getEngine()
     engine.onStats = (s) => setGpu(s)
     const t = setInterval(() => {
-      setItems(store.count())
       engine.requestStats()
       void measure()
     }, 1500)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { store, useItem } from '../state/store'
-import { DASHES, DEFAULTS, SHAPES, settingOf } from '../state/shapes'
+import { DASHES, DEFAULTS, SHAPES, inksByDefault, settingOf, strokeChosen, strokeOf } from '../state/shapes'
 import type { Cap, Heads, Join, ShapeSpec } from '../state/shapes'
 import { rasterise, unrasterise } from '../state/raster'
 import { SWATCH } from '../state/types'
@@ -138,11 +138,48 @@ export function ShapePanel({ ids, id, say }: { ids: string[]; id: string; say: (
 
             <section className="fx-controls">
               <h4>Stroke</h4>
-              <Inks
-                value={settingOf(s, 'stroke')}
-                onPick={(c) => set({ stroke: c }, true)}
-                none="No line round it"
-              />
+              <div className="type-inks">
+                {/* A line nobody has given a colour follows the theme, which
+                    reads on a pale board and on a dark one. It is the default
+                    because a colour chosen for one ground is wrong on the
+                    other — which is exactly how a line arrived invisible on a
+                    dark board. Offered only on the kinds that are nothing but
+                    a line: on a rectangle, following the theme and having no
+                    line at all are the same answer. */}
+                {inksByDefault(kind) && (
+                  <button
+                    className="swatch-auto"
+                    data-on={(!strokeChosen(s) && strokeOf(s) !== null) || undefined}
+                    title="Follows the theme, so it reads on a pale board and on a dark one"
+                    onClick={() => set({ stroke: undefined }, true)}
+                  >
+                    Auto
+                  </button>
+                )}
+                <button
+                  className="swatch-auto"
+                  data-on={strokeOf(s) === null || undefined}
+                  title="No line round it"
+                  onClick={() => set({ stroke: null }, true)}
+                >
+                  None
+                </button>
+                {SWATCH.map((c) => (
+                  <button
+                    key={c}
+                    style={{ background: c }}
+                    data-on={(strokeChosen(s) && s.stroke === c) || undefined}
+                    onClick={() => set({ stroke: c }, true)}
+                  />
+                ))}
+                <label className="swatch-any" title="Any colour at all">
+                  <input
+                    type="color"
+                    value={(strokeChosen(s) && s.stroke) || '#2F6FEB'}
+                    onChange={(e) => set({ stroke: e.target.value })}
+                  />
+                </label>
+              </div>
               <Slider
                 label="Width"
                 min={0.5}

@@ -556,6 +556,73 @@ ok('a drawing shown full screen is drawn', !!staged && staged.length > 10, stage
 await page.keyboard.press('Escape')
 await page.waitForTimeout(600)
 
+/* ---------------------------------------------------------------------------
+ * The colour of a line, which is not a colour.
+ *
+ * This app made this mistake once, wrote state/type.ts about it, and made it
+ * again in the shapes: every line was born with `#18181B` on the record — the
+ * light theme's own ink, copied out of the stylesheet by hand — so every line
+ * on a dark board was near-black on near-black.
+ * ------------------------------------------------------------------------- */
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+await page.mouse.click(160, 830)
+await page.waitForTimeout(200)
+await pick('Line')
+await drag(200, 250, 420, 330)
+await page.waitForTimeout(300)
+
+/* What the line is really painted in, against the ground it is on. */
+const painted = () => page.evaluate(() => {
+  const path = [...document.querySelectorAll('.card[data-kind="shape"] svg path:not(.shape-hit)')].at(-1)
+  const lum = (c) => {
+    const [r, g, b] = (c.match(/\d+/g) || [0, 0, 0]).map(Number).map((v) => {
+      const n = v / 255
+      return n <= 0.03928 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const ink = lum(getComputedStyle(path).stroke)
+  const ground = lum(getComputedStyle(document.body).backgroundColor)
+  const hi = Math.max(ink, ground)
+  const lo = Math.min(ink, ground)
+  return { said: path.getAttribute('stroke'), contrast: Math.round(((hi + 0.05) / (lo + 0.05)) * 10) / 10 }
+})
+
+const onPale = await painted()
+ok('a line nobody has coloured says so rather than naming a colour', onPale.said === 'currentColor', onPale.said)
+ok('and reads against a pale board', onPale.contrast > 4, `${onPale.contrast}:1`)
+
+await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+await page.waitForTimeout(400)
+const onDark = await painted()
+ok('and against a dark one, which is the whole of the bug', onDark.contrast > 4, `${onDark.contrast}:1`)
+
+/* And a board saved before the colour was a choice comes back readable. */
+await page.evaluate(() => {
+  const el = [...document.querySelectorAll('.card[data-kind="shape"]')].at(-1)
+  window.__old = el.dataset.id
+})
+await page.evaluate(async (id) => {
+  const db = await new Promise((r) => { const q = indexedDB.open('ideation.board.db', 1); q.onsuccess = () => r(q.result) })
+  const store = db.transaction('boards', 'readwrite').objectStore('boards')
+  const all = await new Promise((r) => { const t = store.getAll(); t.onsuccess = () => r(t.result) })
+  for (const rec of all) {
+    for (const it of rec.items || []) if (it.id === id) it.shape = { ...it.shape, stroke: '#18181B' }
+    store.put(rec)
+  }
+}, await page.evaluate(() => window.__old))
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForTimeout(2200)
+await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+await page.waitForTimeout(400)
+const reopened = await painted()
+ok('a line drawn before the colour was a choice comes back readable on a dark board',
+   reopened.contrast > 4, `${reopened.contrast}:1, said ${reopened.said}`)
+await page.evaluate(() => document.documentElement.removeAttribute('data-theme'))
+await page.waitForTimeout(300)
+
 /* --- it is hit where it is painted --- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
@@ -621,9 +688,17 @@ const htmlFile = path.join(OUT, `shapes-${html.suggestedFilename()}`)
 await html.saveAs(htmlFile)
 await page.waitForTimeout(500)
 const written = fs.readFileSync(htmlFile, 'utf8')
-ok('the exported page carries a drawing as a drawing', /image%2Fsvg%2Bxml|image\/svg\+xml/.test(written))
-ok('and says it is one, so the page gives it no card to sit in', /"vec":true/.test(written))
-ok('and carries the path itself, not a photograph of it', /%3Cpath|<path/.test(written))
+/* The board is JSON inside the page, so its markup arrives escaped. */
+ok('the exported page carries a drawing as a drawing', /"svg":"\\u003csvg /.test(written))
+ok('and carries the path itself, not a photograph of it', /u003cpath d=/.test(written))
+ok('and gives it no card to sit in', /\.vec\{background:none/.test(written))
+/* Written into the page rather than handed to an <img> as data. An SVG in an
+   <img> is a document of its own and cannot see the page around it, so a line
+   nobody gave a colour would come out black on a page read in the dark. */
+ok('and writes it into the page rather than as a picture of itself',
+   /n\.innerHTML = it\.svg/.test(written) && !/image%2Fsvg/.test(written))
+ok('and lets the page decide what colour a line nobody coloured is',
+   written.includes('currentColor') && /\.vec\{[^}]*color:var\(--ink\)/.test(written))
 /* A drawing is a few hundred bytes. A picture of one is a few hundred
    thousand, and a board of forty would be a file nobody can send. */
 ok('and costs what a drawing costs', written.length < 4_000_000, `${Math.round(written.length / 1024)}kB`)

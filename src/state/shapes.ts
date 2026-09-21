@@ -120,15 +120,75 @@ export const DEFAULTS: Required<Pick<ShapeSpec, 'fill' | 'stroke' | 'width' | 'd
   turn: 0,
 }
 
+/* ---------------------------------------------------------------------------
+ * The line's colour, which is not a colour.
+ *
+ * This app has made this mistake once already and wrote a whole file about it.
+ * A label used to be made with `#111114` written into the record — a
+ * near-black, sensible on a pale board and invisible on a dark one, which is
+ * where it was imported. Text you cannot see is indistinguishable from text
+ * that did not arrive. See state/type.ts, which says all of this at length.
+ *
+ * Then the shapes arrived and every line, arrow and pen stroke was made with
+ * `#18181B` written into the record — which is not merely a near-black, it is
+ * the light theme's own `--ink`, copied out of the stylesheet by hand. A line
+ * you cannot see is indistinguishable from a line nobody drew.
+ *
+ * So the rule is the one that file already settled. A stroke nobody has
+ * chosen is not a colour at all: it is the absence of one, and the answer to
+ * it is the theme's own ink, which is right on either ground. A stroke
+ * somebody chose is kept exactly. And `null` stays a real answer, different
+ * from both: no line at all.
+ * ------------------------------------------------------------------------- */
+
+/* What every line was made with before the colour became a choice. Read as
+ * "nobody picked this" for the same reason `WAS_BAKED_IN` is: it costs
+ * anybody who deliberately wanted that near-black one press to say so again,
+ * and it means every line already on a dark board becomes visible the moment
+ * it is opened. */
+export const WAS_BAKED_IN = '#18181B'
+
+/* The kinds that are nothing but a line, so that having no stroke would be
+ * having nothing. Everything else is a shape with a fill, and no line round
+ * it is an ordinary thing to want. */
+const STROKED = new Set<ShapeKind>(['line', 'arrow', 'path'])
+
+/* Whether a kind is nothing but a line, so that saying nothing about its
+ * stroke means the theme's ink rather than no line at all. On everything
+ * else the two answers are the same and only one of them is worth offering. */
+export const inksByDefault = (kind: ShapeKind): boolean => STROKED.has(kind)
+
+/* The stroke to draw in, or null for no line at all.
+ *
+ * `ink` is what the caller draws its own text in. On the board that is
+ * `currentColor` and the browser works it out; anything making a picture —
+ * the bake, the board's poster — has to say, because a picture has no theme
+ * to follow afterwards. */
+export function strokeOf(spec: ShapeSpec, ink = 'currentColor'): string | null {
+  const said = spec.stroke
+  if (said === null) return null
+  if (said === undefined || said.toLowerCase() === WAS_BAKED_IN.toLowerCase()) {
+    return STROKED.has(spec.kind) ? ink : null
+  }
+  return said
+}
+
+/* Whether the stroke on this one is a colour somebody chose, which is what
+ * the swatch in the panel shows as selected. */
+export const strokeChosen = (spec: ShapeSpec): boolean =>
+  spec.stroke !== undefined && spec.stroke !== null &&
+  spec.stroke.toLowerCase() !== WAS_BAKED_IN.toLowerCase()
+
 /* A shape of this kind, with nothing said about it yet.
  *
  * A line and a path have no fill — a fill on an open squiggle is a shape
  * nobody drew — and an arrow has a head on it, since that is the only thing
- * that makes it an arrow rather than a line. */
+ * that makes it an arrow rather than a line. Neither says what colour its
+ * line is, because that is not a thing anybody has said yet. */
 export function specFor(kind: ShapeKind): ShapeSpec {
-  if (kind === 'line') return { kind, fill: null, stroke: '#18181B', width: 2 }
-  if (kind === 'arrow') return { kind, fill: null, stroke: '#18181B', width: 2, heads: 'end' }
-  if (kind === 'path') return { kind, fill: null, stroke: '#18181B', width: 2, nodes: [], closed: false }
+  if (kind === 'line') return { kind, fill: null, width: 2 }
+  if (kind === 'arrow') return { kind, fill: null, width: 2, heads: 'end' }
+  if (kind === 'path') return { kind, fill: null, width: 2, nodes: [], closed: false }
   if (kind === 'polygon') return { kind, sides: 6 }
   if (kind === 'star') return { kind, sides: 5, inner: 0.45 }
   if (kind === 'rect') return { kind, radius: 0 }
@@ -298,11 +358,12 @@ export function pathFor(spec: ShapeSpec, w: number, h: number): string {
 export const dashFor = (dash: string, width: number): string | undefined =>
   dash ? dash.trim().split(/\s+/).map((v) => Number(v) * width).join(' ') : undefined
 
-/* The attributes the path wants, as SVG names them. */
-export function paintOf(spec: ShapeSpec): Record<string, string> {
+/* The attributes the path wants, as SVG names them. `ink` is what an unsaid
+ * stroke comes out as — see `strokeOf`. */
+export function paintOf(spec: ShapeSpec, ink?: string): Record<string, string> {
   const width = settingOf(spec, 'width')
   const fill = settingOf(spec, 'fill')
-  const stroke = settingOf(spec, 'stroke')
+  const stroke = strokeOf(spec, ink)
   const dash = dashFor(settingOf(spec, 'dash'), width)
   return {
     fill: fill || 'none',
@@ -323,7 +384,7 @@ export function paintOf(spec: ShapeSpec): Record<string, string> {
  * is a circle with four flat sides. */
 export function outsetOf(spec: ShapeSpec): number {
   const width = settingOf(spec, 'width')
-  const half = settingOf(spec, 'stroke') ? width / 2 : 0
+  const half = strokeOf(spec) ? width / 2 : 0
   const head = settingOf(spec, 'heads') !== 'none' ? Math.max(4, width * 3.2) : 0
   return Math.ceil(Math.max(half * (settingOf(spec, 'join') === 'miter' ? 2.5 : 1), head))
 }
@@ -342,8 +403,8 @@ const attrs = (map: Record<string, string>) =>
  * cut off at the edges. What the caller does about the extra is the caller's
  * business — the picture says where the drawing is inside it by putting the
  * origin at the padding. */
-export function svgFor(spec: ShapeSpec, w: number, h: number, pad = 0): string {
-  const paint = paintOf(spec)
+export function svgFor(spec: ShapeSpec, w: number, h: number, pad = 0, ink?: string): string {
+  const paint = paintOf(spec, ink)
   const head = paint.stroke !== 'none' ? paint.stroke : paint.fill
   const heads = headsFor(spec, w, h)
     .map((d) => `<path d="${d}" fill="${esc(head)}"/>`)
