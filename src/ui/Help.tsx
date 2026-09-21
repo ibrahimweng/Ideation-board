@@ -125,6 +125,52 @@ function parts(): Part[] {
             stays in this browser — it is never sent anywhere but Google, never written into a board, and
             never included in an export. The pictures cost whatever Google charges you.
           </p>
+          <p>
+            Hold <K>Alt</K> and drag anything to leave the original where it is and drag a copy —
+            a card, a drawing, a section with everything in it, or a whole selection at once. The
+            copy is made the moment the drag starts moving, so <K>Alt</K> and a click is still a
+            click.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: 'drawing',
+      title: 'Drawing',
+      body: (
+        <>
+          <p>
+            Two buttons on the rail hold nine tools between them, each with the one you used last
+            on it and the rest behind the corner mark. <K>{KEYS.shape.hint}</K> walks the shapes —
+            rectangle, ellipse, polygon, star, line, arrow — and <K>{KEYS.pen.hint}</K> walks the
+            pens, and pressing past the last one puts the tool down again. Four of them are dragged
+            out as a box and two between their two ends; <K>Shift</K> keeps whichever you are
+            drawing regular, so a rectangle is a square, an ellipse is a circle and a line holds to
+            an eighth of a turn. What is under the pointer while you drag is the shape itself
+            rather than a box round where it will be.
+          </p>
+          <p>
+            The three pens place points rather than dragging a box. The Pen puts a corner down with
+            each press and pulls a curve out of it if you drag; the Curvature tool runs a curve
+            through every point you give it; the Pencil follows your hand and tidies the stroke up
+            afterwards. Press back on the first point to close the path, on the last to leave it
+            open, or press <K>Enter</K> or <K>Esc</K> to finish.
+          </p>
+          <p>
+            Double-click a drawing to move its points about: drag an anchor, drag a handle to shape
+            the curve, hold <K>Alt</K> on a handle to break the pair, drag the line itself to bend
+            it, double-click the line to put a point on it, hold <K>Alt</K> on an anchor to take one
+            away, and double-click an anchor to turn a corner smooth and back. <K>Esc</K> puts them
+            away again.
+          </p>
+          <p>
+            A drawing is a handful of numbers rather than pixels, so it is exact at any zoom and
+            costs the same however big you draw it — and there is nothing for a shader to read.
+            The panel on the right sets its fill, its line, the dash, the corners, how many sides,
+            and where it is on the board to the pixel; at the bottom of it, <strong>Bake into a
+            picture</strong> turns it into pixels so every effect on this board applies. The
+            numbers stay, so one press brings the drawing back.
+          </p>
         </>
       ),
     },
@@ -151,10 +197,10 @@ function parts(): Part[] {
             go to bring it back.
           </p>
           <p>
-            A card crops what is on it. Hold <K>Alt</K> and drag a picture to push it around inside
-            its card, or <K>Alt</K> and scroll to scale it — the same two numbers the Frame sliders
-            write, done by hand. Framing belongs to the one photograph, so it is the one thing a
-            saved look never carries.
+            A card crops what is on it. Hold <K>Shift</K> <K>Alt</K> and drag a picture to push it
+            around inside its card, or <K>Alt</K> and scroll to scale it — the same two numbers the
+            Frame sliders write, done by hand. Framing belongs to the one photograph, so it is the
+            one thing a saved look never carries.
           </p>
           <p>
             <K>{KEYS.vary.hint}</K> on a picture puts twelve versions of it underneath — a different
@@ -309,8 +355,8 @@ function parts(): Part[] {
         <>
           <p>
             Drop a <strong>.glb</strong> or <strong>.gltf</strong> and you get a card showing the
-            model, not a grey rectangle with three letters on it. Hold <K>Alt</K> and drag it to
-            turn it round, <K>Alt</K> and scroll to move in and out; where you leave it is where it
+            model, not a grey rectangle with three letters on it. Hold <K>Shift</K> <K>Alt</K> and
+            drag it to turn it round, <K>Alt</K> and scroll to move in and out; where you leave it is where it
             is next time you open the board. From there it is a picture like any other — every
             effect works on it, it exports, and it gives up its colours to the palette.
           </p>

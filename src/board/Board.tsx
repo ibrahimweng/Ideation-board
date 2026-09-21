@@ -216,17 +216,21 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     paintTransform()
   }, [paintTransform])
 
-  /* While Alt is down, a picture says it can be pushed around. A cursor is the
+  /* What the modifiers say they will do, under the pointer. A cursor is the
    * only way a modifier gesture ever announces itself; without one it is a
-   * feature you have to be told about. */
+   * feature you have to be told about — and there are two of them here now,
+   * one key apart, so saying which is which matters more than it did.
+   *
+   * Alt on anything: a copy. Shift and alt on a picture: push it around
+   * inside its card. */
   useEffect(() => {
-    const set = (on: boolean) => {
-      if (on) document.body.setAttribute('data-framable', '')
-      else document.body.removeAttribute('data-framable')
+    const set = (alt: boolean, shift: boolean) => {
+      document.body.toggleAttribute('data-copying', alt && !shift)
+      document.body.toggleAttribute('data-framable', alt && shift)
     }
-    const down = (e: KeyboardEvent) => set(e.altKey)
-    const up = (e: KeyboardEvent) => set(e.altKey)
-    const off = () => set(false)
+    const down = (e: KeyboardEvent) => set(e.altKey, e.shiftKey)
+    const up = (e: KeyboardEvent) => set(e.altKey, e.shiftKey)
+    const off = () => set(false, false)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     /* A modifier held while the window goes away never sends its keyup. */
@@ -235,7 +239,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', off)
-      set(false)
+      set(false, false)
     }
   }, [])
 
@@ -630,11 +634,18 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     if (toolNow()) return
     e.stopPropagation()
 
-    /* Alt and drag pushes the picture around inside its card instead of moving
-       the card. It goes first because it is the one gesture here that must not
-       raise, marquee, open a menu or take a long press: it is one card being
-       looked at, and nothing else should happen while it is. */
-    if (e.altKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
+    /* Shift and alt and drag pushes the picture around inside its card
+       instead of moving the card. It goes first because it is the one gesture
+       here that must not raise, marquee, open a menu or take a long press: it
+       is one card being looked at, and nothing else should happen while it
+       is.
+     *
+     * It used to be alt alone. Alt alone is what every drawing program made
+     * ever means by "copy this", which is what it means here now, and a
+     * gesture that is universal outside this app should not be spent on
+     * something only this app does. Alt and scroll still scales a picture in
+     * its card, because nothing else wanted the wheel. */
+    if (e.altKey && e.shiftKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
       holdPress()
       /* The panel follows what you are framing, but a selection you built on
          purpose is not thrown away to do it. */
@@ -703,11 +714,14 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     const z = store.peekView().z || 1
     const startX = e.clientX
     const startY = e.clientY
-    const origin = new Map(ids.map((i) => [i, { ...store.getItem(i)! }]))
+    /* Three of these are not const, because alt turns this drag into a drag
+       of a copy at the moment it starts moving, and from then on it is the
+       copies that are being moved, re-tested and lined up. */
+    let origin = new Map(ids.map((i) => [i, { ...store.getItem(i)! }]))
     /* Only what was dragged directly is re-tested against the sections.
      * Something that moved because its section moved is still in that
      * section, wherever the section went. */
-    const testable = selected.filter((i) => !carried.has(i) && !isSection(store.getItem(i)))
+    let testable = selected.filter((i) => !carried.has(i) && !isSection(store.getItem(i)))
     let moved = false
     let highlight: string | null = null
     const engine = getEngine()
@@ -717,9 +731,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     const dragging = new Set(ids)
     /* Only what is on screen: a card should not be pulled onto the edge of
      * something nobody can see, and it keeps the work per frame bounded. */
-    const lines: Guides = guidesFrom(
-      store.all().filter((i) => !dragging.has(i.id) && !isWire(i) && intersects(i, rectRef.current))
-    )
+    const linesFor = (set: Set<string>): Guides =>
+      guidesFrom(store.all().filter((i) => !set.has(i.id) && !isWire(i) && intersects(i, rectRef.current)))
+    let lines: Guides = linesFor(dragging)
     const boxes = [...origin.values()]
     const startBox = {
       x: Math.min(...boxes.map((b) => b.x)),
@@ -767,7 +781,31 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       if (!moved && Math.hypot(dx, dy) < 2) return
       if (!moved) {
         held.cancel()
-        store.beginGesture()
+        /* Alt and drag leaves the original where it is and drags a copy: the
+           gesture every drawing program made in thirty years means by "one
+           more of these", and what this board means by it now.
+         *
+         * At the first movement rather than at the press, so alt and a click
+         * is still a click. On the press it would lay a copy exactly on top
+         * of the card you meant to click on, and you would find out about it
+         * later.
+         *
+         * The copy inherits the drag whole: it is what is selected, what
+         * moves, what gets re-tested against the sections, and what the
+         * guides line up — and the guides are worked out again, because the
+         * original is something to line the copy up against now. */
+        const copies = ev.altKey ? store.duplicate(selected, 0, 0) : []
+        if (copies.length) {
+          store.select(copies)
+          const set = store.dragSet(copies)
+          origin = new Map(set.ids.map((i) => [i, { ...store.getItem(i)! }]))
+          testable = copies.filter((i) => !set.carried.has(i) && !isSection(store.getItem(i)))
+          lines = linesFor(new Set(set.ids))
+        } else {
+          /* A copy takes its own snapshot on the way in, so this is for the
+             drags that are only a move. */
+          store.beginGesture()
+        }
         /* A card that is moving is a card you are already looking at, so its
            name plate stands down until the drag ends. */
         document.body.dataset.dragging = 'card'

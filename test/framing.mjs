@@ -129,13 +129,16 @@ const grip = (id) =>
 
 async function dragOn(id, dx, dy, { alt = false } = {}) {
   const at = await grip(id)
-  if (alt) await page.keyboard.down('Alt')
+  /* Shift and alt now, because alt alone makes a copy: alt is what every
+     drawing program means by "one more of these", so pushing a picture
+     around inside its card asks for one key more. */
+  if (alt) { await page.keyboard.down('Shift'); await page.keyboard.down('Alt') }
   await page.mouse.move(at.x, at.y)
   await page.mouse.down()
   await page.mouse.move(at.x + dx / 2, at.y + dy / 2, { steps: 4 })
   await page.mouse.move(at.x + dx, at.y + dy, { steps: 4 })
   await page.mouse.up()
-  if (alt) await page.keyboard.up('Alt')
+  if (alt) { await page.keyboard.up('Alt'); await page.keyboard.up('Shift') }
   await page.waitForTimeout(400)
 }
 
@@ -222,6 +225,8 @@ check('and does not throw the selection away to do it',
 
 const z0 = await zoomOf(A)
 const at = await grip(A)
+/* The wheel is still alt alone: nothing else wanted it, and shift and the
+   wheel is how a browser scrolls sideways. */
 await page.keyboard.down('Alt')
 await page.mouse.move(at.x, at.y)
 await page.mouse.wheel(0, -240)
@@ -258,16 +263,30 @@ await page.waitForSelector('.card[data-kind="note"]', { timeout: 8000 })
 await page.waitForTimeout(600)
 const note = await page.evaluate(() => document.querySelector('.card[data-kind="note"]').dataset.id)
 const noteBefore = await shape(note)
+const notesBefore = await page.evaluate(() => document.querySelectorAll('.card[data-kind="note"]').length)
 await dragOn(note, 50, 30, { alt: true })
 const noteAfter = await shape(note)
+const notesAfter = await page.evaluate(() => document.querySelectorAll('.card[data-kind="note"]').length)
+/* Alt alone is a copy now, on a note as on anything else, so the note this
+   drag started on is the one that stays put and the new one is the one that
+   went. Shift and alt would have framed it if there were anything in it to
+   frame; there is not, so it would have moved the card. */
+check('Alt and a drag on a note leaves the note and takes a copy',
+  notesAfter === notesBefore + 1 && noteAfter.x === noteBefore.x && noteAfter.y === noteBefore.y,
+  `${notesBefore} -> ${notesAfter} notes, and it stayed at ${noteAfter.x},${noteAfter.y}`)
+
+const copied = await page.evaluate((was) =>
+  [...document.querySelectorAll('.card[data-kind="note"]')].map((el) => {
+    const t = el.style.transform.match(/translate3d\(([-\d.]+)px,\s*([-\d.]+)px/)
+    return { id: el.dataset.id, x: t ? Math.round(+t[1]) : 0, y: t ? Math.round(+t[2]) : 0 }
+  }).find((c) => c.id !== was), note
+)
 /* Within a few pixels of the drag, not to the pixel: a card being dragged
-   lines itself up with the ones already on the board, so a note that comes to
-   rest two pixels short has snapped to an edge rather than failed to move.
-   What is being asked here is whether the drag moved the card at all, or was
-   swallowed by the framing gesture. */
-check('Alt and a drag on a note moves the note, because there is nothing in it to frame',
-  Math.abs(noteAfter.x - noteBefore.x - 50) <= 8 && Math.abs(noteAfter.y - noteBefore.y - 30) <= 8,
-  `${noteBefore.x},${noteBefore.y} -> ${noteAfter.x},${noteAfter.y}`)
+   lines itself up with the ones already on the board, so one that comes to
+   rest two pixels short has snapped to an edge rather than failed to move. */
+check('and the copy is where the drag ended',
+  !!copied && Math.abs(copied.x - noteBefore.x - 50) <= 8 && Math.abs(copied.y - noteBefore.y - 30) <= 8,
+  `${noteBefore.x},${noteBefore.y} -> ${copied?.x},${copied?.y}`)
 
 /* ---------- and it says it is there ---------- */
 
@@ -279,16 +298,23 @@ check('the panel says the gesture exists, since nothing else would',
   /alt/i.test(await page.locator('.fx-hint').first().innerText()),
   await page.locator('.fx-hint').first().innerText())
 
-await page.keyboard.down('Alt')
-await page.waitForTimeout(300)
-const cursor = await page.evaluate(
-  (cid) => getComputedStyle(document.querySelector(`.card[data-id="${cid}"]`)).cursor,
-  A
-)
-await page.keyboard.up('Alt')
-await page.waitForTimeout(300)
-check('and a picture says so under the pointer while Alt is down', cursor === 'grab', cursor)
-check('and stops saying it when Alt is let go', await page.evaluate(
+const cursorOn = async (keys) => {
+  for (const k of keys) await page.keyboard.down(k)
+  await page.waitForTimeout(300)
+  const c = await page.evaluate(
+    (cid) => getComputedStyle(document.querySelector(`.card[data-id="${cid}"]`)).cursor,
+    A
+  )
+  for (const k of [...keys].reverse()) await page.keyboard.up(k)
+  await page.waitForTimeout(300)
+  return c
+}
+const cursor = await cursorOn(['Shift', 'Alt'])
+check('and a picture says so under the pointer while Shift and Alt are down', cursor === 'grab', cursor)
+/* The two are one key apart now, so each has to say which it is. */
+const copying = await cursorOn(['Alt'])
+check('and Alt on its own says a copy instead', copying === 'copy', copying)
+check('and stops saying either when the keys are let go', await page.evaluate(
   (cid) => getComputedStyle(document.querySelector(`.card[data-id="${cid}"]`)).cursor !== 'grab', A
 ))
 

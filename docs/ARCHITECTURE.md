@@ -216,6 +216,30 @@ The traits are about capability rather than category — not "is it a picture"
 but "does it have pixels of its own that can be read" — because that is what
 the caller actually wants to know before it tries.
 
+`shapes.ts` is the vector layer, and it is pure: numbers in, a `d` string out.
+It knows nothing about the DOM, which is what lets the awkward parts be checked
+without a browser — the corner radius clamped at half the shortest side, the
+star whose points must alternate, Ramer–Douglas–Peucker turning two hundred
+sampled positions into eight without the stroke moving, Catmull-Rom passing
+through every point it was given, and the arithmetic of bending a segment to
+put it under the pointer. Points are held as fractions of the card's box rather
+than as lengths, which is the claim the whole design rests on: scaling the card
+scales the drawing, for nothing, and the group scaling built for a selection of
+forty works on a drawing without knowing what one is. Arrowheads are filled
+triangles rather than SVG markers, because a marker needs an id and an id has
+to be unique across a document — which breaks the moment forty cards are on one
+board and again when they are all written into one exported page.
+
+`board/drawing.ts` is the other half: the gesture, turned into a shape. Which
+way round the drag went, what Shift means to this tool, how a line drawn dead
+across gets a box tall enough to hold its own stroke, and how a run of points
+placed over several seconds finds out afterwards what box it was placed on.
+Also pure, and unit-tested. `board/Nodes.tsx` is the overlay that moves those
+points about, and `raster.ts` is the door out of the vector layer: the same SVG
+the board draws, rendered once into a picture and hung on the card the way a
+document hangs its page. The numbers stay on the record, so it is a door rather
+than a cliff.
+
 `ids.ts` is the other list of that shape: which fields on a card hold another
 card's id. Three places copy cards and have to repoint them — importing a
 board, duplicating a selection, cloning a board — and each used to carry its

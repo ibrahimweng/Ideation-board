@@ -54,6 +54,7 @@
     "test:compare": "node test/compare.mjs",
     "test:draw": "node test/draw.mjs",
     "test:shapes": "node test/shapes.mjs",
+    "test:copies": "node test/copies.mjs",
     "test:mcp": "node test/mcp.mjs",
     "test:moving": "node test/moving.mjs",
     "test:embed": "node test/embed.mjs",

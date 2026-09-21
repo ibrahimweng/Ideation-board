@@ -491,7 +491,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                 boxes, and the gesture that does it properly is a modifier
                 drag, which announces itself to nobody. So it is said here,
                 next to the two numbers it writes. */}
-            <p className="fx-hint">Alt-drag the picture to move it in its card, Alt-scroll to scale it.</p>
+            <p className="fx-hint">Shift-Alt-drag the picture to move it in its card, Alt-scroll to scale it.</p>
             <Slider label="Zoom" def={ADJUST_0.zoom} min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
             <Slider label="Offset X" def={ADJUST_0.ox} min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
             <Slider label="Offset Y" def={ADJUST_0.oy} min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
@@ -724,7 +724,7 @@ function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: str
     <>
       <section className="fx-controls">
         <h4>View</h4>
-        <p className="fx-hint">Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
+        <p className="fx-hint">Shift-Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
         <Slider label="Turn" def={STAGE_0.yaw} min={-180} max={180} step={1} unit={DEG} value={stage.yaw} onChange={(v) => set({ yaw: v })} />
         <Slider label="Tilt" def={STAGE_0.pitch} min={-PITCH} max={PITCH} step={1} unit={DEG} value={stage.pitch} onChange={(v) => set({ pitch: v })} />
         <Slider label="Distance" def={STAGE_0.dist} min={DIST.min} max={DIST.max} step={0.05} value={stage.dist} onChange={(v) => set({ dist: v })} />
