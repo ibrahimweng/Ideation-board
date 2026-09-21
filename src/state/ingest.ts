@@ -11,6 +11,8 @@ import { ensureSource, markReady } from '../board/sources'
 import { getEngine } from '../engine/client'
 import { classifyUrl, fetchImage, probeVideo, hostOf } from './urls'
 import { store } from './store'
+import { MIN_BOX, SHAPES } from './shapes'
+import type { ShapeSpec } from './shapes'
 
 /* ---------------------------------------------------------------------------
  * Turning dropped files into board items.
@@ -449,6 +451,23 @@ export function textItem(at: { x: number; y: number }, box?: { w: number; h: num
        press away in the panel, and a board of headings is not what somebody
        drawing a text box across a board is after. */
     type: { size: 24, weight: 400, leading: 1.3 },
+  }
+}
+
+/* A drawing, at the size it was drawn.
+ *
+ * The spec is the card. What is written down is the kind, its numbers and its
+ * paint; the picture is worked out from those every time it is looked at,
+ * which is why a shape is crisp at any zoom and costs the same handful of
+ * bytes however big it is drawn. */
+export function shapeItem(at: { x: number; y: number }, box: { w: number; h: number }, spec: ShapeSpec): Item {
+  return {
+    id: newId(), kind: 'shape', x: Math.round(at.x), y: Math.round(at.y), z: 0,
+    w: Math.max(MIN_BOX, Math.round(box.w)),
+    h: Math.max(MIN_BOX, Math.round(box.h)),
+    shape: spec,
+    name: SHAPES.find((s) => s.kind === spec.kind)?.name || 'Shape',
+    fx: { ...FX_0 }, tag: null,
   }
 }
 

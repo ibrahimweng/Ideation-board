@@ -201,3 +201,87 @@ export const IconEye = ({ className }: P) => (
     <circle cx="8" cy="8" r="1.9" />
   </Svg>
 )
+
+/* The corner mark on a tool group: a small triangle saying there are more of
+   these behind this one, which is what that corner has meant in every drawing
+   program for thirty years. Filled and tiny rather than a 16-grid stroke,
+   because it is a mark rather than a picture — but still an element, so a
+   button that carries it is a button with something in it. */
+export const IconMore = ({ className }: P) => (
+  <svg viewBox="0 0 8 8" width="8" height="8" fill="currentColor" className={className} aria-hidden="true" focusable="false">
+    <path d="M8 1v7H1Z" />
+  </svg>
+)
+
+/* ---------------------------------------------------------------------------
+ * The shapes, and the three pens.
+ *
+ * Each one is the thing itself rather than a picture of a tool, because the
+ * thing itself is unmistakable at 16 pixels and a tiny nib is not. The two
+ * pens that are not the shape they make are the exception, and they are the
+ * two whose gesture is the point: one places points, one follows the hand.
+ * ------------------------------------------------------------------------- */
+
+export const IconRect = (p: P) => (
+  <Svg {...p}>
+    <rect x="2.2" y="3.4" width="11.6" height="9.2" rx="1.4" />
+  </Svg>
+)
+
+export const IconEllipse = (p: P) => (
+  <Svg {...p}>
+    <ellipse cx="8" cy="8" rx="5.9" ry="5.9" />
+  </Svg>
+)
+
+export const IconPolygon = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2.1 13.1 5v6L8 13.9 2.9 11V5Z" />
+  </Svg>
+)
+
+export const IconStar = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2.1l1.79 3.63 4.01.58-2.9 2.83.68 3.99L8 11.25l-3.58 1.88.68-3.99-2.9-2.83 4.01-.58Z" />
+  </Svg>
+)
+
+export const IconLine = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.6 13.4 13.4 2.6" />
+  </Svg>
+)
+
+export const IconArrow = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.6 13.4 13.4 2.6M8.6 2.6h4.8v4.8" />
+  </Svg>
+)
+
+/* The pen: a run of points with the line drawn through them, and the two
+   handles that bend it. */
+export const IconPen = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.4 12.2c2.4 0 3.4-8 5.6-8s3.2 8 5.6 8" />
+    <circle cx="2.4" cy="12.2" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="4.2" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="13.6" cy="12.2" r="1.1" fill="currentColor" stroke="none" />
+  </Svg>
+)
+
+/* The curvature tool: the same points, with the curve running through them
+   rather than being bent to. */
+export const IconCurve = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.3 10.8c1.5-5.6 4-7.2 5.7-4.4s3.2 4.4 5.7-1.3" />
+    <circle cx="8" cy="6.4" r="1.1" fill="currentColor" stroke="none" />
+  </Svg>
+)
+
+/* The pencil: a stroke the hand made, nib and all. */
+export const IconPencil = (p: P) => (
+  <Svg {...p}>
+    <path d="M11.1 2.6 13.4 4.9 5.6 12.7l-3 .7.7-3Z" />
+    <path d="M9.6 4.1l2.3 2.3" />
+  </Svg>
+)

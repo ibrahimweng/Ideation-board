@@ -1,5 +1,8 @@
 import { store } from '../state/store'
-import { armTool } from '../board/tool'
+import { GROUPS, TOOL_HINT, TOOL_NAME, armShape, armTool, groupOf } from '../board/tool'
+
+/* Every shape tool, in the order the rail offers them. */
+const SHAPE_TOOLS = [...GROUPS.shape, ...GROUPS.pen]
 import { isSection, isWire, hasPixels } from '../state/kinds'
 import { isSound } from '../state/sounds'
 import type { Item } from '../state/types'
@@ -101,6 +104,16 @@ export function buildCommands(a: CommandActions): Command[] {
       keywords: 'type font typography heading title body write artboard',
     }),
     cmd('add.section', 'Draw a section around things', 'Add', () => armTool('section'), { hint: KEYS.section.hint, keywords: 'group area frame region' }),
+    /* Every shape tool by name, so a rectangle can be found by typing
+       "rectangle" rather than by knowing which corner mark it lives behind.
+       Nine lines from one list, which is also what keeps them from drifting
+       out of step with the rail. */
+    ...SHAPE_TOOLS.map((t) =>
+      cmd(`add.${t}`, TOOL_HINT[t], 'Add', () => armShape(t), {
+        hint: KEYS[groupOf(t)].hint,
+        keywords: `shape vector draw svg ${TOOL_NAME[t].toLowerCase()} ${t}`,
+      })
+    ),
     cmd('add.board', 'Board inside this one', 'Add', () => a.addBoard(at()), { hint: KEYS.board.hint, keywords: 'nested folder' }),
     cmd('add.link', 'Link or video URL', 'Add', () => a.askForLink(), { hint: KEYS.link.hint, keywords: 'url youtube vimeo paste' }),
     cmd('add.draw', 'Draw a picture from a prompt', 'Add', () => a.draw(), { hint: KEYS.draw.hint, keywords: 'ai generate image imagine gemini imagen prompt make' }),

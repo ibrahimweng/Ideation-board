@@ -210,12 +210,14 @@ const card = await page.locator('.card[data-kind="model"]').boundingBox()
 const mid = { x: card.x + card.width / 2, y: card.y + card.height / 2 }
 
 await page.mouse.move(mid.x, mid.y)
+await page.keyboard.down('Shift')
 await page.keyboard.down('Alt')
 await page.mouse.down()
 /* 0.55 degrees a pixel, so this is a little over half a turn. */
 await page.mouse.move(mid.x + 330, mid.y, { steps: 22 })
 await page.mouse.up()
 await page.keyboard.up('Alt')
+await page.keyboard.up('Shift')
 await page.waitForTimeout(4000)
 
 const turnedStage = (await saved())?.stage

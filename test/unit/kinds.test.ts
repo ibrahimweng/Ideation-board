@@ -6,7 +6,7 @@ import { FX_0 } from '../../src/engine/types'
 /* The table is the one place a new kind of card is described. These check that
  * it stays a description rather than drifting into a list of exceptions. */
 
-const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'model', 'sketch', 'edge']
+const KINDS: Kind[] = ['image', 'video', 'audio', 'note', 'link', 'file', 'label', 'section', 'embed', 'board', 'pdf', 'design', 'model', 'sketch', 'edge', 'shape']
 const of = (kind: Kind, extra: Partial<Item> = {}): Item =>
   ({ id: 'i', kind, x: 0, y: 0, z: 0, w: 10, h: 10, fx: { ...FX_0 }, tag: null, ...extra } as Item)
 
@@ -50,6 +50,25 @@ describe('the questions', () => {
     /* The player's pixels belong to the provider. */
     expect(hasPixels(of('embed'))).toBe(false)
     expect(hasPixels(of('note'))).toBe(false)
+  })
+
+  it('says a drawing has no pixels until somebody bakes it some', () => {
+    /* The one question the kind does not settle on its own. A shape is drawn
+       from numbers every time it is looked at, so until it has been baked
+       there is nothing for a shader to run on, nothing to pull colours out
+       of and nothing to make a depth map from. */
+    expect(hasPixels(of('shape'))).toBe(false)
+    expect(hasPixels(of('shape', { poster: 'p' }))).toBe(true)
+    /* And it can still wear a look either way, because tone is applied to
+       the box rather than to the pixels. */
+    expect(isGradeable(of('shape'))).toBe(true)
+    expect(isThing(of('shape'))).toBe(true)
+    expect(holdsMedia(of('shape'))).toBe(false)
+  })
+
+  it('finds a baked drawing beside itself, the way a document is found', () => {
+    expect(pixelKey(of('shape', { poster: 'p' }))).toBe('p')
+    expect(pixelKey(of('shape'))).toBeUndefined()
   })
 
   it('knows what can wear a look, which is wider', () => {

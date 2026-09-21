@@ -8,6 +8,7 @@ import { GRAIN_URL } from '../board/grain'
 import { RichText } from '../board/RichText'
 import { hostOf } from '../state/urls'
 import { canShade, isStill, pixelKey } from '../state/kinds'
+import { ShapeArt } from '../board/ShapeArt'
 import { inkOn } from '../state/palette'
 
 /* ---------------------------------------------------------------------------
@@ -37,8 +38,16 @@ export function fitStage(item: Item, maxW: number, maxH: number) {
 }
 
 export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: number; h: number }; tag?: string }) {
+  /* The file the card holds — a video to play, a sound to listen to. */
   const [url, setUrl] = useState<string | null>(null)
-  const ready = useSourceReady(item.kind === 'image' ? item.media : undefined)
+  /* And the pixels it shows, which are not always the same thing: a video,
+     a document, a model, a sketch and a baked drawing all keep a picture
+     beside the file rather than in it. Asked of `pixelKey` rather than read
+     off `media`, which is what put a PDF's own bytes into an <img> and drew
+     nothing at all full screen. */
+  const [still, setStill] = useState<string | null>(null)
+  const pixels = pixelKey(item)
+  const ready = useSourceReady(isStill(item) ? pixels : undefined)
 
   useEffect(() => {
     let live = true
@@ -51,6 +60,18 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
       live = false
     }
   }, [item.media])
+
+  useEffect(() => {
+    let live = true
+    if (!pixels) {
+      setStill(null)
+      return
+    }
+    void urlForKey(pixels).then((u) => live && setStill(u))
+    return () => {
+      live = false
+    }
+  }, [pixels])
 
   const fx = item.fx
   const filter = adjustCSS(fx)
@@ -75,11 +96,18 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
                 distance={0}
                 className="present-media"
               />
-            ) : url ? (
-              <img className="present-media" src={url} alt={item.name || ''} draggable={false} />
+            ) : still ? (
+              <img className="present-media" src={still} alt={item.name || ''} draggable={false} />
             ) : (
               <div className="present-media" />
             ))}
+
+          {/* A drawing that has not been baked has no picture to show, so it
+              is drawn — the same component the board draws it with, at the
+              size the stage gave it. */}
+          {item.kind === 'shape' && !item.poster && (
+            <ShapeArt spec={item.shape} w={box.w} h={box.h} className="present-media" />
+          )}
 
           {item.kind === 'video' &&
             (url || item.url ? (

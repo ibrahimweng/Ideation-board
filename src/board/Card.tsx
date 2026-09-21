@@ -14,9 +14,11 @@ import { useDrawing } from '../state/generate'
 import { useMoves } from './moving'
 import { holdPress } from './press'
 import { startWriting, stopWriting, useWriting } from './writing'
+import { editNodes, hasNodes, useEditing } from './editing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { RichText } from './RichText'
+import { ShapeArt } from './ShapeArt'
 import { todoCount } from '../state/rich'
 import { canShade, hasPixels, isStill, pixelKey, isKnownKind } from '../state/kinds'
 import { inkOf, isText, typeStyle } from '../state/type'
@@ -61,7 +63,7 @@ export const Card = memo(function Card({
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
   const pageUrl = useObjectURL(
-    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch'
+    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch' || it?.kind === 'shape'
       ? it?.poster
       : undefined
   )
@@ -95,6 +97,10 @@ export const Card = memo(function Card({
   useEffect(() => { loadFamily(font) }, [font])
   /* Whether the words on this card are being typed on the board itself. */
   const writing = useWriting() === id
+  /* And whether its points are being moved about, which puts its own corner
+     handles away: four handles that stretch the whole thing and an anchor on
+     every point are two different jobs and must not be on screen at once. */
+  const editing = useEditing() === id
 
   if (!it) return null
 
@@ -171,6 +177,77 @@ export const Card = memo(function Card({
           </div>
         </div>
         {selected && !dim && !grouped && <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />}
+      </>
+    )
+  }
+
+  /* A drawing.
+   *
+   * Not a card with a picture on it: the shape is the card. There is no
+   * ground, no border and no name across the top, because a rectangle you
+   * drew should look like a rectangle rather than like a rectangle in a
+   * frame — and because the whole point of it being vector is that the
+   * browser draws it afresh at whatever zoom the board is at.
+   *
+   * It is also hit where it is painted rather than anywhere in its box, which
+   * is what lets you press through the middle of a ring onto the photograph
+   * underneath, and what stops a big transparent circle swallowing every
+   * press that lands inside it. */
+  if (it.kind === 'shape') {
+    return (
+      <>
+        <div
+          className="card card-shape"
+          data-id={id}
+          style={{ ...shell, ...(filter && !it.poster ? { filter } : null) }}
+          data-kind={it.kind}
+          data-baked={it.poster ? '' : undefined}
+          data-sel={selected || undefined}
+          data-dim={dim || undefined}
+          data-pick={it.pick || undefined}
+          onPointerDown={(e) => onPointerDown(e, id)}
+          onContextMenu={(e) => onContextMenu(e, id)}
+          /* Twice on a drawing opens its points, which is what twice on a
+             thing you can get inside means everywhere else on this board. */
+          onDoubleClick={() => (hasNodes(it) ? editNodes(id) : onOpenEditor(id))}
+        >
+          {/* Baked, it is a picture like any other and goes down the same
+              road: the shader when one is applied, the plain picture when
+              none is. Unbaked, the browser draws it from the numbers. */}
+          {it.poster ? (
+            effected && ready ? (
+              <FxCanvas
+                id={id}
+                mediaKey={it.poster}
+                effectId={fx.fxid}
+                n={fx.n}
+                params={fx.ep}
+                more={fx.more}
+                seed={hashSeed(id)}
+                w={it.w}
+                h={it.h}
+                distance={distance}
+                className="media"
+              />
+            ) : (
+              pageUrl && (
+                <img className="media" src={pageUrl} alt={it.name || 'Shape'} draggable={false} style={filter ? { filter } : undefined} />
+              )
+            )
+          ) : (
+            <ShapeArt spec={it.shape} w={it.w} h={it.h} hit />
+          )}
+          {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
+          {it.pick && (
+            <i className="card-pick" data-pick={it.pick} title={it.pick === 'in' ? 'Kept' : 'Cut'}>
+              {it.pick === 'in' ? <TickIcon /> : <CrossIcon />}
+            </i>
+          )}
+        </div>
+        {!dim && !editing && <Ports id={id} x={it.x} y={it.y} w={it.w} h={it.h} />}
+        {selected && !dim && !grouped && !editing && (
+          <Handles id={id} x={it.x} y={it.y} w={it.w} h={it.h} onContextMenu={onContextMenu} />
+        )}
       </>
     )
   }

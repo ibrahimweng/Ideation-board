@@ -38,6 +38,11 @@ export interface PageItem {
   /* A baked picture, as data. */
   img?: string
   alt?: string
+  /* A drawing rather than a photograph. It comes out as an SVG in the same
+     <img>, which draws crisply at whatever the page is zoomed to and costs a
+     few hundred bytes instead of a few hundred kilobytes — and it has no card
+     under it, here as on the board. */
+  vec?: boolean
   /* A note, already turned into markup. */
   html?: string
   /* A sound, as data, with the shape of it: the same peaks the card on the
@@ -122,6 +127,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .c{position:absolute;border-radius:10px;opacity:var(--op,1)}
 .thing{background:var(--surface);box-shadow:var(--sh);overflow:hidden}
 .thing img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+/* A drawing has no card under it, on the page as on the board: a rectangle
+   you drew should read as a rectangle rather than as one in a frame. */
+.vec{background:none;box-shadow:none;overflow:visible}
+.vec img{object-fit:contain;cursor:default}
 .note{padding:12px 14px;overflow:hidden;font-size:13px;line-height:1.55;
   background:#fffdf5;color:#18181b}
 .note h1{font-size:17px;margin:.2em 0 .3em}.note h2{font-size:15px;margin:.2em 0 .3em}
@@ -305,11 +314,13 @@ function show(id, keepView) {
 
     if (it.img) {
       n.classList.add('thing')
+      if (it.vec) n.classList.add('vec')
       const img = el('img', null, n)
       img.src = it.img
       img.alt = it.alt || ''
       img.loading = 'lazy'
-      img.addEventListener('click', (e) => { e.stopPropagation(); open(it) })
+      /* A drawing has nothing more to show full screen than it is showing. */
+      if (!it.vec) img.addEventListener('click', (e) => { e.stopPropagation(); open(it) })
     } else if (it.snd) {
       /* A sound is the one card here that does something. Everything else on
          this page is a picture of what was on the board; a sound that cannot

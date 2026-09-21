@@ -18,7 +18,14 @@ import { justLongPressed, noteLongPress, onLongPress } from './longpress'
 import { noteViewportSize } from '../state/walk'
 import { startTouch } from './touch'
 import { isSection, isThing, isWire } from '../state/kinds'
-import { DRAWN, FALLBACK, disarm, toolNow, useTool } from './tool'
+import { DRAWN, DRAWS, FALLBACK, disarm, isShapeTool, toolNow, useTool } from './tool'
+import type { ShapeTool } from './tool'
+import { curveShape, drawnShape, freehandShape, pathShape, pressedShape, strokeDraft } from './drawing'
+import { Nodes } from './Nodes'
+import { editNodes, hasNodes, useEditing } from './editing'
+import type { Drawn, Pt } from './drawing'
+import { pathFor } from '../state/shapes'
+import type { Node } from '../state/shapes'
 import { boundsOf, scaleAll } from './scaling'
 import type { Box, Corner } from './scaling'
 import { canFrame, reframeWheel, startReframe } from './reframe'
@@ -58,6 +65,18 @@ interface Props {
 
 const SNAP = 8
 
+/* How near a press has to land to count as being on a point you already put
+   down, in screen pixels rather than board units: it is about how well
+   somebody can aim, which does not change with the zoom. */
+const GRAB = 10
+
+/* A shape under the pointer, ready to draw: where it is, its path, and — for
+   a pen — the points placed so far, in the draft's own coordinates. */
+type Draft = Drawn & { d: string; dots?: Pt[] }
+
+/* A path being placed a press at a time, in board units. */
+interface Pen { tool: ShapeTool; nodes: Node[]; to: Pt | null }
+
 export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExportPictures, onPullColours, onDepth, canvasActions }: Props) {
   const order = useOrder()
   const selection = useSelection()
@@ -74,9 +93,22 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
   const touches = useRef(new Map<number, { x: number; y: number }>())
   const [visible, setVisible] = useState<string[]>([])
   const [marquee, setMarquee] = useState<Rect | null>(null)
+  /* The shape under the pointer while one is being drawn. Its own state
+     rather than the marquee's, because it is a different thing said in a
+     different way: the marquee is what is about to be picked up, this is
+     what is about to exist. */
+  const [draft, setDraft] = useState<Draft | null>(null)
+  /* And what a pen has placed so far. Held twice on purpose: the ref is what
+     a pointer handler reads, because inside a gesture a re-render is a frame
+     too late; the state is what the draft is drawn from, because between two
+     presses there is nothing running to paint from. */
+  const pen = useRef<Pen | null>(null)
+  const [penView, setPenView] = useState<Pen | null>(null)
   /* For the cursor and for what the drawn box looks like. The gesture itself
      reads the module directly; this is only what is on screen. */
   const tool = useTool()
+  /* Which drawing, if any, is having its points moved about. */
+  const editing = useEditing()
   const [dragOver, setDragOver] = useState(false)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const sizeRef = useRef({ w: 1400, h: 900 })
@@ -184,17 +216,21 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     paintTransform()
   }, [paintTransform])
 
-  /* While Alt is down, a picture says it can be pushed around. A cursor is the
+  /* What the modifiers say they will do, under the pointer. A cursor is the
    * only way a modifier gesture ever announces itself; without one it is a
-   * feature you have to be told about. */
+   * feature you have to be told about — and there are two of them here now,
+   * one key apart, so saying which is which matters more than it did.
+   *
+   * Alt on anything: a copy. Shift and alt on a picture: push it around
+   * inside its card. */
   useEffect(() => {
-    const set = (on: boolean) => {
-      if (on) document.body.setAttribute('data-framable', '')
-      else document.body.removeAttribute('data-framable')
+    const set = (alt: boolean, shift: boolean) => {
+      document.body.toggleAttribute('data-copying', alt && !shift)
+      document.body.toggleAttribute('data-framable', alt && shift)
     }
-    const down = (e: KeyboardEvent) => set(e.altKey)
-    const up = (e: KeyboardEvent) => set(e.altKey)
-    const off = () => set(false)
+    const down = (e: KeyboardEvent) => set(e.altKey, e.shiftKey)
+    const up = (e: KeyboardEvent) => set(e.altKey, e.shiftKey)
+    const off = () => set(false, false)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     /* A modifier held while the window goes away never sends its keyup. */
@@ -203,7 +239,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', off)
-      set(false)
+      set(false, false)
     }
   }, [])
 
@@ -250,6 +286,140 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     window.addEventListener('keydown', off)
     return () => window.removeEventListener('keydown', off)
   }, [])
+
+  /* ---------- the pens ---------- */
+
+  const setPen = useCallback((p: Pen | null) => {
+    pen.current = p
+    setPenView(p)
+  }, [])
+
+  const makeShape = useCallback(
+    (s: Drawn) => {
+      canvasActions.addShape(
+        { x: Math.round(s.x), y: Math.round(s.y) },
+        { w: Math.round(s.w), h: Math.round(s.h) },
+        s.spec
+      )
+    },
+    [canvasActions]
+  )
+
+  /* The path as it stands, put on the board.
+   *
+   * `stand` is whether the tool goes down with it: it does when the path was
+   * finished, and does not when the tool was changed out from under it —
+   * which would otherwise disarm the tool somebody had just picked. */
+  const finishPen = useCallback(
+    (p: Pen, closed: boolean, stand = true) => {
+      setPen(null)
+      if (stand) disarm()
+      const shape = p.tool === 'curve' ? curveShape(p.nodes, closed) : pathShape(p.tool, p.nodes, closed)
+      if (shape) makeShape(shape)
+    },
+    [makeShape, setPen]
+  )
+
+  const placePoint = useCallback(
+    (tool: ShapeTool, at: Pt, r: DOMRect, view: { x: number; y: number; z: number }) => {
+      const cur = pen.current?.tool === tool ? pen.current : null
+      const nodes = cur ? cur.nodes : []
+      /* Pressing back onto a point you have already placed says that is the
+         shape: the first one closes it, the last one leaves it open. Which
+         also means a double-click ends a path without a double-click having
+         to be a gesture of its own. */
+      const onto = (n: Node) => Math.hypot(n.x - at.x, n.y - at.y) * view.z < GRAB
+      if (nodes.length > 1 && onto(nodes[0])) return finishPen({ tool, nodes, to: null }, true)
+      if (nodes.length > 1 && onto(nodes[nodes.length - 1])) return finishPen({ tool, nodes, to: null }, false)
+
+      setPen({ tool, nodes: [...nodes, { x: at.x, y: at.y }], to: at })
+
+      /* Dragging away from a point you have just put down pulls its handles
+         out with it, which is what a pen has meant since the first one: the
+         press says where the line goes, the drag says which way it leaves.
+         The curvature tool has no use for it, because it bends the line
+         through its points by itself. */
+      if (tool !== 'pen') return
+      const bend = (ev: PointerEvent) => {
+        const to = screenToBoard(view, ev.clientX - r.left, ev.clientY - r.top)
+        const dx = to.x - at.x
+        const dy = to.y - at.y
+        if (Math.hypot(dx, dy) * view.z < DRAWN) return
+        setPen({ tool, nodes: [...nodes, { x: at.x, y: at.y, ox: dx, oy: dy, ix: -dx, iy: -dy }], to })
+      }
+      const bent = () => {
+        window.removeEventListener('pointermove', bend)
+        window.removeEventListener('pointerup', bent)
+      }
+      window.addEventListener('pointermove', bend)
+      window.addEventListener('pointerup', bent)
+    },
+    [finishPen, setPen]
+  )
+
+  /* While a pen is running the line follows the pointer, and Enter or Escape
+     says that is the shape. Taken in the capture phase, because Escape means
+     something else everywhere else and a half-drawn path is the nearer
+     thing to be talking about. */
+  const penning = !!penView
+  useEffect(() => {
+    if (!penning) return
+    const move = (ev: PointerEvent) => {
+      const p = pen.current
+      const el = vpRef.current
+      if (!p || !el) return
+      const box = el.getBoundingClientRect()
+      setPen({ ...p, to: screenToBoard(store.peekView(), ev.clientX - box.left, ev.clientY - box.top) })
+    }
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Enter' && ev.key !== 'Escape') return
+      const p = pen.current
+      if (!p) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      finishPen(p, false)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('keydown', key, true)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('keydown', key, true)
+    }
+  }, [penning, finishPen, setPen])
+
+  /* Putting the tool down finishes what it had started, rather than leaving
+     half a path nowhere. */
+  useEffect(() => {
+    const p = pen.current
+    if (p && tool !== p.tool) finishPen(p, false, false)
+  }, [tool, finishPen])
+
+  /* The path so far with a line out to the pointer, and the points on it —
+     which is what a pen shows you between presses, and what tells you which
+     one you would be pressing back onto to finish. */
+  const penDraft = useMemo((): Draft | null => {
+    const p = penView
+    if (!p) return null
+    const nodes = p.to ? [...p.nodes, { x: p.to.x, y: p.to.y }] : p.nodes
+    const shape = p.tool === 'curve' ? curveShape(nodes, false) : pathShape(p.tool, nodes, false)
+    if (!shape) return null
+    return {
+      ...shape,
+      d: pathFor(shape.spec, shape.w, shape.h),
+      dots: p.nodes.map((n) => ({ x: n.x - shape.x, y: n.y - shape.y })),
+    }
+  }, [penView])
+
+  /* Only one of the two is ever set: a shape is either being dragged out or
+     being placed a point at a time. */
+  const shown = draft || penDraft
+
+  /* Going to something else puts the points away. A press on the board or on
+     another card changes the selection, which is the same thing said in the
+     one place that already knows about it. */
+  useEffect(() => {
+    if (editing && !selection.includes(editing)) editNodes(null)
+  }, [editing, selection])
 
   /* ---------- pointer: drag, marquee, pan ---------- */
   const onSurfacePointerDown = useCallback(
@@ -303,6 +473,68 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
          rather than out of a hook, because this is inside a gesture and a
          re-render is a frame too late. */
       const tool = toolNow()
+
+      /* A shape tool draws the shape itself rather than a box round it: what
+         is under the pointer while the drag is running is the rectangle, the
+         ellipse, the seven-pointed star or the arrow that is about to exist,
+         which is the only honest preview of a tool that makes seven different
+         things. Shift keeps it regular — a square, a circle, a line at an
+         eighth of a turn — the same key that locks the aspect ratio when one
+         is scaled. */
+      if (tool && isShapeTool(tool)) {
+        const from = screenToBoard(startView, sx, sy)
+
+        /* The three pens are a gesture made of presses rather than one drag,
+           so they keep their points between them and finish when you say. */
+        if (DRAWS[tool] === 'points') {
+          placePoint(tool, from, r, startView)
+          return
+        }
+
+        /* And the pencil simply follows the hand. */
+        if (DRAWS[tool] === 'free') {
+          const pts: Pt[] = [from]
+          const stroking = (ev: PointerEvent) => {
+            pts.push(screenToBoard(startView, ev.clientX - r.left, ev.clientY - r.top))
+            const d = strokeDraft(pts)
+            setDraft(d && { ...d, d: pathFor(d.spec, d.w, d.h) })
+          }
+          const stroked = () => {
+            window.removeEventListener('pointermove', stroking)
+            window.removeEventListener('pointerup', stroked)
+            setDraft(null)
+            /* Two pixels on screen, whatever the zoom: at four hundred per
+               cent the hand has not got steadier. */
+            const shape = freehandShape(pts, 2 / startView.z) || pressedShape(tool, from)
+            disarm()
+            makeShape(shape)
+          }
+          window.addEventListener('pointermove', stroking)
+          window.addEventListener('pointerup', stroked)
+          return
+        }
+
+        let made: Drawn | null = null
+        const drawing = (ev: PointerEvent) => {
+          const cur = screenToBoard(startView, ev.clientX - r.left, ev.clientY - r.top)
+          const far = Math.abs(cur.x - from.x) > DRAWN || Math.abs(cur.y - from.y) > DRAWN
+          made = far ? drawnShape(tool, from, cur, ev.shiftKey) : null
+          setDraft(made && { ...made, d: pathFor(made.spec, made.w, made.h) })
+        }
+        const drawn = () => {
+          window.removeEventListener('pointermove', drawing)
+          window.removeEventListener('pointerup', drawn)
+          setDraft(null)
+          /* Down before the card is made, so the thing that arrives selected
+             is not immediately drawn over by a second one. */
+          disarm()
+          makeShape(made || pressedShape(tool, from))
+        }
+        window.addEventListener('pointermove', drawing)
+        window.addEventListener('pointerup', drawn)
+        return
+      }
+
       if (tool) {
         const from = screenToBoard(startView, sx, sy)
         let box: Rect | null = null
@@ -375,7 +607,7 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [paintTransform, canvasActions]
+    [paintTransform, canvasActions, placePoint, makeShape]
   )
 
 /* Dragging a card moves the whole selection, and dragging a section takes
@@ -384,6 +616,16 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
    * drag becomes a single undo step. */
   const onCardPointerDown = useCallback((e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).dataset.resize) return
+    /* The curvature tool on a line that already exists means that line: it
+       is the one tool here whose whole job is bending something rather than
+       making it, so pressing a path with it opens the path's own points. */
+    if (toolNow() === 'curve' && hasNodes(store.getItem(id))) {
+      e.stopPropagation()
+      disarm()
+      store.select([id])
+      editNodes(id)
+      return
+    }
     /* A tool is armed, so this press is drawing a box rather than picking
      * anything up — and it must be able to draw over what is already there.
      * Left to bubble rather than handled, so the surface underneath gets it:
@@ -392,11 +634,18 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     if (toolNow()) return
     e.stopPropagation()
 
-    /* Alt and drag pushes the picture around inside its card instead of moving
-       the card. It goes first because it is the one gesture here that must not
-       raise, marquee, open a menu or take a long press: it is one card being
-       looked at, and nothing else should happen while it is. */
-    if (e.altKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
+    /* Shift and alt and drag pushes the picture around inside its card
+       instead of moving the card. It goes first because it is the one gesture
+       here that must not raise, marquee, open a menu or take a long press: it
+       is one card being looked at, and nothing else should happen while it
+       is.
+     *
+     * It used to be alt alone. Alt alone is what every drawing program made
+     * ever means by "copy this", which is what it means here now, and a
+     * gesture that is universal outside this app should not be spent on
+     * something only this app does. Alt and scroll still scales a picture in
+     * its card, because nothing else wanted the wheel. */
+    if (e.altKey && e.shiftKey && e.button === 0 && e.pointerType !== 'touch' && canFrame(store.getItem(id))) {
       holdPress()
       /* The panel follows what you are framing, but a selection you built on
          purpose is not thrown away to do it. */
@@ -465,11 +714,14 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     const z = store.peekView().z || 1
     const startX = e.clientX
     const startY = e.clientY
-    const origin = new Map(ids.map((i) => [i, { ...store.getItem(i)! }]))
+    /* Three of these are not const, because alt turns this drag into a drag
+       of a copy at the moment it starts moving, and from then on it is the
+       copies that are being moved, re-tested and lined up. */
+    let origin = new Map(ids.map((i) => [i, { ...store.getItem(i)! }]))
     /* Only what was dragged directly is re-tested against the sections.
      * Something that moved because its section moved is still in that
      * section, wherever the section went. */
-    const testable = selected.filter((i) => !carried.has(i) && !isSection(store.getItem(i)))
+    let testable = selected.filter((i) => !carried.has(i) && !isSection(store.getItem(i)))
     let moved = false
     let highlight: string | null = null
     const engine = getEngine()
@@ -479,9 +731,9 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
     const dragging = new Set(ids)
     /* Only what is on screen: a card should not be pulled onto the edge of
      * something nobody can see, and it keeps the work per frame bounded. */
-    const lines: Guides = guidesFrom(
-      store.all().filter((i) => !dragging.has(i.id) && !isWire(i) && intersects(i, rectRef.current))
-    )
+    const linesFor = (set: Set<string>): Guides =>
+      guidesFrom(store.all().filter((i) => !set.has(i.id) && !isWire(i) && intersects(i, rectRef.current)))
+    let lines: Guides = linesFor(dragging)
     const boxes = [...origin.values()]
     const startBox = {
       x: Math.min(...boxes.map((b) => b.x)),
@@ -529,7 +781,31 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
       if (!moved && Math.hypot(dx, dy) < 2) return
       if (!moved) {
         held.cancel()
-        store.beginGesture()
+        /* Alt and drag leaves the original where it is and drags a copy: the
+           gesture every drawing program made in thirty years means by "one
+           more of these", and what this board means by it now.
+         *
+         * At the first movement rather than at the press, so alt and a click
+         * is still a click. On the press it would lay a copy exactly on top
+         * of the card you meant to click on, and you would find out about it
+         * later.
+         *
+         * The copy inherits the drag whole: it is what is selected, what
+         * moves, what gets re-tested against the sections, and what the
+         * guides line up — and the guides are worked out again, because the
+         * original is something to line the copy up against now. */
+        const copies = ev.altKey ? store.duplicate(selected, 0, 0) : []
+        if (copies.length) {
+          store.select(copies)
+          const set = store.dragSet(copies)
+          origin = new Map(set.ids.map((i) => [i, { ...store.getItem(i)! }]))
+          testable = copies.filter((i) => !set.carried.has(i) && !isSection(store.getItem(i)))
+          lines = linesFor(new Set(set.ids))
+        } else {
+          /* A copy takes its own snapshot on the way in, so this is for the
+             drags that are only a move. */
+          store.beginGesture()
+        }
         /* A card that is moving is a card you are already looking at, so its
            name plate stands down until the drag ends. */
         document.body.dataset.dragging = 'card'
@@ -723,6 +999,23 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
             selection so a new one gets a fresh box rather than an old one
             catching up. */}
         {grouped && <GroupHandles key={scaling.join(',')} ids={scaling} />}
+        {editing && <Nodes id={editing} />}
+        {/* What is about to exist, drawn as itself. */}
+        {shown && (
+          <svg
+            className="draft"
+            width={shown.w}
+            height={shown.h}
+            viewBox={`0 0 ${shown.w} ${shown.h}`}
+            style={{ transform: `translate3d(${shown.x}px, ${shown.y}px, 0)` }}
+            aria-hidden
+          >
+            <path d={shown.d} />
+            {shown.dots?.map((p, i) => (
+              <circle key={i} className="draft-dot" cx={p.x} cy={p.y} r={3.5} />
+            ))}
+          </svg>
+        )}
         {marquee && (
           <div
             className="marquee"

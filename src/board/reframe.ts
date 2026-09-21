@@ -11,7 +11,9 @@ import type { Item } from '../state/types'
  * until it looks right, and you know it is right when you see it. Two sliders
  * make that a conversation with numbers about a thing you are looking at.
  *
- * So: hold Alt and drag the picture inside its card. Alt and the wheel scale
+ * So: hold Shift and Alt and drag the picture inside its card — Alt on its
+ * own is a copy, which is what it means in every drawing program there has
+ * ever been and what it means here. Alt and the wheel scale
  * it. The same two numbers the sliders write, written by the hand instead —
  * which means the panel still shows exactly where you got to, and a framing
  * you found by dragging can still be nudged by one from the keyboard.

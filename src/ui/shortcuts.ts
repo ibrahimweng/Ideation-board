@@ -23,6 +23,13 @@ export const KEYS = {
      the point. */
   section: { key: 's', hint: 'S', label: 'Draw a section around things', short: 'Section' },
   text: { key: 't', hint: 'T', label: 'Draw a text box and write in it', short: 'Text' },
+  /* Two groups rather than nine buttons: the one you used last is on the
+     rail and the rest are a press on its corner away, which is how every
+     drawing program has grouped its tools since the first one. The key walks
+     the group and then puts it down, so the key that picks a shape is also
+     the key that stops. */
+  shape: { key: 'm', hint: 'M', label: 'Shapes: press again for the next one', short: 'Shapes' },
+  pen: { key: 'q', hint: 'Q', label: 'Pens: press again for the next one', short: 'Pens' },
   board: { key: 'b', hint: 'B', label: 'A board inside this one', short: 'Board' },
   link: { key: 'k', hint: 'K', label: 'Link or video URL', short: 'Link' },
   /* Not cmd+D, which duplicates. A picture that did not exist before. */

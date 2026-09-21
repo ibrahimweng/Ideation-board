@@ -6,11 +6,11 @@ import type { Item } from '../state/types'
  * Turning a model with the hand.
  *
  * The board already has a gesture for "I am looking at this one card": hold
- * Alt and drag inside it. On a photograph that pushes the picture around in
+ * Shift and Alt and drag inside it. On a photograph that pushes the picture around in
  * its frame. On a model there is no picture to push — there is a thing, and
  * what you want is to see the other side of it. So it is the same gesture
  * doing the same job, which is to move what you are looking at rather than the
- * card it is on, and Alt-scroll goes in and out rather than bigger and
+ * card it is on, and Alt and the wheel goes in and out rather than bigger and
  * smaller.
  *
  * Nothing new has to be learned and nothing is taken away: a plain drag still

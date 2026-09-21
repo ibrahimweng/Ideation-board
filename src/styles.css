@@ -550,6 +550,37 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .rail-tool[data-on] { background: var(--ink); color: var(--on-ink); box-shadow: none; }
 .rail-tool[data-on]:hover { background: var(--ink); color: var(--on-ink); }
 
+/* A tool group: one button with a corner mark on it, and the rest of the
+   group behind the mark. */
+.rail-stack { position: relative; display: grid; }
+.rail-more {
+  position: absolute; right: 0; bottom: 0;
+  width: 11px; height: 11px; padding: 0;
+  display: grid; place-items: end;
+  border-radius: 0 0 var(--r-sm) 0;
+  color: var(--muted);
+  opacity: 0.85;
+}
+.rail-stack:hover .rail-more, .rail-more:focus-visible { color: var(--ink); opacity: 1; }
+.rail-tool[data-on] + .rail-more { color: var(--on-ink); }
+
+.rail-flyout {
+  /* Fixed, because the rail is a scrolling column and anything placed beside
+     a button in it is clipped by the column. */
+  position: fixed; z-index: 40;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px; min-width: 168px;
+  border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--surface); box-shadow: var(--sh-2);
+}
+.rail-flyout-item {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 7px 9px; border-radius: var(--r-sm);
+  color: var(--ink-2); font-size: var(--t-sm); text-align: left;
+}
+.rail-flyout-item:hover { background: var(--hover); color: var(--ink); }
+.rail-flyout-item[data-on] { background: var(--ink); color: var(--on-ink); }
+
 /* A phone has no room for a rail and a board. The tools are all in the command
    list, in the menu you get by holding a finger on the board, and on the empty
    board's own buttons. */
@@ -602,6 +633,77 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   background: var(--accent-wash);
   pointer-events: none;
 }
+
+/* The box a drawing sits in, typed rather than dragged. */
+.shape-box { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.shape-num { display: flex; align-items: center; gap: 6px; }
+.shape-num span {
+  width: 14px; flex: none;
+  font: 500 var(--t-xs)/1 var(--mono); color: var(--muted);
+}
+.shape-num input {
+  flex: 1; min-width: 0; width: 100%;
+  padding: 5px 7px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  font: 500 var(--t-sm)/1.2 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.shape-num input:focus-visible { border-color: var(--accent); outline: none; }
+
+/* The one button that turns a drawing into pixels, and the one that turns it
+   back. Wide, because it is a decision rather than a nudge. */
+.shape-bake {
+  width: 100%; margin-top: 6px; padding: 9px 12px;
+  border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink);
+  font: 500 var(--t-sm)/1.2 var(--sans);
+}
+.shape-bake:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.shape-bake:disabled { opacity: 0.55; }
+
+/* ---------- moving the points of a drawing ---------- */
+
+/* Over the cards, and taking the pointer only on the line and the marks: the
+   space between them belongs to whatever is underneath, so a press that
+   misses puts the points away rather than doing nothing. */
+.nodes {
+  position: absolute; top: 0; left: 0;
+  z-index: 9200;
+  pointer-events: none;
+  will-change: transform;
+}
+.nodes svg { position: absolute; top: 0; left: 0; }
+
+/* The line, drawn as a fat invisible stroke over the real one — press it to
+   bend it, press it twice to put a point on it. A hairline that could only be
+   bent by hitting one pixel of it could not be bent. */
+.node-line {
+  fill: none; stroke: transparent;
+  pointer-events: stroke;
+  cursor: crosshair;
+}
+
+/* A handle on its leash. Thin, and behind the anchors, because it is the
+   anchor you aim at and the handle you find once you are there. */
+.node-leash {
+  stroke: var(--accent); stroke-width: 1; opacity: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+.node-grip {
+  fill: var(--accent); stroke: var(--surface); stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all; cursor: grab;
+}
+.node-grip:hover { fill: var(--sel); }
+
+/* And the anchors. Round for a smooth point and square for a corner, so what
+   a point is can be seen rather than found out by dragging it. */
+.node-dot {
+  fill: var(--surface); stroke: var(--accent); stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all; cursor: move;
+}
+.node-dot:hover { fill: var(--accent); }
 
 /* The empty board. Drawn on the canvas rather than over it, so it reads as
    "there is nothing here yet" rather than as a dialog to get past. */
@@ -678,6 +780,48 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 body[data-dragging] .card[data-sel] { will-change: transform; }
 .card[data-sel] { border-color: var(--sel); box-shadow: 0 0 0 2px var(--accent-line), var(--shadow); }
 
+/* ---------- shapes ---------- */
+
+/* A drawing has no card under it.
+ *
+ * No ground, no border, no shadow and no name across the top: a rectangle you
+ * drew should look like a rectangle, not like a rectangle in a frame. The box
+ * is still there — it is what the handles scale and what the record holds —
+ * but nothing of it is painted. */
+.card-shape {
+  background: none; border: none; box-shadow: none;
+  /* A card clips to its own box and paints inside it. A stroke straddles the
+     path it is on, so half of a thick one lives outside the box — clipped, a
+     shape gets thinner at its own edges. */
+  overflow: visible; contain: layout style;
+  /* And it is hit where it is painted rather than anywhere inside its box,
+     which is what lets a press go through the hole in a ring onto the
+     photograph underneath. The paths below take the pointer; the box does
+     not. */
+  pointer-events: none;
+}
+.card-shape .shape-art { position: absolute; top: 0; left: 0; overflow: visible; }
+.card-shape .shape-art path { pointer-events: visiblePainted; }
+/* The fat invisible line under a hairline, so a one-pixel rule is not a
+   one-pixel target. */
+.card-shape .shape-art .shape-hit { pointer-events: stroke; }
+.card-shape .card-tag, .card-shape .card-pick { pointer-events: auto; }
+/* Baked, it is a picture — and still not a card: a drawing with a white
+   rectangle behind it is a drawing somebody framed. */
+.card-shape .media { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: auto; }
+.card-shape[data-baked] { pointer-events: auto; }
+
+/* Selected. A ring round the box rather than round the shape: the box is what
+   the handles move, and a ring hugging a star would be telling you about the
+   wrong thing. */
+.card-shape[data-sel] { border-color: transparent; box-shadow: none; }
+.card-shape[data-sel]::after {
+  content: ''; position: absolute; inset: -3px;
+  border: 1px solid var(--sel); border-radius: 3px;
+  pointer-events: none;
+}
+
+
 /* What the card is called, over the bottom of it, and only while you are on
    it. The bottom because that is where a caption goes on a picture and where
    the dead space is on a note: a plate along the top covered the first line of
@@ -703,9 +847,13 @@ body[data-dragging] .card[data-sel] { will-change: transform; }
    stands down for as long as the drag lasts. */
 body[data-dragging] .card-chrome { opacity: 0; }
 
-/* Framing a picture by hand: Alt says a picture can be pushed around inside
-   its card, and the plate gets out of the way for as long as it is being. */
-body[data-framable] .card:is([data-kind='image'], [data-kind='video'], [data-kind='pdf'], [data-kind='design']) {
+/* Alt says a copy, on anything. It is the one modifier gesture on this board
+   that works on every kind of card, so it says so on every kind of card. */
+body[data-copying] .card { cursor: copy; }
+
+/* Framing a picture by hand: Shift and Alt says a picture can be pushed
+   around inside its card, and the plate gets out of the way while it is. */
+body[data-framable] .card:is([data-kind='image'], [data-kind='video'], [data-kind='pdf'], [data-kind='design'], [data-kind='model']) {
   cursor: grab;
 }
 body[data-framing], body[data-framing] .card { cursor: grabbing; }
@@ -1361,6 +1509,14 @@ body[data-turning] .card-chrome { opacity: 0; }
   border-bottom: 1px solid var(--line);
 }
 .panel-many b { font-weight: 600; color: var(--ink); }
+/* A way out of the line rather than a button under it: it is the same
+   sentence, and the thing it offers is undoing what the sentence says. */
+.panel-link {
+  padding: 0; border: 0; background: none;
+  color: var(--accent); font: inherit; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.panel-link:hover { color: var(--ink); }
 
 .panel-empty { padding: 28px 20px; color: var(--muted); font-size: var(--t-md); line-height: 1.6; }
 .panel-note { color: var(--muted); font-size: var(--t-sm); line-height: 1.6; margin: 0 0 10px; }
@@ -1468,6 +1624,37 @@ body[data-turning] .card-chrome { opacity: 0; }
    about. */
 .viewport[data-tool='section'] { cursor: crosshair; }
 .viewport[data-tool='text'] { cursor: text; }
+/* Every shape tool is a crosshair, because every one of them is "put the
+   corner here". The three pens keep the crosshair too: the difference between
+   them is what happens after the first press, and a cursor cannot say that. */
+.viewport[data-tool='rect'], .viewport[data-tool='ellipse'],
+.viewport[data-tool='polygon'], .viewport[data-tool='star'],
+.viewport[data-tool='line'], .viewport[data-tool='arrow'],
+.viewport[data-tool='pen'], .viewport[data-tool='curve'],
+.viewport[data-tool='pencil'] { cursor: crosshair; }
+
+/* The shape under the pointer while it is being dragged out.
+   Not a rectangle round where it will be — the shape itself, which is the
+   only honest preview of a tool that makes nine different things. */
+.draft {
+  position: absolute; top: 0; left: 0;
+  overflow: visible; pointer-events: none;
+}
+.draft path {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+/* A pen places its points one press at a time, so while it is running the
+   points have to be visible: they are what you have said so far, and the
+   first and last of them are what you press back onto to finish. */
+.draft-dot {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
 /* Everything on the board stands aside while a box is being drawn, so the
    crosshair does not turn into a grab hand halfway across a card. */
 .viewport[data-tool] .card { cursor: inherit; }

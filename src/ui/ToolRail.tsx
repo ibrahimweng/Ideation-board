@@ -1,10 +1,21 @@
-import { armTool, useTool } from '../board/tool'
-import { nameFor, titleFor } from './shortcuts'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { GROUPS, TOOL_HINT, TOOL_NAME, armShape, armTool, isShapeTool, usePicked, useTool } from '../board/tool'
+import type { Group, ShapeTool } from '../board/tool'
+import { KEYS, nameFor, titleFor } from './shortcuts'
 import type { ShortcutName } from './shortcuts'
 import {
-  IconBoard, IconDraw, IconExport, IconFiles, IconImport, IconLabel, IconLink,
-  IconNote, IconSection, IconText,
+  IconArrow, IconBoard, IconCurve, IconDraw, IconEllipse, IconExport, IconFiles,
+  IconImport, IconLabel, IconLine, IconLink, IconNote, IconPen, IconPencil,
+  IconMore, IconPolygon, IconRect, IconSection, IconStar, IconText,
 } from './icons'
+
+/* Each tool drawn as the thing it makes. */
+const ICONS: Record<ShapeTool, (p: { className?: string }) => React.ReactElement> = {
+  rect: IconRect, ellipse: IconEllipse, polygon: IconPolygon, star: IconStar,
+  line: IconLine, arrow: IconArrow,
+  pen: IconPen, curve: IconCurve, pencil: IconPencil,
+}
 
 /* ---------------------------------------------------------------------------
  * The things you make, down the left.
@@ -60,6 +71,15 @@ export function ToolRail({ onAddFiles, onNote, onLabel, onBoard, onLink, onDraw,
         </RailButton>
       </div>
 
+      {/* What you draw. Two buttons for nine tools: the one you used last is
+          on the rail and the rest are a press on its corner away, which is
+          how every drawing program has grouped its tools since the first
+          one. The key walks the group and then puts it down. */}
+      <div className="rail-group">
+        <RailGroup group="shape" />
+        <RailGroup group="pen" />
+      </div>
+
       {/* Things that come from somewhere else. */}
       <div className="rail-group">
         <RailButton name="addFiles" onClick={onAddFiles}>
@@ -87,6 +107,94 @@ export function ToolRail({ onAddFiles, onNote, onLabel, onBoard, onLink, onDraw,
         </RailButton>
       </div>
     </nav>
+  )
+}
+
+/* One tool group: the current member on the rail, the rest behind a corner
+ * mark. The mark is its own button rather than a long press, because a long
+ * press is a gesture nobody finds and a tool nobody finds is a tool that is
+ * not there. */
+function RailGroup({ group }: { group: Group }) {
+  const tool = useTool()
+  const pick = usePicked(group)
+  /* Where the flyout goes, read off the button when it opens.
+   *
+   * Fixed rather than hung off the button, because the rail is a scrolling
+   * column and anything absolutely placed beside a button in it is clipped by
+   * the column — which is a flyout that is in the page, has a name, answers a
+   * click, and cannot be seen. */
+  const [open, setOpen] = useState<{ left: number; top: number } | null>(null)
+  const box = useRef<HTMLDivElement>(null)
+  const pop = useRef<HTMLDivElement>(null)
+  const show = () => {
+    const r = box.current?.getBoundingClientRect()
+    setOpen(open || !r ? null : { left: r.right + 8, top: Math.min(r.top - 2, window.innerHeight - 180) })
+  }
+  useEffect(() => {
+    if (!open) return
+    const away = (e: Event) => {
+      const t = e.target as Node
+      if (!box.current?.contains(t) && !pop.current?.contains(t)) setOpen(null)
+    }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null) }
+    window.addEventListener('pointerdown', away)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('pointerdown', away)
+      window.removeEventListener('keydown', key)
+    }
+  }, [open])
+
+  const Icon = ICONS[pick]
+  const on = isShapeTool(tool) && GROUPS[group].includes(tool)
+  return (
+    <div className="rail-stack" ref={box}>
+      <button
+        className="rail-tool"
+        data-on={on || undefined}
+        aria-pressed={on}
+        onClick={() => armShape(pick)}
+        title={`${TOOL_HINT[pick]}  (${KEYS[group].hint})`}
+        aria-label={TOOL_NAME[pick]}
+      >
+        <Icon />
+      </button>
+      <button
+        className="rail-more"
+        onClick={show}
+        aria-expanded={!!open}
+        aria-label={nameFor(group)}
+        title={titleFor(group)}
+      >
+        <IconMore />
+      </button>
+      {/* Out into the page, not down the rail. The rail is a scrolling column
+          and its wells are blurred, and either of those on its own is enough
+          to make a flyout hung off a button in it a flyout you cannot see:
+          laid out, named, answering a click, and painted nowhere. */}
+      {open &&
+        createPortal(
+          <div className="rail-flyout" role="menu" ref={pop} style={{ left: open.left, top: open.top }}>
+            {GROUPS[group].map((t) => {
+              const Each = ICONS[t]
+              return (
+                <button
+                  key={t}
+                  role="menuitem"
+                  className="rail-flyout-item"
+                  data-on={tool === t || undefined}
+                  onClick={() => { armShape(t); setOpen(null) }}
+                  title={TOOL_HINT[t]}
+                >
+                  <Each />
+                  <span>{TOOL_NAME[t]}</span>
+                </button>
+              )
+            })}
+          </div>,
+          document.body
+        )}
+    </div>
   )
 }
 

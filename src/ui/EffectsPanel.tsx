@@ -7,7 +7,7 @@ import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
-import { canShade, isGradeable, pixelKey } from '../state/kinds'
+import { canShade, hasPixels, isGradeable, pixelKey } from '../state/kinds'
 import { DIST, PITCH, stageOf, takeOffSkin, treatSkin, turnTo, wearSkin } from '../state/staging'
 import { SLOTS, SLOT_BY_ID, dressOf, slotName } from '../state/skins'
 import {
@@ -23,6 +23,8 @@ import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 import { Slider } from './Slider'
 import { TextTab } from './TextTab'
+import { ShapePanel } from './ShapePanel'
+import { unrasterise } from '../state/raster'
 import { isText } from '../state/type'
 
 /* Every layer past the first is another full pass over the card, so this is a
@@ -93,8 +95,29 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const texts = useMemo(() => selection.map((id) => store.getItem(id)).filter(isText), [selection])
   const textId = texts[0]?.id
 
+  /* Drawings, which are their own thing until somebody bakes them. Every
+     question this panel asks is about pixels, and a drawing is a handful of
+     numbers — what to ask a rectangle is how round its corners are and how
+     thick its line is, not which of seventy shaders to run on pixels it has
+     not got. Once it has been baked it is a picture like any other and the
+     rest of this panel applies, with a way back at the top of it. */
+  const drawings = useMemo(
+    () => selection.map((id) => store.getItem(id)).filter((i): i is Item => i?.kind === 'shape'),
+    [selection]
+  )
+  /* And only when that is all there is. A drawing and a photograph selected
+     together have the effects in common and nothing else, so the panel stays
+     where both of them can be worked on and the drawing keeps its own for
+     when it is on its own.
+   *
+   * By id rather than by the item: `hasPixels` proves an item is there, so
+   * asking it in the negative narrows the item away to nothing at all. */
+  const drawnId = drawings.length === targets.length ? drawings[0]?.id : undefined
+
   if (!primary && heardId) return <SoundPanel ids={sounds.map((s) => s.id)} id={heardId} say={say} />
   if (!primary && textId) return <TextTab ids={texts.map((t) => t.id)} id={textId} />
+  if (drawnId && !hasPixels(store.getItem(drawnId)))
+    return <ShapePanel ids={drawings.map((d) => d.id)} id={drawnId} say={say} />
 
   /* Open, with nothing to work on. A full width column of one sentence takes
    * three hundred and twenty pixels off the board to say nothing; a rail says
@@ -125,7 +148,9 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const why =
     primary.kind === 'embed'
       ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`
-      : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
+      : primary.kind === 'shape'
+        ? 'A drawing is a handful of numbers rather than pixels, so there is nothing for a shader to read. Bake it into a picture and every effect applies. Tone, framing and grain work either way.'
+        : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
 
   /* A video card previews its effects on the still it was opened with, and a
    * document on the page it is showing; a remote video has no still to use, so
@@ -258,6 +283,24 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
       {ids.length > 1 && (
         <p className="panel-many">
           Working on <b>{ids.length}</b> cards. Everything here goes on all of them.
+        </p>
+      )}
+
+      {/* A drawing that has been baked is a picture, and everything below
+          applies to it — but the numbers it was drawn from never went away,
+          so the way back is one press and not an undo. */}
+      {primary.kind === 'shape' && primary.poster && (
+        <p className="panel-many">
+          Baked from a drawing.{' '}
+          <button
+            className="panel-link"
+            onClick={() => {
+              unrasterise(ids)
+              say('Back to the drawing.')
+            }}
+          >
+            Back to the drawing
+          </button>
         </p>
       )}
 
@@ -453,7 +496,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
                 boxes, and the gesture that does it properly is a modifier
                 drag, which announces itself to nobody. So it is said here,
                 next to the two numbers it writes. */}
-            <p className="fx-hint">Alt-drag the picture to move it in its card, Alt-scroll to scale it.</p>
+            <p className="fx-hint">Shift-Alt-drag the picture to move it in its card, Alt-scroll to scale it.</p>
             <Slider label="Zoom" def={ADJUST_0.zoom} min={1} max={3} step={0.01} value={fx.zoom} onChange={(v) => patchFx({ zoom: v })} />
             <Slider label="Offset X" def={ADJUST_0.ox} min={-50} max={50} step={1} value={fx.ox} onChange={(v) => patchFx({ ox: v })} />
             <Slider label="Offset Y" def={ADJUST_0.oy} min={-50} max={50} step={1} value={fx.oy} onChange={(v) => patchFx({ oy: v })} />
@@ -686,7 +729,7 @@ function ModelSection({ it, fed, say }: { it: Item; fed?: string; say: (msg: str
     <>
       <section className="fx-controls">
         <h4>View</h4>
-        <p className="fx-hint">Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
+        <p className="fx-hint">Shift-Alt-drag the model to turn it, Alt-scroll to move in and out.</p>
         <Slider label="Turn" def={STAGE_0.yaw} min={-180} max={180} step={1} unit={DEG} value={stage.yaw} onChange={(v) => set({ yaw: v })} />
         <Slider label="Tilt" def={STAGE_0.pitch} min={-PITCH} max={PITCH} step={1} unit={DEG} value={stage.pitch} onChange={(v) => set({ pitch: v })} />
         <Slider label="Distance" def={STAGE_0.dist} min={DIST.min} max={DIST.max} step={0.05} value={stage.dist} onChange={(v) => set({ dist: v })} />

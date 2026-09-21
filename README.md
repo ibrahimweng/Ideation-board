@@ -147,6 +147,8 @@ You add things in several ways:
   chain of effects the way a picture can.
 - Press W for a card you write: a dozen lines of drawing code that become a
   picture like any other.
+- Press M for the shapes and Q for the pens, and draw a rectangle, an ellipse,
+  a polygon, a star, a line, an arrow, or a path with one of three pens.
 
 Once something is on the board:
 
@@ -162,7 +164,11 @@ Once something is on the board:
   connect them.
 - Select several and use the right click menu to line them up, space them
   evenly, or tidy them onto a grid.
-- Hold Alt and drag, or drag with the middle mouse button, to pan the board.
+- Hold Alt and drag a card to leave the original where it is and drag a copy —
+  a card, a drawing, a section with its contents, or a whole selection at once.
+  The copy is made at the first movement, so Alt and a click is still a click.
+- Hold Alt and drag on empty board, or drag with the middle mouse button, to
+  pan.
 - Hold Ctrl or Cmd and scroll to zoom.
 - Press 1 to fit the whole board on screen and 2 to fit what is selected.
 - Double click a note, a label or a section to edit its text.
@@ -319,12 +325,19 @@ card. Hold **\\** to see the picture without any of it — held rather than
 toggled, since a mode that hides your work is the worst kind to be left in by
 accident.
 
-Framing is done by hand as well as by number: **Alt and drag** pushes the
-picture around inside its card and **Alt and the wheel** scales it, writing the
-same two numbers the sliders write. Nobody frames a photograph by typing
+Framing is done by hand as well as by number: **Shift and Alt and drag** pushes
+the picture around inside its card and **Alt and the wheel** scales it, writing
+the same two numbers the sliders write. Nobody frames a photograph by typing
 coordinates into two boxes. On a model the same gesture turns the model
 instead, because there is no picture to push about there — there is a thing,
 and the other side of it.
+
+It used to be Alt and drag, with no Shift. Alt alone is what every drawing
+program made in the last thirty years means by "one more of these", and a
+gesture that is universal outside this app should not be spent on something
+only this app does — so it is a copy now, and framing asks for one key more.
+While Alt is down every card says `copy`; with Shift as well a picture says
+`grab`, which is the whole of how either of them announces itself.
 
 You can select several images and apply the same effect to all of them at once.
 
@@ -573,6 +586,57 @@ Anything you add arrives selected, which is the other half of the same problem:
 a card that lands with nothing marking it is a card you have to go looking for,
 and on text you could not see it was a card that appeared not to have arrived.
 
+## Drawing
+
+Two buttons on the rail hold nine tools between them, each showing the one you
+used last with the rest behind a corner mark. **M** walks the shapes —
+rectangle, ellipse, polygon, star, line, arrow — and **Q** walks the pens, and
+pressing past the last one puts the tool down again.
+
+Four of them are dragged out as a box and two between their two ends. **Shift
+keeps whichever you are drawing regular**: a rectangle becomes a square, an
+ellipse a circle, a line holds to an eighth of a turn. What is under the
+pointer while you drag is the shape itself rather than a rectangle round where
+it will be, which is the only honest preview of a tool that makes nine
+different things.
+
+The three pens place points rather than dragging a box. The Pen puts a corner
+down with each press and pulls a curve out of it if you drag; the Curvature
+tool runs a curve through every point you give it; the Pencil follows your hand
+and tidies the stroke up afterwards — two hundred sampled positions become
+eight or ten, and the ones that were on the way are thrown out. Press back on
+the first point to close the path, on the last to leave it open, or Enter or
+Escape to finish.
+
+Double-click a drawing to move its points about. Drag an anchor to move it,
+drag a handle to shape the curve either side of it, Alt-drag a handle to break
+the pair, drag the line itself to bend it, double-click the line to put a point
+on it, Alt-click an anchor to take one away, and double-click an anchor to turn
+a corner smooth and back. A smooth point is drawn round and a corner square, so
+what a point is can be seen rather than found out by dragging it. Escape puts
+them away.
+
+A drawing is a handful of numbers rather than pixels: it is exact at 4% and at
+400%, it costs the same handful of bytes however big you draw it, and it is hit
+where it is painted rather than anywhere in its box — so a press goes through
+the hole in a ring onto the photograph underneath. Points are held as fractions
+of the card, which is what makes scaling a drawing free and what makes it work
+with a selection of forty scaled as one.
+
+It also means there is nothing for a shader to read. The panel sets the fill,
+the line, its width, the dash, the caps and corners, how many sides a polygon
+has, how far in a star's inner points sit, which ends wear an arrowhead, and
+where the card is on the board to the pixel. At the bottom of it, **Bake into a
+picture** draws the shape once at twice its size and hangs the result on the
+card — from then on every one of the effects applies to it, the palette reads
+it, and it exports like a photograph. The numbers stay on the record, so one
+press brings the drawing back.
+
+Neither the board poster nor the exported page can photograph something that
+was never a photograph, so both draw the drawing. The page carries it as an SVG
+inside an `<img>`: crisp at whatever it is zoomed to, and a few hundred bytes
+rather than a few hundred thousand.
+
 ## Working on several at once
 
 Select more than one — shift-click, a rubber band, or ⌘A — and one dashed box
@@ -818,7 +882,7 @@ things is the wrong answer for the file a product designer works in all day.
 
 Turning it is not a transform on the card, it is a new picture — the same job
 as turning to another page of a PDF, and written in the same place for the same
-reason. Alt-drag the model to turn it, Alt-scroll to move in and out, or use
+reason. Shift-Alt-drag the model to turn it, Alt-scroll to move in and out, or use
 Turn, Tilt and Distance in the panel. A drag asks for a new angle faster than a
 render can answer, so the last angle asked for is kept and everything before it
 is thrown away: the model comes to rest showing what your hand actually asked
@@ -2011,6 +2075,23 @@ two against a server it starts itself.
   exactly once and that nothing else ever does, that the text tool draws a box
   at the size of the drag with the caret already in it, and that all of it
   survives a reload.
+- `test:shapes` is the suite for the vector layer, in three parts. The tools:
+  that arming one takes the board out of selecting and into drawing, that a
+  drag gives the shape the size it was dragged, that Shift squares a box and
+  holds a line to an eighth of a turn, that a line drawn dead across still has
+  a box anybody can get hold of, and that a press rather than a drag still
+  makes something. The pens: that the points survive between presses, that a
+  path closes on its first point and ends on its last, that the curvature tool
+  really bends — sampled off the rendered path and measured against the
+  straight run through the points it was given, because a cubic whose controls
+  sit on its own endpoints is a straight line written the long way round — and
+  that the pencil throws away most of what it sampled. The points: that twice
+  on a drawing opens them and the corner handles stand down, that dragging one
+  moves it and the box catches up afterwards without the drawing moving on
+  screen, that the line bends where it is pulled, and that a point can be added
+  and taken away. Then the panel, baking, and the way back, and finally that
+  the poster really has the drawings on it and the exported page carries paths
+  rather than pictures of them.
 - `test:menu` opens both right click menus and checks each action, including
   ordering, tagging, acting on a multiple selection, and that the canvas menu
   adds things under the pointer.
@@ -2061,10 +2142,16 @@ two against a server it starts itself.
   flat anything else means it happened wrong. The one that is easy to get
   wrong and hard to notice is last: a card set to multiply over nothing at all
   must still look like itself.
-- `test:framing` checks that Alt and a drag reframes the picture inside its
-  card while a plain drag still moves the card, that Alt and the wheel scales
-  it, that a card with no picture behaves as it always did, and that a whole
-  selection is not reframed because one of them was.
+- `test:framing` checks that Shift and Alt and a drag reframes the picture
+  inside its card while a plain drag still moves the card, that Alt and the
+  wheel scales it, that a card with no picture behaves as it always did, that a
+  whole selection is not reframed because one of them was, and that each of the
+  two gestures one key apart says under the pointer which it is.
+- `test:copies` checks that Alt and a drag leaves the original where it was and
+  drags a copy, on a note, on a drawing and on a whole selection at once; that
+  Alt and a click makes nothing; that one undo takes the copy away; and — the
+  one that would break quietly — that a photograph is copied rather than
+  reframed, while Shift and Alt still reframes it.
 - `test:finish` holds the key that shows the picture without its grade and
   checks the edges rather than the happy path: that the hold ends when the
   window loses focus, that it files nothing in the undo history, and that a
