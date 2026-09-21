@@ -497,6 +497,65 @@ ok('and the drawing comes back exactly where it was',
    `${drawnBox.x},${drawnBox.y} ${drawnBox.w}x${drawnBox.h} -> ${raw.x},${raw.y} ${raw.w}x${raw.h}`)
 ok('and it is the drawing it was, not a picture of one', raw.d === drawnBox.d)
 
+/* --- and a drawing selected with a photograph stays out of the way --- */
+/* The two have the effects in common and nothing else, so the panel stays
+   where both of them can be worked on rather than showing one of them its
+   own controls and the other nothing. */
+await page.evaluate(async () => {
+  const c = document.createElement('canvas')
+  c.width = 400
+  c.height = 300
+  const x = c.getContext('2d')
+  x.fillStyle = '#E5484D'
+  x.fillRect(0, 0, 400, 300)
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
+  const dt = new DataTransfer()
+  dt.items.add(new File([blob], 'mix.png', { type: 'image/png' }))
+  const ev = new DragEvent('drop', { bubbles: true, cancelable: true, clientX: 240, clientY: 300 })
+  Object.defineProperty(ev, 'dataTransfer', { value: dt })
+  document.querySelector('.viewport').dispatchEvent(ev)
+})
+await page.waitForSelector('.card[data-kind="image"]', { timeout: 10000 })
+await page.waitForTimeout(1200)
+await page.mouse.click(160, 830)
+await page.waitForTimeout(200)
+await pick('Rectangle')
+await drag(1000, 200, 1120, 300)
+await page.waitForTimeout(300)
+ok('a drawing on its own gets the drawing panel', (await panel())[0] === 'Rectangle', (await panel()).join('/'))
+const pic = await page.evaluate(() => {
+  const el = document.querySelector('.card[data-kind="image"]')
+  const r = el.getBoundingClientRect()
+  return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }
+})
+await page.keyboard.down('Shift')
+await page.mouse.click(pic.x, pic.y)
+await page.keyboard.up('Shift')
+await page.waitForTimeout(400)
+ok('and with a photograph beside it the panel stays on the effects',
+   (await panel()).includes('Effect'), (await panel()).join('/'))
+
+/* --- and full screen it is drawn rather than left blank --- */
+/* Present and Compare both draw a card through the same stage, and the stage
+ * could only show pixels. A drawing has none, so full screen it was an empty
+ * rectangle — which looks exactly like a card that failed to load. */
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+await page.mouse.click(160, 830)
+await page.waitForTimeout(200)
+await pick('Star')
+await drag(1160, 200, 1300, 340)
+await page.waitForTimeout(400)
+await page.keyboard.press('p')
+await page.waitForTimeout(900)
+const staged = await page.evaluate(() => {
+  const path = document.querySelector('.present-stage svg.present-media path')
+  return path ? path.getAttribute('d') : null
+})
+ok('a drawing shown full screen is drawn', !!staged && staged.length > 10, staged?.slice(0, 30) || 'nothing on the stage')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(600)
+
 /* --- it is hit where it is painted --- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)

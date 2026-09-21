@@ -5,6 +5,8 @@ import type { Cap, Heads, Join, ShapeSpec } from '../state/shapes'
 import { rasterise, unrasterise } from '../state/raster'
 import { SWATCH } from '../state/types'
 import type { Item } from '../state/types'
+import { ADJUST_0, BLENDS, blendOf } from '../engine/types'
+import type { FxState } from '../engine/types'
 import { Slider } from './Slider'
 
 /* ---------------------------------------------------------------------------
@@ -74,6 +76,17 @@ export function ShapePanel({ ids, id, say }: { ids: string[]; id: string; say: (
   const place = (patch: Partial<Pick<Item, 'x' | 'y' | 'w' | 'h'>>) => {
     store.beginGesture(0)
     for (const at of ids) store.update(at, patch, false)
+  }
+
+  /* How it sits with what is under it. Not a question about the drawing, so
+     it is written where every other card writes it. */
+  const sit = (patch: Partial<FxState>, discrete = false) => {
+    store.beginGesture(discrete ? 0 : 600)
+    for (const at of ids) {
+      const cur = store.getItem(at)
+      if (!cur) continue
+      store.update(at, { fx: { ...cur.fx, ...patch } }, false)
+    }
   }
 
   const bakeNow = async () => {
@@ -265,6 +278,27 @@ export function ShapePanel({ ids, id, say }: { ids: string[]; id: string; say: (
             )}
           </>
         )}
+
+        <section className="fx-controls">
+          <h4>How it sits</h4>
+          <Slider
+            label="Opacity"
+            def={ADJUST_0.op}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            value={it.fx.op ?? 100}
+            onChange={(v) => sit({ op: v })}
+          />
+          <div className="blend-row">
+            {BLENDS.map((b) => (
+              <button key={b.id} data-on={blendOf(it.fx.mix) === b.id || undefined} onClick={() => sit({ mix: b.id }, true)}>
+                {b.name}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="fx-controls">
           <h4>Where it is</h4>

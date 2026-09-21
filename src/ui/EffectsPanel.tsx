@@ -105,9 +105,14 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
     () => selection.map((id) => store.getItem(id)).filter((i): i is Item => i?.kind === 'shape'),
     [selection]
   )
-  /* By id rather than by the item: `hasPixels` proves an item is there, so
-     asking it in the negative narrows the item away to nothing at all. */
-  const drawnId = drawings[0]?.id
+  /* And only when that is all there is. A drawing and a photograph selected
+     together have the effects in common and nothing else, so the panel stays
+     where both of them can be worked on and the drawing keeps its own for
+     when it is on its own.
+   *
+   * By id rather than by the item: `hasPixels` proves an item is there, so
+   * asking it in the negative narrows the item away to nothing at all. */
+  const drawnId = drawings.length === targets.length ? drawings[0]?.id : undefined
 
   if (!primary && heardId) return <SoundPanel ids={sounds.map((s) => s.id)} id={heardId} say={say} />
   if (!primary && textId) return <TextTab ids={texts.map((t) => t.id)} id={textId} />
