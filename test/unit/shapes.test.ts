@@ -17,6 +17,8 @@ import {
   nearestSegment,
   nodesPath,
   normalise,
+  outsetOf,
+  paintOf,
   pathFor,
   polyPoints,
   rectPath,
@@ -25,6 +27,7 @@ import {
   smoothNodes,
   specFor,
   starPoints,
+  svgFor,
   toggleSmooth,
 } from '../../src/state/shapes'
 import type { Node, ShapeSpec } from '../../src/state/shapes'
@@ -667,6 +670,86 @@ describe('a shape before anybody has said anything about it', () => {
       expect(d.dash.split(/\s+/).length).toBeGreaterThanOrEqual(2)
       for (const v of d.dash.split(/\s+/)) expect(Number(v)).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('the paint, written once', () => {
+  it('says no fill rather than white, because those are different drawings', () => {
+    expect(paintOf({ kind: 'rect', fill: null }).fill).toBe('none')
+    expect(paintOf({ kind: 'rect', fill: '#fff' }).fill).toBe('#fff')
+  })
+
+  it('turns a dash written in stroke widths into the lengths SVG wants', () => {
+    expect(paintOf({ kind: 'rect', dash: '4 2', width: 3 })['stroke-dasharray']).toBe('12 6')
+    /* A solid line has no dash attribute at all rather than an empty one. */
+    expect(paintOf({ kind: 'rect' })['stroke-dasharray']).toBeUndefined()
+  })
+
+  it('carries the cap and the join through under SVG names', () => {
+    const p = paintOf({ kind: 'line', cap: 'square', join: 'bevel', width: 5 })
+    expect(p['stroke-linecap']).toBe('square')
+    expect(p['stroke-linejoin']).toBe('bevel')
+    expect(p['stroke-width']).toBe('5')
+  })
+})
+
+describe('how far the paint reaches outside the box', () => {
+  it('is nothing at all when there is no line round it', () => {
+    expect(outsetOf({ kind: 'rect', fill: '#000', stroke: null })).toBe(0)
+  })
+
+  it('is half the stroke, because a stroke straddles the line it is on', () => {
+    expect(outsetOf({ kind: 'rect', stroke: '#000', width: 20, join: 'round' })).toBe(10)
+  })
+
+  it('is more on a sharp corner, where a mitre runs out past the stroke', () => {
+    const sharp = outsetOf({ kind: 'rect', stroke: '#000', width: 20, join: 'miter' })
+    expect(sharp).toBeGreaterThan(outsetOf({ kind: 'rect', stroke: '#000', width: 20, join: 'round' }))
+  })
+
+  it('is enough for an arrowhead, which reaches further than its own line', () => {
+    const head = outsetOf({ kind: 'arrow', stroke: '#000', width: 4, heads: 'end' })
+    expect(head).toBeGreaterThanOrEqual(Math.ceil(4 * 3.2))
+  })
+})
+
+describe('a shape written out as a file of its own', () => {
+  const spec: ShapeSpec = { kind: 'rect', fill: '#2F6FEB', stroke: '#111', width: 4, radius: 0.2 }
+
+  it('is one SVG with the path in it', () => {
+    const out = svgFor(spec, 200, 100)
+    expect(out.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
+    expect(out.endsWith('</svg>')).toBe(true)
+    expect(out).toContain(`d="${pathFor(spec, 200, 100)}"`)
+  })
+
+  it('paints it exactly as the card does', () => {
+    const out = svgFor(spec, 200, 100)
+    for (const [k, v] of Object.entries(paintOf(spec))) expect(out, k).toContain(`${k}="${v}"`)
+  })
+
+  it('opens the picture out round the drawing when asked, and moves the origin with it', () => {
+    const out = svgFor(spec, 200, 100, 10)
+    expect(out).toContain('width="220"')
+    expect(out).toContain('height="120"')
+    expect(out).toContain('viewBox="-10 -10 220 120"')
+  })
+
+  it('carries the arrowheads, which are paths of their own', () => {
+    const arrow: ShapeSpec = { kind: 'arrow', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }], stroke: '#111', width: 3, heads: 'both' }
+    const out = svgFor(arrow, 200, 20)
+    expect((out.match(/<path/g) || []).length).toBe(3)
+  })
+
+  it('has no ids in it, because forty of these go into one page', () => {
+    expect(svgFor(spec, 200, 100)).not.toContain('id=')
+  })
+
+  it('escapes what it is given rather than letting it out as markup', () => {
+    const nasty: ShapeSpec = { kind: 'rect', fill: '"><script>x()</script>' }
+    const out = svgFor(nasty, 10, 10)
+    expect(out).not.toContain('<script>')
+    expect(out).toContain('&quot;&gt;&lt;script&gt;')
   })
 })
 

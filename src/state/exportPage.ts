@@ -3,6 +3,7 @@ import { boardTree } from './boards'
 import { getBlob } from '../store/idb'
 import { renderCardPicture } from './exportImage'
 import { pixelKey, traitsOf } from './kinds'
+import { outsetOf, svgFor } from './shapes'
 import { familyOf, inkOf, typeStyle } from './type'
 import { parse, safeHref } from './rich'
 import type { Span } from './rich'
@@ -218,6 +219,25 @@ async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
    * Item to an Item and leave every branch after them typed as nothing. */
   if (item.kind === 'edge') return { ...base, from: item.from || '', to: item.to || '' }
 
+  /* A drawing goes out as the drawing rather than as a picture of one: the
+     same SVG the board draws, in an <img>, which stays crisp at whatever the
+     page is zoomed to and costs a few hundred bytes. The box is opened out by
+     the outset first, because a stroke straddles the line it is on and would
+     otherwise be cut off at the edges of its own picture. */
+  if (item.kind === 'shape' && item.shape && !item.poster) {
+    const pad = outsetOf(item.shape)
+    return {
+      ...base,
+      x: Math.round(item.x - pad),
+      y: Math.round(item.y - pad),
+      w: Math.round(item.w + pad * 2),
+      h: Math.round(item.h + pad * 2),
+      vec: true,
+      img: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgFor(item.shape, item.w, item.h, pad))}`,
+      alt: item.name || 'Shape',
+    }
+  }
+
   if (traitsOf(item.kind).pixels || item.kind === 'embed') {
     const src = await sourceFor(item)
     if (src) {
@@ -229,7 +249,9 @@ async function toPageItem(item: Item, spent: Spend): Promise<PageItem | null> {
         const blob = await encode(cv)
         if (blob) {
           spent.pictures++
-          return { ...base, img: await dataUri(blob), alt: item.name || item.kind }
+          /* A baked drawing is a picture, and still not a card: what is
+             behind it on the board is the board. */
+          return { ...base, img: await dataUri(blob), alt: item.name || item.kind, vec: item.kind === 'shape' || undefined }
         }
       }
     }

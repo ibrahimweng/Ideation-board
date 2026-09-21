@@ -12,6 +12,11 @@
  * Clears the board's stored data first.
  */
 import { chromium } from 'playwright'
+import fs from 'node:fs'
+import path from 'node:path'
+
+const OUT = process.env.OUT_DIR || path.join(process.cwd(), '.smoke')
+fs.mkdirSync(OUT, { recursive: true })
 
 const BASE = process.argv[2] || 'http://localhost:4173'
 const results = []
@@ -53,15 +58,18 @@ const shapes = () => page.evaluate(() =>
 const last = async () => (await shapes()).at(-1)
 const cmds = (d) => (d.match(/[A-Za-z]/g) || []).join('')
 
+const rail = () => page.locator('.rail')
 const pick = async (name, group = 'Shapes') => {
-  /* The rail holds one of each group; the rest are behind the corner mark. */
-  const on = await page.getByRole('button', { name, exact: true }).count()
+  /* The rail holds one of each group; the rest are behind the corner mark.
+     Scoped to the rail, because the panel names itself after the shape it is
+     working on and a tab called Rectangle is not the rectangle tool. */
+  const on = await rail().getByRole('button', { name, exact: true }).count()
   if (!on) {
-    await page.getByRole('button', { name: group, exact: true }).click()
+    await rail().getByRole('button', { name: group, exact: true }).click()
     await page.waitForTimeout(200)
     await page.getByRole('menuitem', { name, exact: true }).click()
   } else {
-    await page.getByRole('button', { name, exact: true }).click()
+    await rail().getByRole('button', { name, exact: true }).click()
   }
   await page.waitForTimeout(250)
 }
@@ -416,6 +424,79 @@ ok('and stands down rather than drawing a second one',
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 
+/* ---------------------------------------------------------------------------
+ * The panel, and baking.
+ * ------------------------------------------------------------------------- */
+
+const panel = () => page.evaluate(() => [...document.querySelectorAll('.panel-tabs button')].map((b) => b.textContent))
+const record = () => page.evaluate(() => {
+  const el = [...document.querySelectorAll('.card[data-kind="shape"]')].at(-1)
+  const r = el.getBoundingClientRect()
+  const path = el.querySelector('svg path:not(.shape-hit)')
+  return {
+    x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height),
+    baked: el.hasAttribute('data-baked'),
+    picture: !!el.querySelector('img.media'),
+    fill: path?.getAttribute('fill') || null,
+    stroke: path?.getAttribute('stroke') || null,
+    width: path?.getAttribute('stroke-width') || null,
+    d: path?.getAttribute('d') || null,
+  }
+})
+
+await page.mouse.click(160, 830)
+await page.waitForTimeout(200)
+await pick('Star')
+await drag(300, 250, 600, 550)
+ok('a drawing gets a panel of its own, named after it', (await panel())[0] === 'Star', (await panel()).join('/'))
+
+/* --- the controls really change the drawing --- */
+const asStar = (await record()).d
+await page.locator('.ctl', { hasText: 'Points' }).first().locator('input[type=range]').fill('9')
+await page.waitForTimeout(400)
+const nine = await record()
+ok('changing the points changes the drawing', cmds(nine.d) === 'M' + 'L'.repeat(17) + 'Z', cmds(nine.d))
+ok('and it is a different drawing from the one it was', nine.d !== asStar)
+
+/* A stroke has to be given a colour before a width means anything: a width
+   with no colour is a line nobody asked to see. */
+await page.locator('.fx-controls', { hasText: 'Stroke' }).first().locator('.type-inks button').nth(1).click()
+await page.waitForTimeout(300)
+await page.locator('.ctl', { hasText: 'Width' }).first().locator('input[type=range]').fill('20')
+await page.waitForTimeout(400)
+const inked = await record()
+ok('a stroke colour and a width both reach the drawing', inked.width === '20' && inked.stroke !== 'none', `${inked.stroke} at ${inked.width}`)
+
+/* --- typed position --- */
+await page.locator('.shape-num', { hasText: 'X' }).first().locator('input').fill('700')
+await page.waitForTimeout(400)
+const put = await record()
+ok('a position typed in puts it there', Math.abs(put.x - (300 + 400)) <= 2, `x ${put.x}`)
+
+/* --- bake it --- */
+const drawnBox = await record()
+await page.getByRole('button', { name: 'Bake into a picture' }).click()
+await page.waitForTimeout(2000)
+const cooked = await record()
+ok('baking turns a drawing into a picture', cooked.baked && cooked.picture, JSON.stringify({ baked: cooked.baked, picture: cooked.picture }))
+ok('and the effects are offered on it now', (await panel()).includes('Effect'), (await panel()).join('/'))
+/* A stroke straddles the line it is on, so half a twenty-pixel one hangs
+   outside the box. Baking the box alone would give a star with its points
+   filed off, so the picture is the box plus that and the card grows to
+   match — which leaves the drawing exactly where it was on the board. */
+ok('and it grows by the half of the stroke that hung outside the box',
+   Math.abs(cooked.x - (drawnBox.x - 10)) <= 1 && Math.abs(cooked.w - (drawnBox.w + 20)) <= 1,
+   `${drawnBox.x},${drawnBox.w} -> ${cooked.x},${cooked.w}`)
+
+/* --- and back --- */
+await page.getByRole('button', { name: 'Back to the drawing' }).click()
+await page.waitForTimeout(600)
+const raw = await record()
+ok('and the drawing comes back exactly where it was',
+   !raw.baked && raw.x === drawnBox.x && raw.y === drawnBox.y && raw.w === drawnBox.w && raw.h === drawnBox.h,
+   `${drawnBox.x},${drawnBox.y} ${drawnBox.w}x${drawnBox.h} -> ${raw.x},${raw.y} ${raw.w}x${raw.h}`)
+ok('and it is the drawing it was, not a picture of one', raw.d === drawnBox.d)
+
 /* --- it is hit where it is painted --- */
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
@@ -432,6 +513,61 @@ await page.waitForTimeout(2500)
 const back = await shapes()
 ok('shapes come back after a reload', back.length === kept && kept > 0, `${kept} -> ${back.length}`)
 ok('and they come back drawn', back.every((s) => s.d.length > 3))
+
+/* ---------------------------------------------------------------------------
+ * Out of the app.
+ *
+ * A drawing has no pixels, which is fine on the board and is the whole
+ * question on the way out: the poster is a canvas and the page is a file, and
+ * neither of them can photograph something that was never a photograph. Both
+ * draw the drawing instead.
+ * ------------------------------------------------------------------------- */
+
+const palette = async (text) => {
+  await page.keyboard.press('Control+k')
+  await page.waitForTimeout(400)
+  await page.locator('.cmd-input').fill(text)
+  await page.waitForTimeout(400)
+  return page.locator('.cmd-row').first()
+}
+
+const [sheet] = await Promise.all([page.waitForEvent('download'), (await palette('one picture')).click()])
+const sheetFile = path.join(OUT, `shapes-${sheet.suggestedFilename()}`)
+await sheet.saveAs(sheetFile)
+await page.waitForTimeout(700)
+
+/* How much of the sheet is the blue every shape on this board is filled
+ * with. None of it means the drawings never left the screen. */
+const drawn3 = await page.evaluate(async (data) => {
+  const img = new Image()
+  img.src = 'data:image/png;base64,' + data
+  await img.decode()
+  const c = document.createElement('canvas')
+  c.width = img.width
+  c.height = img.height
+  const x = c.getContext('2d')
+  x.drawImage(img, 0, 0)
+  const d = x.getImageData(0, 0, c.width, c.height).data
+  let blue = 0
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 30 && d[i] < 80 && d[i + 1] > 90 && d[i + 1] < 140 && d[i + 2] > 210) blue++
+  }
+  return { blue, of: d.length / 4 }
+}, fs.readFileSync(sheetFile).toString('base64'))
+ok('the board poster draws the drawings rather than a grey square',
+   drawn3.blue > 4000, `${drawn3.blue} pixels of fill in ${drawn3.of}`)
+
+const [html] = await Promise.all([page.waitForEvent('download'), (await palette('anyone can open')).click()])
+const htmlFile = path.join(OUT, `shapes-${html.suggestedFilename()}`)
+await html.saveAs(htmlFile)
+await page.waitForTimeout(500)
+const written = fs.readFileSync(htmlFile, 'utf8')
+ok('the exported page carries a drawing as a drawing', /image%2Fsvg%2Bxml|image\/svg\+xml/.test(written))
+ok('and says it is one, so the page gives it no card to sit in', /"vec":true/.test(written))
+ok('and carries the path itself, not a photograph of it', /%3Cpath|<path/.test(written))
+/* A drawing is a few hundred bytes. A picture of one is a few hundred
+   thousand, and a board of forty would be a file nobody can send. */
+ok('and costs what a drawing costs', written.length < 4_000_000, `${Math.round(written.length / 1024)}kB`)
 
 console.log('\npage errors:', errors.length ? errors.slice(0, 6) : 'none')
 const failed = results.filter((r) => !r.pass)

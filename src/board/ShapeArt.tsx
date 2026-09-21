@@ -1,4 +1,4 @@
-import { headsFor, pathFor, settingOf } from '../state/shapes'
+import { headsFor, paintOf, pathFor, settingOf } from '../state/shapes'
 import type { ShapeSpec } from '../state/shapes'
 
 /* ---------------------------------------------------------------------------
@@ -17,11 +17,6 @@ import type { ShapeSpec } from '../state/shapes'
 /* How wide a line has to be before it is its own target. */
 const HIT = 14
 
-/* A dash pattern is written in stroke widths, so a dash keeps its proportion
- * on a hairline and on a twenty-pixel rule alike. SVG wants lengths. */
-export const dashFor = (dash: string, width: number): string | undefined =>
-  dash ? dash.trim().split(/\s+/).map((v) => Number(v) * width).join(' ') : undefined
-
 export function ShapeArt({
   spec, w, h, className, hit,
 }: {
@@ -36,8 +31,7 @@ export function ShapeArt({
   hit?: boolean
 }) {
   if (!spec) return null
-  const fill = settingOf(spec, 'fill')
-  const stroke = settingOf(spec, 'stroke')
+  const paint = paintOf(spec)
   const width = settingOf(spec, 'width')
   const heads = headsFor(spec, w, h)
   return (
@@ -63,19 +57,14 @@ export function ShapeArt({
           strokeLinejoin={settingOf(spec, 'join')}
         />
       )}
-      <path
-        d={pathFor(spec, w, h)}
-        fill={fill || 'none'}
-        stroke={stroke || 'none'}
-        strokeWidth={width}
-        strokeDasharray={dashFor(settingOf(spec, 'dash'), width)}
-        strokeLinecap={settingOf(spec, 'cap')}
-        strokeLinejoin={settingOf(spec, 'join')}
-      />
+      {/* Written with SVG's own attribute names rather than React's, because
+          the same answer is serialised straight into the exported page and
+          into the picture a shape is baked to. */}
+      <path d={pathFor(spec, w, h)} {...paint} />
       {/* An arrowhead is solid, and takes the colour of the line it is on —
           a hollow head on a dashed line is a head made of dashes. */}
       {heads.map((d, i) => (
-        <path key={i} d={d} fill={stroke || fill || 'currentColor'} />
+        <path key={i} d={d} fill={paint.stroke !== 'none' ? paint.stroke : paint.fill} />
       ))}
     </svg>
   )

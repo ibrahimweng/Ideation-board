@@ -63,7 +63,7 @@ export const Card = memo(function Card({
   /* A document's pixels are the page rendered beside it, not the file itself,
      so the picture it draws comes from a second address. */
   const pageUrl = useObjectURL(
-    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch'
+    it?.kind === 'pdf' || it?.kind === 'design' || it?.kind === 'model' || it?.kind === 'sketch' || it?.kind === 'shape'
       ? it?.poster
       : undefined
   )
@@ -199,8 +199,9 @@ export const Card = memo(function Card({
         <div
           className="card card-shape"
           data-id={id}
-          style={{ ...shell, ...(filter ? { filter } : null) }}
+          style={{ ...shell, ...(filter && !it.poster ? { filter } : null) }}
           data-kind={it.kind}
+          data-baked={it.poster ? '' : undefined}
           data-sel={selected || undefined}
           data-dim={dim || undefined}
           data-pick={it.pick || undefined}
@@ -210,7 +211,32 @@ export const Card = memo(function Card({
              thing you can get inside means everywhere else on this board. */
           onDoubleClick={() => (hasNodes(it) ? editNodes(id) : onOpenEditor(id))}
         >
-          <ShapeArt spec={it.shape} w={it.w} h={it.h} hit />
+          {/* Baked, it is a picture like any other and goes down the same
+              road: the shader when one is applied, the plain picture when
+              none is. Unbaked, the browser draws it from the numbers. */}
+          {it.poster ? (
+            effected && ready ? (
+              <FxCanvas
+                id={id}
+                mediaKey={it.poster}
+                effectId={fx.fxid}
+                n={fx.n}
+                params={fx.ep}
+                more={fx.more}
+                seed={hashSeed(id)}
+                w={it.w}
+                h={it.h}
+                distance={distance}
+                className="media"
+              />
+            ) : (
+              pageUrl && (
+                <img className="media" src={pageUrl} alt={it.name || 'Shape'} draggable={false} style={filter ? { filter } : undefined} />
+              )
+            )
+          ) : (
+            <ShapeArt spec={it.shape} w={it.w} h={it.h} hit />
+          )}
           {tag && <i className="card-tag" style={{ background: tag.c }} title={tag.id} />}
           {it.pick && (
             <i className="card-pick" data-pick={it.pick} title={it.pick === 'in' ? 'Kept' : 'Cut'}>

@@ -1,6 +1,8 @@
 import type { Item } from './types'
 import { TAGS } from './types'
 import { traitsOf, isSection, isWire, pixelKey } from './kinds'
+import { outsetOf, svgFor } from './shapes'
+import { svgImage } from './raster'
 import { fitToPaper, paperFor, pdfBytes, posterBounds, posterScale } from './posterPage'
 import type { PaperName } from './posterPage'
 import { parse } from './rich'
@@ -599,6 +601,14 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
     return
   }
 
+  /* And a drawing has no card under it either. Baked, it has real pixels and
+     goes down the picture road below like anything else; unbaked there is
+     nothing to photograph, so the sheet draws the drawing. */
+  if (it.kind === 'shape' && it.shape && !it.poster) {
+    await drawShape(cx, it)
+    return
+  }
+
   cx.save()
   /* A cut card steps back on the sheet exactly as far as it does on the
    * board, so the decision survives the export. It multiplies with whatever
@@ -659,6 +669,31 @@ async function drawCard(cx: Ctx, it: Item, t: Tokens, scale: number, caption: bo
   if (caption) drawCaption(cx, it, t)
   drawTag(cx, it, t)
   drawPick(cx, it)
+  cx.restore()
+}
+
+/* A drawing, straight onto the sheet.
+ *
+ * The same SVG the board draws and the export writes out, rendered once into
+ * this canvas — so what comes out of the poster is what was on the board
+ * rather than a second opinion about it. The box is opened out by the outset,
+ * because a stroke straddles the line it is on and a picture of the box alone
+ * would be a circle with four flat sides. */
+async function drawShape(cx: Ctx, it: Item) {
+  if (!it.shape) return
+  const pad = outsetOf(it.shape)
+  let img: HTMLImageElement
+  try {
+    img = await svgImage(svgFor(it.shape, it.w, it.h, pad))
+  } catch {
+    return
+  }
+  cx.save()
+  const op = (it.fx?.op ?? 100) / 100
+  cx.globalAlpha = it.pick === 'out' ? op * 0.4 : op
+  const mix = blendOf(it.fx?.mix)
+  if (mix !== 'normal') cx.globalCompositeOperation = mix as GlobalCompositeOperation
+  cx.drawImage(img, it.x - pad, it.y - pad, it.w + pad * 2, it.h + pad * 2)
   cx.restore()
 }
 

@@ -7,7 +7,7 @@ import { FxCanvas } from '../board/FxCanvas'
 import { useSourceReady } from '../board/sources'
 import { useFeeder } from '../state/feeds'
 import { LooksTab } from './LooksTab'
-import { canShade, isGradeable, pixelKey } from '../state/kinds'
+import { canShade, hasPixels, isGradeable, pixelKey } from '../state/kinds'
 import { DIST, PITCH, stageOf, takeOffSkin, treatSkin, turnTo, wearSkin } from '../state/staging'
 import { SLOTS, SLOT_BY_ID, dressOf, slotName } from '../state/skins'
 import {
@@ -23,6 +23,8 @@ import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 import { Slider } from './Slider'
 import { TextTab } from './TextTab'
+import { ShapePanel } from './ShapePanel'
+import { unrasterise } from '../state/raster'
 import { isText } from '../state/type'
 
 /* Every layer past the first is another full pass over the card, so this is a
@@ -93,8 +95,24 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const texts = useMemo(() => selection.map((id) => store.getItem(id)).filter(isText), [selection])
   const textId = texts[0]?.id
 
+  /* Drawings, which are their own thing until somebody bakes them. Every
+     question this panel asks is about pixels, and a drawing is a handful of
+     numbers — what to ask a rectangle is how round its corners are and how
+     thick its line is, not which of seventy shaders to run on pixels it has
+     not got. Once it has been baked it is a picture like any other and the
+     rest of this panel applies, with a way back at the top of it. */
+  const drawings = useMemo(
+    () => selection.map((id) => store.getItem(id)).filter((i): i is Item => i?.kind === 'shape'),
+    [selection]
+  )
+  /* By id rather than by the item: `hasPixels` proves an item is there, so
+     asking it in the negative narrows the item away to nothing at all. */
+  const drawnId = drawings[0]?.id
+
   if (!primary && heardId) return <SoundPanel ids={sounds.map((s) => s.id)} id={heardId} say={say} />
   if (!primary && textId) return <TextTab ids={texts.map((t) => t.id)} id={textId} />
+  if (drawnId && !hasPixels(store.getItem(drawnId)))
+    return <ShapePanel ids={drawings.map((d) => d.id)} id={drawnId} say={say} />
 
   /* Open, with nothing to work on. A full width column of one sentence takes
    * three hundred and twenty pixels off the board to say nothing; a rail says
@@ -125,7 +143,9 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
   const why =
     primary.kind === 'embed'
       ? `A ${primary.name || 'player'} embed runs in its own frame, so nothing outside it can read the picture. Tone, framing and grain still apply.`
-      : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
+      : primary.kind === 'shape'
+        ? 'A drawing is a handful of numbers rather than pixels, so there is nothing for a shader to read. Bake it into a picture and every effect applies. Tone, framing and grain work either way.'
+        : 'This video is served from a host that does not allow its pixels to be read, so shaders cannot run on it. Tone, framing and grain still apply.'
 
   /* A video card previews its effects on the still it was opened with, and a
    * document on the page it is showing; a remote video has no still to use, so
@@ -258,6 +278,24 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
       {ids.length > 1 && (
         <p className="panel-many">
           Working on <b>{ids.length}</b> cards. Everything here goes on all of them.
+        </p>
+      )}
+
+      {/* A drawing that has been baked is a picture, and everything below
+          applies to it — but the numbers it was drawn from never went away,
+          so the way back is one press and not an undo. */}
+      {primary.kind === 'shape' && primary.poster && (
+        <p className="panel-many">
+          Baked from a drawing.{' '}
+          <button
+            className="panel-link"
+            onClick={() => {
+              unrasterise(ids)
+              say('Back to the drawing.')
+            }}
+          >
+            Back to the drawing
+          </button>
         </p>
       )}
 

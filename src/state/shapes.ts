@@ -286,6 +286,78 @@ export function pathFor(spec: ShapeSpec, w: number, h: number): string {
 }
 
 /* ---------------------------------------------------------------------------
+ * Paint.
+ *
+ * One answer for the four places a shape is drawn — the card, the draft under
+ * the pointer while it is being dragged out, the board's poster and the
+ * exported page. They must not drift, which is what one function is for.
+ * ------------------------------------------------------------------------- */
+
+/* A dash pattern is written in stroke widths, so a dash keeps its proportion
+ * on a hairline and on a twenty-pixel rule alike. SVG wants lengths. */
+export const dashFor = (dash: string, width: number): string | undefined =>
+  dash ? dash.trim().split(/\s+/).map((v) => Number(v) * width).join(' ') : undefined
+
+/* The attributes the path wants, as SVG names them. */
+export function paintOf(spec: ShapeSpec): Record<string, string> {
+  const width = settingOf(spec, 'width')
+  const fill = settingOf(spec, 'fill')
+  const stroke = settingOf(spec, 'stroke')
+  const dash = dashFor(settingOf(spec, 'dash'), width)
+  return {
+    fill: fill || 'none',
+    stroke: stroke || 'none',
+    'stroke-width': String(width),
+    'stroke-linecap': settingOf(spec, 'cap'),
+    'stroke-linejoin': settingOf(spec, 'join'),
+    ...(dash ? { 'stroke-dasharray': dash } : null),
+  }
+}
+
+/* How far the paint reaches outside the box.
+ *
+ * A stroke straddles the line it is on, so half of it is outside; a mitred
+ * corner runs out further than that, and an arrowhead is a triangle sitting
+ * on the end of a line and reaches further still. Anything that has to draw
+ * a shape into a picture of its own has to know: a picture of the box alone
+ * is a circle with four flat sides. */
+export function outsetOf(spec: ShapeSpec): number {
+  const width = settingOf(spec, 'width')
+  const half = settingOf(spec, 'stroke') ? width / 2 : 0
+  const head = settingOf(spec, 'heads') !== 'none' ? Math.max(4, width * 3.2) : 0
+  return Math.ceil(Math.max(half * (settingOf(spec, 'join') === 'miter' ? 2.5 : 1), head))
+}
+
+/* A colour comes off a record that could have been written by anything, and
+ * this markup is handed to an <img>, to a canvas and into an exported page.
+ * None of those should ever see a bracket that was not meant as one. */
+const esc = (v: string) =>
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const attrs = (map: Record<string, string>) =>
+  Object.entries(map).map(([k, v]) => `${k}="${esc(v)}"`).join(' ')
+
+/* The whole shape as a standalone SVG document.
+ *
+ * `pad` opens the picture out round the drawing by `outsetOf` so nothing is
+ * cut off at the edges. What the caller does about the extra is the caller's
+ * business — the picture says where the drawing is inside it by putting the
+ * origin at the padding. */
+export function svgFor(spec: ShapeSpec, w: number, h: number, pad = 0): string {
+  const paint = paintOf(spec)
+  const head = paint.stroke !== 'none' ? paint.stroke : paint.fill
+  const heads = headsFor(spec, w, h)
+    .map((d) => `<path d="${d}" fill="${esc(head)}"/>`)
+    .join('')
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${n(w + pad * 2)}" height="${n(h + pad * 2)}"`,
+    ` viewBox="${n(-pad)} ${n(-pad)} ${n(w + pad * 2)} ${n(h + pad * 2)}">`,
+    `<path d="${pathFor(spec, w, h)}" ${attrs(paint)}/>`,
+    heads,
+    '</svg>',
+  ].join('')
+}
+
+/* ---------------------------------------------------------------------------
  * Arrowheads.
  *
  * Drawn as their own little paths rather than as SVG markers. A marker is a
