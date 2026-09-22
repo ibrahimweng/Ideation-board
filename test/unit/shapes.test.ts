@@ -7,6 +7,9 @@ import {
   bendSegment,
   moveHandle,
   moveNode,
+  moveNodes,
+  dropNodes,
+  nodesIn,
   nodeAt,
   pointOnSegment,
   boundsOfNodes,
@@ -842,5 +845,70 @@ describe('the whole reason points are fractions', () => {
         expect(big[i], `${spec.kind} number ${i}`).toBeCloseTo(small[i] * 2, 1)
       }
     }
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * Several points at once.
+ * ------------------------------------------------------------------------- */
+
+describe('a handful of points, taken together', () => {
+  const four: Node[] = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ]
+
+  it('moves every one it is given and leaves the rest alone', () => {
+    const out = moveNodes(four, [1, 2], 0.1, 0.2)
+    expect(out[0]).toEqual({ x: 0, y: 0 })
+    expect(out[1]).toEqual({ x: 1.1, y: 0.2 })
+    expect(out[2]).toEqual({ x: 1.1, y: 1.2 })
+    expect(out[3]).toEqual({ x: 0, y: 1 })
+  })
+
+  it('hands back the same list when it is given none', () => {
+    expect(moveNodes(four, [], 0.5, 0.5)).toBe(four)
+  })
+
+  it('keeps every handle a point already had', () => {
+    const curved: Node[] = [{ x: 0, y: 0, ox: 0.2, oy: 0, ix: -0.2, iy: 0 }, { x: 1, y: 1 }]
+    const out = moveNodes(curved, [0], 0.1, 0)
+    expect(out[0].ox).toBe(0.2)
+    expect(out[0].ix).toBe(-0.2)
+  })
+
+  it('takes several away at once', () => {
+    expect(dropNodes(four, [1, 3]).map((n) => n.x)).toEqual([0, 1])
+  })
+
+  it('stops at two, because a path of one point is not a path', () => {
+    expect(dropNodes(four, [0, 1, 2, 3]).length).toBe(2)
+    expect(dropNodes(four, [1, 2, 3]).length).toBe(2)
+  })
+
+  it('and what it puts back keeps the order the path was drawn in', () => {
+    const three = four.slice(0, 3)
+    /* Asked to take the first two of three: one survivor is not a path, so the
+       earliest of the two goes back, before it rather than after. */
+    expect(dropNodes(three, [0, 1]).map((n) => n.x)).toEqual([0, 1])
+    expect(dropNodes(three, [1, 2]).map((n) => n.y)).toEqual([0, 0])
+  })
+
+  it('finds the points a box encloses, and only those', () => {
+    expect(nodesIn(four, -0.1, -0.1, 0.5, 1.1)).toEqual([0, 3])
+    expect(nodesIn(four, 0.4, 0.4, 0.6, 0.6)).toEqual([])
+    expect(nodesIn(four, -1, -1, 2, 2)).toEqual([0, 1, 2, 3])
+  })
+
+  it('reads a box drawn backwards the same as one drawn forwards', () => {
+    expect(nodesIn(four, 0.5, 1.1, -0.1, -0.1)).toEqual(nodesIn(four, -0.1, -0.1, 0.5, 1.1))
+  })
+
+  it('counts a point exactly on the edge of the box as inside it', () => {
+    /* A marquee dragged to land exactly on an anchor is a marquee somebody
+       aimed, and having it miss would be baffling. */
+    expect(nodesIn(four, 0, 0, 1, 0)).toEqual([0, 1])
   })
 })

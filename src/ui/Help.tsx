@@ -191,8 +191,10 @@ function parts(): Part[] {
             same treatment on something else later.
           </p>
           <p>
-            Every figure in the panel can be typed into as well as dragged, and double-clicking a
-            slider puts it back where it started. Hold <K>{KEYS.original.hint}</K> at any point to
+            Every figure in the panel can be typed into as well as dragged, its name can be
+            dragged sideways to change it &mdash; one step to a pixel, ten with <K>Shift</K>, a
+            tenth with <K>Alt</K> &mdash; and double-clicking a slider puts it back where it
+            started. Hold <K>{KEYS.original.hint}</K> at any point to
             see the selection without any of it — the whole board, if nothing is selected — and let
             go to bring it back.
           </p>

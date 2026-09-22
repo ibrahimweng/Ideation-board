@@ -637,6 +637,47 @@ export function moveNode(nodes: Node[], at: number, dx: number, dy: number): Nod
   return out
 }
 
+/* Several points moved at once, which is what a marquee round a few of them
+ * is for. One at a time through `moveNode` would copy the list once per point;
+ * this copies it once. */
+export function moveNodes(nodes: Node[], at: number[], dx: number, dy: number): Node[] {
+  if (!at.length) return nodes
+  const which = new Set(at)
+  return nodes.map((n, i) => (which.has(i) ? { ...n, x: n.x + dx, y: n.y + dy } : n))
+}
+
+/* And several taken away, with the same floor under it: a path needs two
+ * points to be a path, so a selection that would empty it takes away as many
+ * as it can and stops there. */
+export function dropNodes(nodes: Node[], at: number[]): Node[] {
+  if (!at.length) return nodes
+  const which = new Set(at)
+  /* When the selection would empty the path, the earliest of the points it
+     asked for are put back, in the order they were drawn, so what is left is
+     still a stretch of the same path and not an arbitrary pair. */
+  let spare = Math.max(0, 2 - nodes.filter((_, i) => !which.has(i)).length)
+  return nodes.filter((_, i) => {
+    if (!which.has(i)) return true
+    if (spare > 0) {
+      spare--
+      return true
+    }
+    return false
+  })
+}
+
+/* Which points a box drawn over the drawing encloses. All in fractions of the
+ * card, which is the only unit the record knows. */
+export function nodesIn(nodes: Node[], x0: number, y0: number, x1: number, y1: number): number[] {
+  const lo = { x: Math.min(x0, x1), y: Math.min(y0, y1) }
+  const hi = { x: Math.max(x0, x1), y: Math.max(y0, y1) }
+  const out: number[] = []
+  nodes.forEach((n, i) => {
+    if (n.x >= lo.x && n.x <= hi.x && n.y >= lo.y && n.y <= hi.y) out.push(i)
+  })
+  return out
+}
+
 /* One handle put somewhere, as an offset from its own point.
  *
  * Its opposite follows it round unless it is being broken off, which is how

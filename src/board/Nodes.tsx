@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { store, useItem, useViewport } from '../state/store'
 import {
-  addNode, bendSegment, dropNode, isSmooth, moveHandle, moveNode, nearestOn,
-  nodeAt, pathFor, toggleSmooth,
+  addNode, bendSegment, dropNode, dropNodes, isSmooth, moveHandle, moveNode, moveNodes,
+  nearestOn, nodeAt, nodesIn, pathFor, toggleSmooth,
 } from '../state/shapes'
 import type { Node } from '../state/shapes'
 import { refit } from './drawing'
@@ -17,7 +17,7 @@ import { holdPress } from './press'
  * other — so this is a mode: double-click the shape to come in, Escape to go
  * out, and while you are in it the card's own handles stand down.
  *
- * Six gestures, and no menu:
+ * Nine gestures, and no menu:
  *
  *   drag an anchor        move the point, handles and all
  *   drag a handle         shape the curve either side of it
@@ -26,6 +26,13 @@ import { holdPress } from './press'
  *   double-click the line put a point there
  *   alt-click an anchor   take it away
  *   double-click an anchor   corner becomes smooth, and back again
+ *   drag the empty space  a box round several points at once
+ *   shift-click an anchor add it to those, or take it out again
+ *
+ * Several points picked out is the difference between editing a drawing and
+ * fiddling with it: one side of a shape is four points, and moving them one at
+ * a time is four drags that each have to end in the same place. Picked points
+ * move together, nudge together with the arrows, and go together with Delete.
  *
  * Everything is written straight onto the record as it moves, with one undo
  * snapshot for a whole drag. The box is pulled back round the points only
@@ -44,18 +51,83 @@ export function Nodes({ id }: { id: string }) {
   const it = useItem(id)
   const view = useViewport()
   const box = useRef<HTMLDivElement>(null)
+  /* Which points are picked out, by their place in the path. Kept here rather
+     than on the record: it is a thing about this editing session and not about
+     the drawing, and a board file carrying somebody's old selection would be a
+     board file carrying noise. */
+  const [picked, setPicked] = useState<number[]>([])
+  /* The box being dragged round several of them, in fractions of the card. */
+  const [lasso, setLasso] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
 
-  /* Escape leaves, and so does the card being deleted out from under it. */
+  /* One change to the points, applied to whatever the record holds now rather
+     than to a snapshot. The keyboard handler is a window listener that outlives
+     any one render, and working from the render it was hung in would put back
+     the points as they were when the key was first pressed. */
+  const act = (step: (ns: Node[]) => Node[], settle = true) => {
+    const cur = store.getItem(id)
+    if (cur?.kind !== 'shape' || !cur.shape?.nodes) return
+    const next = step(cur.shape.nodes)
+    if (!settle) {
+      store.update(id, { shape: { ...cur.shape, nodes: next } }, false)
+      return
+    }
+    /* The box pulled back round them, the same as when a drag lets go. */
+    const fitted = refit(cur, next)
+    store.update(
+      id,
+      {
+        x: Math.round(fitted.box.x),
+        y: Math.round(fitted.box.y),
+        w: Math.round(fitted.box.w),
+        h: Math.round(fitted.box.h),
+        shape: { ...cur.shape, nodes: fitted.nodes },
+      },
+      false
+    )
+  }
+
+  /* Escape leaves, and so does the card being deleted out from under it — but
+     with points picked out it lets go of those first, because one press
+     undoing two things is one press too many.
+     Delete and the arrow keys act on what is picked, which is the whole point
+     of picking: the board's own Delete would take the card away instead. */
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        setPicked((was) => {
+          if (!was.length) editNodes(null)
+          return []
+        })
+        return
+      }
+      if (!picked.length) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        e.stopPropagation()
+        store.beginGesture()
+        act((ns) => dropNodes(ns, picked))
+        setPicked([])
+        return
+      }
+      if (!e.key.startsWith('Arrow')) return
       e.preventDefault()
       e.stopPropagation()
-      editNodes(null)
+      const cur = store.getItem(id)
+      if (!cur) return
+      const step = e.shiftKey ? 10 : 1
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+      const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+      /* A burst of nudges collapses into one step of undo. */
+      store.beginGesture(700)
+      act((ns) => moveNodes(ns, picked, dx / cur.w, dy / cur.h))
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
-  }, [])
+  }, [picked])
 
   const spec = it?.shape
   const nodes = spec?.nodes
@@ -197,14 +269,32 @@ export function Nodes({ id }: { id: string }) {
               e.stopPropagation()
               e.preventDefault()
               put(dropNode(nodes, i))
+              setPicked((was) => was.filter((p) => p !== i).map((p) => (p > i ? p - 1 : p)))
               return
             }
-            drag(e, (dx, dy) => moveNode(nodes, i, dx, dy))
+            /* Shift adds it to what is picked, or takes it back out, and does
+               not drag: a gesture that both changed the selection and moved
+               what it changed would be one you could not take back by eye. */
+            if (e.shiftKey) {
+              e.stopPropagation()
+              e.preventDefault()
+              setPicked((was) => (was.includes(i) ? was.filter((p) => p !== i) : [...was, i]))
+              return
+            }
+            /* Pressing one that is not picked picks it alone; pressing one
+               that is picked keeps the others, so a handful can be dragged
+               from any of them. */
+            const set = picked.includes(i) ? picked : [i]
+            if (!picked.includes(i)) setPicked(set)
+            drag(e, (dx, dy) =>
+              set.length > 1 ? moveNodes(nodes, set, dx, dy) : moveNode(nodes, i, dx, dy)
+            )
           }
           return isSmooth(n) ? (
             <circle
               key={i}
               className="node-dot"
+              data-on={picked.includes(i) || undefined}
               cx={cx}
               cy={cy}
               r={mark}
@@ -215,6 +305,7 @@ export function Nodes({ id }: { id: string }) {
             <rect
               key={i}
               className="node-dot"
+              data-on={picked.includes(i) || undefined}
               x={cx - mark}
               y={cy - mark}
               width={mark * 2}

@@ -729,6 +729,22 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   white-space: nowrap;
 }
 
+/* ---------- a number's name, as a way to change it ---------- */
+
+/* The cursor is the whole of the discoverability: there is no badge, no
+   underline and nothing in the way, and the only thing that says this word
+   does something is that the pointer changes over it. */
+.scrub {
+  cursor: ew-resize;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+/* And it stays that way over whatever the drag wanders across, which is the
+   only sign that it is still going on once the pointer has left the word. */
+body[data-scrubbing] { cursor: ew-resize; }
+body[data-scrubbing] * { cursor: ew-resize !important; }
+
 /* ---------- how far apart two things are ---------- */
 
 /* Above everything the board draws, because it is an answer to a question
