@@ -1338,6 +1338,16 @@ export default function App() {
       store.tidy(sel)
       say(`Tidied ${sel.length}`)
     },
+    combine: (op) => {
+      const sel = store.getSelection()
+      const made = store.combine(sel, op)
+      if (!made) {
+        say('Pick out two drawings to combine')
+        return
+      }
+      store.select([made])
+      say(op === 'union' ? 'United' : op === 'subtract' ? 'Subtracted' : 'Excluded')
+    },
     compare,
     vary: () => void varyNow(),
     shuffle: () => void shuffleNow(),

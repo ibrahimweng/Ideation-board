@@ -613,8 +613,24 @@ drag a handle to shape the curve either side of it, Alt-drag a handle to break
 the pair, drag the line itself to bend it, double-click the line to put a point
 on it, Alt-click an anchor to take one away, and double-click an anchor to turn
 a corner smooth and back. A smooth point is drawn round and a corner square, so
-what a point is can be seen rather than found out by dragging it. Escape puts
-them away.
+what a point is can be seen rather than found out by dragging it.
+
+Several points at once: drag a box round them in the space beside the drawing,
+or Shift-click to add one at a time. Picked points move together, nudge
+together with the arrows and go together with Delete. Escape lets go of them,
+and Escape again puts the points away.
+
+**Two drawings can be made into one.** Unite them, Subtract the ones above from
+the one below, Intersect them down to what they share, or Exclude what they
+share and keep the rest — the four booleans, on the right-click menu with the
+rest of the arranging and on ⌘⌥U, ⌘⌥S and ⌘⌥X. (Intersect has no key of its
+own: on a Mac the browser keeps ⌥⌘I for its own developer tools, so a key for
+it would work on some machines and quietly do nothing on others.) What comes
+out is one drawing wearing the paint of the one that was at the bottom, and the
+curves in it are flattened into short straight runs — under a third of a pixel
+from where they were, and still a drawing rather than pixels. A hole is a ring
+of its own inside the outline, drawn even-odd, which is why you can press
+straight through one.
 
 A drawing is a handful of numbers rather than pixels: it is exact at 4% and at
 400%, it costs the same handful of bytes however big you draw it, and it is hit

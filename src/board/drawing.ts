@@ -147,13 +147,22 @@ export function freehandShape(pts: Pt[], tol: number): Drawn | null {
  *
  * Only when the drag lets go, never during it: a box that followed the points
  * would be a card sliding about under the hand that is dragging them. */
-export function refit(it: Rect, nodes: Node[]): { box: Rect; nodes: Node[] } {
-  const b = boundsOfNodes(nodes)
+export function refit(
+  it: Rect,
+  nodes: Node[],
+  /* The other rings the shape is made of, when it came out of combining two
+     others. They are not being edited, but they are written in the same box,
+     so a box that changed without them would move them. */
+  subs: Node[][] = []
+): { box: Rect; nodes: Node[]; subs: Node[][] } {
+  /* Round everything, not only the outline: a shape combined out of two that
+     no longer touch has pieces outside the run of points being dragged. */
+  const b = boundsOfNodes(subs.length ? [...nodes, ...subs.flat()] : nodes)
   const box = opened({ x: it.x + b.x * it.w, y: it.y + b.y * it.h, w: b.w * it.w, h: b.h * it.h })
   /* The new box said in the old box's fractions, which is the space the
      points are still written in. */
   const same = { x: (box.x - it.x) / it.w, y: (box.y - it.y) / it.h, w: box.w / it.w, h: box.h / it.h }
-  return { box, nodes: intoBox(nodes, same) }
+  return { box, nodes: intoBox(nodes, same), subs: subs.map((ring) => intoBox(ring, same)) }
 }
 
 /* What is under the pointer while a stroke is still being drawn: the raw

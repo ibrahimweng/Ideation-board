@@ -66,16 +66,11 @@ export function Nodes({ id }: { id: string }) {
      than to a snapshot. The keyboard handler is a window listener that outlives
      any one render, and working from the render it was hung in would put back
      the points as they were when the key was first pressed. */
-  const act = (step: (ns: Node[]) => Node[], settle = true) => {
+  const act = (step: (ns: Node[]) => Node[]) => {
     const cur = store.getItem(id)
     if (cur?.kind !== 'shape' || !cur.shape?.nodes) return
-    const next = step(cur.shape.nodes)
-    if (!settle) {
-      store.update(id, { shape: { ...cur.shape, nodes: next } }, false)
-      return
-    }
     /* The box pulled back round them, the same as when a drag lets go. */
-    const fitted = refit(cur, next)
+    const fitted = refit(cur, step(cur.shape.nodes), cur.shape.subs || [])
     store.update(
       id,
       {
@@ -83,7 +78,7 @@ export function Nodes({ id }: { id: string }) {
         y: Math.round(fitted.box.y),
         w: Math.round(fitted.box.w),
         h: Math.round(fitted.box.h),
-        shape: { ...cur.shape, nodes: fitted.nodes },
+        shape: { ...cur.shape, nodes: fitted.nodes, ...(fitted.subs.length ? { subs: fitted.subs } : null) },
       },
       false
     )
@@ -186,7 +181,7 @@ export function Nodes({ id }: { id: string }) {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       if (!last) return
-      const fitted = refit(it, last)
+      const fitted = refit(it, last, spec.subs || [])
       store.update(
         id,
         {
@@ -194,7 +189,7 @@ export function Nodes({ id }: { id: string }) {
           y: Math.round(fitted.box.y),
           w: Math.round(fitted.box.w),
           h: Math.round(fitted.box.h),
-          shape: { ...spec, nodes: fitted.nodes },
+          shape: { ...spec, nodes: fitted.nodes, ...(fitted.subs.length ? { subs: fitted.subs } : null) },
         },
         false
       )

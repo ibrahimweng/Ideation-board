@@ -163,6 +163,22 @@ function parts(): Part[] {
             away, and double-click an anchor to turn a corner smooth and back.
           </p>
           <p>
+            Two drawings can be made into one: <strong>Unite</strong> them, <strong>Subtract</strong>{' '}
+            the ones above from the one below, <strong>Intersect</strong> them down to what they
+            share, or <strong>Exclude</strong> what they share and keep the rest. They are on the
+            right-click menu with the rest of the arranging, and on{' '}
+            <K>{KEYS.unite.hint}</K>, <K>{KEYS.subtract.hint}</K> and <K>{KEYS.exclude.hint}</K>.
+            Intersect has no key of its own: on a Mac the browser keeps that combination for its
+            own developer tools, so a key for it would work on some machines and quietly do nothing
+            on others.
+          </p>
+          <p>
+            What comes out is one drawing with the paint of the one that was at the bottom, and the
+            curves in it are flattened into short straight runs — under a third of a pixel from
+            where they were, and still a drawing rather than pixels. A hole is a ring of its own
+            inside the outline, which is why you can press straight through one.
+          </p>
+          <p>
             Several at once: drag a box round them in the space beside the drawing, or hold{' '}
             <K>Shift</K> and click to add one at a time. Picked points move together, nudge
             together with the arrows and go together with <K>Delete</K>. <K>Esc</K> lets go of
@@ -548,6 +564,9 @@ const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'gather', what: 'Bring the selection together' },
   { name: 'tidy', what: 'Tidy the selection into a row or a grid' },
   { name: 'measure', what: 'Hold and point at something to measure the distance' },
+  { name: 'unite', what: 'Unite the selected drawings into one' },
+  { name: 'subtract', what: 'Subtract the drawings above from the one below' },
+  { name: 'exclude', what: 'Keep everything but what the drawings share' },
   { name: 'fitBoard', what: 'Fit the whole board on screen' },
   { name: 'fitSelection', what: 'Fit the selection on screen' },
   { name: 'takeAway', what: 'Take the selection off this board' },

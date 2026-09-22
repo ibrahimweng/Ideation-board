@@ -2205,6 +2205,12 @@ body[data-turning] .card-chrome { opacity: 0; }
   font: 500 var(--t-xs)/1.4 var(--sans); color: var(--muted);
 }
 .menu-arrange button:hover { background: var(--press); color: var(--ink); }
+/* The booleans are named rather than drawn: a glyph for "everything but what
+   these two share" is a glyph nobody reads the first time. Four words do not
+   fit beside their own label, so the label takes a line of its own. */
+.menu-arrange.menu-wide { flex-wrap: wrap; }
+.menu-arrange.menu-wide > span { flex: 1 0 100%; margin: 0 0 3px; }
+.menu-arrange.menu-wide button { padding: 0 8px; }
 
 /* ---------- sheet ---------- */
 

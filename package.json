@@ -43,6 +43,7 @@
     "test:smart": "node test/smart.mjs",
     "test:measure": "node test/measure.mjs",
     "test:scrub": "node test/scrub.mjs",
+    "test:boolean": "node test/boolean.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",
@@ -91,6 +92,7 @@
   },
   "dependencies": {
     "pdfjs-dist": "^6.3.289",
+    "polygon-clipping": "^0.15.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0"

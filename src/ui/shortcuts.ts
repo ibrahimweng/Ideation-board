@@ -55,6 +55,15 @@ export const KEYS = {
      app that people arrive already knowing: a pile becomes a row, and a row
      is the thing whose gaps you can then take hold of. */
   tidy: { key: 't', mod: true, alt: true, hint: join(MOD, ALT, 'T'), label: 'Tidy the selection into a row or a grid', short: 'Tidy up' },
+  /* The four booleans, on the combination every tool that has them uses. The
+     fourth of them, intersect, is deliberately not here: on a Mac the browser
+     keeps ⌥⌘I for its own developer tools and nothing a page does can have it,
+     so a key for it would be a key that works on some machines and silently
+     does nothing on others. It is on the menu and in the command list with the
+     other three. */
+  unite: { key: 'u', mod: true, alt: true, hint: join(MOD, ALT, 'U'), label: 'Unite the selected shapes into one', short: 'Unite' },
+  subtract: { key: 's', mod: true, alt: true, hint: join(MOD, ALT, 'S'), label: 'Subtract the shapes above from the one below', short: 'Subtract' },
+  exclude: { key: 'x', mod: true, alt: true, hint: join(MOD, ALT, 'X'), label: 'Keep everything but what the shapes share', short: 'Exclude' },
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
   /* The same letter as Put here, without the modifier — which is the pattern
      already set by Draw and ⌘D, Export pictures and ⌘E, Add files and ⌘F. */

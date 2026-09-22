@@ -120,6 +120,22 @@ const trait =
 
 /* A box to move, resize, line up and tidy. */
 export const isThing = trait('thing')
+
+/* A drawing with an area to clip, which is what the four booleans need.
+ *
+ * A line and an arrow have none — closing one to give it an area would be
+ * answering a question nobody asked — and a path of fewer than three points is
+ * a line by another name. A baked drawing is pixels now: there is no outline
+ * left, and combining the outline it used to have would give an answer that
+ * looked like neither of them. */
+export const canCombine = (i?: Item): boolean =>
+  !!i &&
+  i.kind === 'shape' &&
+  !!i.shape &&
+  !i.poster &&
+  i.shape.kind !== 'line' &&
+  i.shape.kind !== 'arrow' &&
+  (i.shape.kind !== 'path' || (i.shape.nodes?.length ?? 0) >= 3)
 /* Pixels this side can read: export it, shade it, take its colours.
  *
  * The one question here the kind does not settle on its own. A drawing has no

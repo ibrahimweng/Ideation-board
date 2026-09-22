@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { store } from '../../src/state/store'
 import { FX_0 } from '../../src/engine/types'
 import type { Item } from '../../src/state/types'
+import type { ShapeSpec } from '../../src/state/shapes'
 
 /* The board itself, without a browser around it. Lining cards up, spacing them
  * out, tidying them onto a grid, joining them, taking them away and putting
@@ -435,5 +436,135 @@ describe('the revision counter', () => {
     seen.push(store.rev)
     expect(seen).toEqual([...seen].sort((p, q) => p - q))
     expect(new Set(seen).size).toBe(seen.length)
+  })
+})
+
+/* ---------------------------------------------------------------------------
+ * Two shapes into one.
+ * ------------------------------------------------------------------------- */
+
+describe('combining shapes', () => {
+  const shape = (x: number, y: number, w: number, h: number, spec: Partial<ShapeSpec> = {}) =>
+    add({ kind: 'shape', x, y, w, h, shape: { kind: 'rect', ...spec } as ShapeSpec, name: 'Rectangle' })
+
+  it('leaves one card where there were two', () => {
+    shape(0, 0, 100, 100)
+    shape(50, 0, 100, 100)
+    const made = store.combine(store.all().map((i) => i.id), 'union')!
+    expect(made).toBeTruthy()
+    expect(store.all().map((i) => i.id)).toEqual([made])
+  })
+
+  it('and the card says which of the four made it', () => {
+    shape(0, 0, 100, 100)
+    shape(50, 0, 100, 100)
+    const ids = store.all().map((i) => i.id)
+    expect(byId(store.combine(ids, 'union')!).name).toBe('United')
+  })
+
+  it('puts a box round the answer rather than round what it was made of', () => {
+    shape(0, 0, 100, 100)
+    shape(50, 0, 100, 100)
+    /* The overlap of the two, which is a quarter of the ground they cover. */
+    const made = byId(store.combine(store.all().map((i) => i.id), 'intersect')!)
+    expect({ x: made.x, y: made.y, w: made.w, h: made.h }).toEqual({ x: 50, y: 0, w: 50, h: 100 })
+  })
+
+  it('is one step of undo, however many went into it', () => {
+    shape(0, 0, 100, 100)
+    shape(50, 0, 100, 100)
+    shape(100, 0, 100, 100)
+    store.combine(store.all().map((i) => i.id), 'union')
+    expect(store.all().length).toBe(1)
+    store.undo()
+    expect(store.all().length).toBe(3)
+  })
+
+  it('wears the paint of the one at the bottom, which is the one being cut into', () => {
+    const under = shape(0, 0, 100, 100, { fill: '#123456', stroke: '#abcdef', width: 7 })
+    const over = shape(50, 0, 100, 100, { fill: '#000000' })
+    void over
+    const made = byId(store.combine(store.all().map((i) => i.id), 'subtract')!)
+    expect(made.shape?.fill).toBe('#123456')
+    expect(made.shape?.stroke).toBe('#abcdef')
+    expect(made.shape?.width).toBe(7)
+    expect(byId(under.id)).toBeUndefined()
+  })
+
+  it('drops what belonged to the kind it used to be', () => {
+    /* A radius belongs to a rectangle and an arrowhead to a line, and neither
+       means anything on the outline of a boolean. */
+    shape(0, 0, 100, 100, { radius: 0.4, heads: 'end' })
+    shape(50, 0, 100, 100)
+    const made = byId(store.combine(store.all().map((i) => i.id), 'union')!)
+    expect(made.shape?.kind).toBe('path')
+    expect(made.shape?.radius).toBeUndefined()
+    expect(made.shape?.heads).toBeUndefined()
+    expect(made.shape?.closed).toBe(true)
+  })
+
+  it('refuses anything that is not two drawings', () => {
+    const one = shape(0, 0, 100, 100)
+    expect(store.combine([one.id], 'union')).toBeNull()
+    const note = add({ kind: 'note', x: 0, y: 0, w: 100, h: 100 })
+    expect(store.combine([one.id, note.id], 'union')).toBeNull()
+    expect(store.all().length).toBe(2)
+  })
+
+  it('refuses a line, which has no area for a boolean to be about', () => {
+    const square = shape(0, 0, 100, 100)
+    const line = add({
+      kind: 'shape', x: 0, y: 0, w: 100, h: 100, name: 'Line',
+      shape: { kind: 'line', nodes: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } as ShapeSpec,
+    })
+    expect(store.combine([square.id, line.id], 'union')).toBeNull()
+    expect(store.all().length).toBe(2)
+  })
+
+  it('refuses a path of two points, which is a line by another name', () => {
+    const square = shape(0, 0, 100, 100)
+    const two = add({
+      kind: 'shape', x: 0, y: 0, w: 100, h: 100, name: 'Path',
+      shape: { kind: 'path', closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } as ShapeSpec,
+    })
+    expect(store.combine([square.id, two.id], 'union')).toBeNull()
+  })
+
+  it('refuses a drawing that has been baked, because it is pixels now', () => {
+    const live = shape(0, 0, 100, 100)
+    const baked = shape(50, 0, 100, 100)
+    store.update(baked.id, { poster: 'blob:whatever' })
+    expect(store.combine([live.id, baked.id], 'union')).toBeNull()
+  })
+
+  it('gives nothing at all when two that miss are intersected', () => {
+    shape(0, 0, 100, 100)
+    shape(500, 0, 100, 100)
+    const ids = store.all().map((i) => i.id)
+    expect(store.combine(ids, 'intersect')).toBeNull()
+    /* And leaves them where they were, rather than taking them away for an
+       answer it could not give. */
+    expect(store.all().length).toBe(2)
+  })
+
+  it('keeps a hole as a ring of its own', () => {
+    shape(0, 0, 200, 200)
+    shape(50, 50, 100, 100)
+    const made = byId(store.combine(store.all().map((i) => i.id), 'subtract')!)
+    expect(made.shape?.subs?.length).toBe(1)
+    expect(made.shape?.nodes?.length).toBe(4)
+  })
+
+  it('spends points only where the shape curves', () => {
+    /* A square with a circle cut out of it: the square's four corners cost
+       four points however long its sides are, and the circle costs what the
+       tolerance asks for and no more. A card carrying nine hundred points
+       would be a card nobody could edit. */
+    shape(0, 0, 400, 400)
+    add({ kind: 'shape', x: 100, y: 100, w: 200, h: 200, shape: { kind: 'ellipse' }, name: 'Ellipse' })
+    const made = byId(store.combine(store.all().map((i) => i.id), 'subtract')!)
+    expect(made.shape?.nodes?.length).toBe(4)
+    expect(made.shape?.subs?.[0].length).toBeLessThan(80)
+    expect(made.shape?.subs?.[0].length).toBeGreaterThan(12)
   })
 })
