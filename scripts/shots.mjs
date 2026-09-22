@@ -32,6 +32,26 @@ await page.evaluate(() => {
 })
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1500)
+/* Deleting the database is refused while the app still holds it open, so the
+   board can survive a wipe. Whatever is left is cleared the way a person
+   would. */
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(250)
+await page.keyboard.press('Delete')
+await page.waitForTimeout(400)
+
+/* The effects panel is open when the app opens and takes a third of the
+   window. Most of these pictures are about the board. */
+const panel = async (want) => {
+  await blurAll()
+  const open = await page.locator('.panel').count()
+  if (!!open !== want) {
+    await page.keyboard.press('e')
+    await page.waitForTimeout(350)
+  }
+}
+const blurAll = () => page.evaluate(() => document.activeElement?.blur?.())
 
 let n = 0
 const shot = async (name) => {
@@ -47,12 +67,31 @@ const clear = async () => {
   await page.keyboard.press('Escape')
   await page.waitForTimeout(150)
 }
+/* Select all deliberately leaves sections out — they are the ground, and
+   selecting the ground with everything on it is not what anybody means — so
+   whatever is left after it is cleared one at a time. */
+const cards = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.card')].map((c) => {
+      const r = c.getBoundingClientRect()
+      return { id: c.dataset.id, kind: c.dataset.kind, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }
+    })
+  )
 const wipe = async () => {
   await clear()
   await page.keyboard.press('Control+a')
   await page.waitForTimeout(200)
   await page.keyboard.press('Delete')
   await page.waitForTimeout(300)
+  for (let i = 0; i < 6; i++) {
+    const left = await cards()
+    if (!left.length) break
+    await page.mouse.click(left[0].x + 12, left[0].y + 12)
+    await page.waitForTimeout(200)
+    await page.keyboard.press('Delete')
+    await page.waitForTimeout(250)
+  }
+  await clear()
 }
 const tool = async (name, group) => {
   if (await rail().getByRole('button', { name, exact: true }).count()) {
@@ -72,13 +111,6 @@ const drawBox = async (name, x0, y0, x1, y1, group = 'Shapes') => {
   await page.mouse.up()
   await page.waitForTimeout(400)
 }
-const cards = () =>
-  page.evaluate(() =>
-    [...document.querySelectorAll('.card')].map((c) => {
-      const r = c.getBoundingClientRect()
-      return { id: c.dataset.id, kind: c.dataset.kind, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }
-    })
-  )
 const grip = (id) =>
   page.evaluate((cid) => {
     const card = document.querySelector(`.card[data-id="${cid}"]`)
@@ -91,25 +123,50 @@ const grip = (id) =>
     return null
   }, id)
 
+/* Deleting the database is refused while the app still holds it open, so a
+   board can survive a wipe. Whatever is left is cleared the way a person
+   would. */
+await wipe()
+
 /* ---------- 1 & 2: the gaps, as something to take hold of ---------- */
+/* Each one made and then moved, rather than four made and then four moved:
+   they all arrive in the middle of the view on top of one another, and a card
+   underneath another is a card nothing can take hold of. Labels rather than
+   notes, because four of them fit in a row worth photographing and a label is
+   written in place. */
+await panel(false)
+const words = ['Ship it', 'Cut it', 'Park it', 'Try again']
+/* Far enough apart that tidying reads them as one row rather than a grid:
+   `tidyOnto` keeps roughly the shape the selection already has. */
+const spread = [{ x: 230, y: 300 }, { x: 640, y: 480 }, { x: 1050, y: 320 }, { x: 420, y: 660 }]
+let list = []
 for (let i = 0; i < 4; i++) {
-  await rail().getByRole('button', { name: 'Note', exact: true }).click()
-  await page.waitForTimeout(350)
-  await page.keyboard.type(['Ship it', 'Cut it', 'Park it', 'Try again'][i])
+  await rail().getByRole('button', { name: 'Label', exact: true }).click()
+  await page.waitForTimeout(400)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
-}
-let list = await cards()
-const spread = [{ x: 320, y: 250 }, { x: 640, y: 420 }, { x: 900, y: 270 }, { x: 480, y: 560 }]
-for (let i = 0; i < 4; i++) {
-  const at = await grip(list[i].id)
-  await page.mouse.move(at.x, at.y)
-  await page.mouse.down()
-  await page.mouse.move(spread[i].x, spread[i].y, { steps: 8 })
-  await page.mouse.up()
-  await page.waitForTimeout(250)
   list = await cards()
+  const fresh = list[list.length - 1]
+  /* Written in place, which is what a label is for. Leaving the field is what
+     commits it — Escape means leave it as it was. */
+  await page.mouse.dblclick(fresh.x + 40, fresh.y + fresh.h / 2)
+  await page.waitForTimeout(350)
+  if (await page.locator('.label-write').count()) {
+    await page.locator('.label-write').fill(words[i])
+    await page.mouse.click(1300, 820)
+    await page.waitForTimeout(300)
+  }
+  list = await cards()
+  const at = await grip(fresh.id)
+  if (at) {
+    await page.mouse.move(at.x, at.y)
+    await page.mouse.down()
+    await page.mouse.move(spread[i].x, spread[i].y, { steps: 8 })
+    await page.mouse.up()
+    await page.waitForTimeout(250)
+  }
 }
+list = await cards()
 await clear()
 await page.keyboard.press('Control+a')
 await page.waitForTimeout(250)
@@ -157,11 +214,12 @@ await page.mouse.move(1000, 640, { steps: 10 })
 await page.mouse.up()
 await page.waitForTimeout(400)
 await clear()
+/* A note, with nothing typed onto it: a note is written in a sheet rather
+   than in place, so keystrokes aimed at one land on the board instead — and
+   on this board a bare letter is a tool. */
 await rail().getByRole('button', { name: 'Note', exact: true }).click()
-await page.waitForTimeout(350)
-await page.keyboard.type('Inside it')
-await page.keyboard.press('Escape')
-await page.waitForTimeout(250)
+await page.waitForTimeout(400)
+await clear()
 list = await cards()
 const note = list.find((c) => c.kind === 'note')
 const frame = list.find((c) => c.kind === 'section')
@@ -250,6 +308,7 @@ if (drawn) {
 
 /* ---------- 8: a number's name, as a way to change it ---------- */
 await wipe()
+await panel(true)
 await drawBox('Star', 460, 260, 780, 580)
 await page.waitForTimeout(400)
 const word = page.locator('.ctl', { hasText: /^Points/ }).locator('label.scrub')
