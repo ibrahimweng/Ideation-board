@@ -40,6 +40,10 @@
     "test:notes": "node test/notes.mjs",
     "test:transfer": "node test/transfer.mjs",
     "test:arrange": "node test/arrange.mjs",
+    "test:smart": "node test/smart.mjs",
+    "test:measure": "node test/measure.mjs",
+    "test:scrub": "node test/scrub.mjs",
+    "test:boolean": "node test/boolean.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",
@@ -82,12 +86,14 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:browser": "node scripts/browser-tests.mjs",
+    "shots": "node scripts/shots.mjs",
     "test": "npm run typecheck && npm run test:unit",
     "test:all": "npm run typecheck && npm run test:unit && npm run build && npm run test:browser",
     "test:access": "node test/access.mjs"
   },
   "dependencies": {
     "pdfjs-dist": "^6.3.289",
+    "polygon-clipping": "^0.15.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0"

@@ -2,10 +2,24 @@ import { useSyncExternalStore, useCallback } from 'react'
 import type { Item, Board } from './types'
 import { FX_0 } from '../engine/types'
 import { cloneBoard } from './boards'
-import { endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
+import { canCombine, endsOf, isGradeable, isSection, isThing, isWire } from './kinds'
 import { repoint } from './ids'
 import { alignTo, clearGround, distributeAlong, gatherInto, tidyOnto } from './arrange'
 import type { AlignMode, Moves } from './arrange'
+import { asCard, combine, ringsOfShape } from './boolean'
+import type { Boolean4 } from './boolean'
+import type { ShapeSpec } from './shapes'
+import { shapeItem } from './ingest'
+
+/* What the card a boolean makes is called. The name is what search reads and
+ * what the panel writes at the top, and "Path" for all four would lose the one
+ * thing anybody wants to know about it later. */
+const NAMED: Record<Boolean4, string> = {
+  union: 'United',
+  subtract: 'Subtracted',
+  intersect: 'Intersected',
+  exclude: 'Excluded',
+}
 import type { LookFx } from './looks'
 
 /* Ids are made here and never taken from a caller, so nothing outside can
@@ -576,6 +590,71 @@ export class BoardStore {
 
   tidy(ids: string[], gap = 24) {
     this.applyMoves(tidyOnto(this.arrangeable(ids), gap))
+  }
+
+  /* ---------- two shapes into one ----------
+   *
+   * Union, subtract, intersect and exclude. The arithmetic is in
+   * state/boolean.ts; what only the store can do is decide which cards are
+   * eligible, put the answer on the board in place of them, and make the whole
+   * thing one step of undo.
+   *
+   * The one at the bottom is the one being cut into, and the one whose paint
+   * the answer wears: that is the order every tool that does this uses, and it
+   * is the only part of a boolean anybody has to remember.
+   *
+   * What counts as eligible is `canCombine`, which is also what the menu and
+   * the command list ask so that the three of them cannot drift. */
+  combine(ids: string[], op: Boolean4): string | null {
+    const shapes = ids
+      .map((id) => this.items.get(id))
+      .filter((i): i is Item => canCombine(i))
+      .sort((a, b) => a.z - b.z)
+    if (shapes.length < 2) return null
+
+    const rings = combine(op, shapes.map((i) => ringsOfShape(i.shape!, i)))
+    const card = asCard(rings)
+    if (!card) return null
+
+    /* Nothing is thinned down on the way out, and it was tried: the flattening
+       only ever puts down the points the tolerance needs, so running the
+       pencil's simplifier over the answer at that same tolerance removed not
+       one point from a circle cut out of a square, two circles united, a
+       rounded rectangle, or two nine-pointed stars. A step that takes nothing
+       away is a step that is only there to be believed in. */
+    const { nodes } = card
+    const subs = card.subs.filter((r) => r.length >= 3)
+    if (nodes.length < 3) return null
+
+    /* The bottom one's paint, minus everything that was about the kind it used
+       to be: a radius belongs to a rectangle and an arrowhead to a line, and
+       neither means anything on the outline of a boolean. */
+    const from = shapes[0].shape!
+    const spec: ShapeSpec = {
+      kind: 'path',
+      nodes,
+      closed: true,
+      ...(subs.length ? { subs } : null),
+      ...(from.fill !== undefined ? { fill: from.fill } : null),
+      ...(from.stroke !== undefined ? { stroke: from.stroke } : null),
+      ...(from.width !== undefined ? { width: from.width } : null),
+      ...(from.dash !== undefined ? { dash: from.dash } : null),
+      ...(from.cap !== undefined ? { cap: from.cap } : null),
+      ...(from.join !== undefined ? { join: from.join } : null),
+    }
+
+    this.snapshot()
+    const made = shapeItem({ x: card.box.x, y: card.box.y }, { w: card.box.w, h: card.box.h }, spec)
+    made.name = NAMED[op]
+    /* The ones it was made of go without a snapshot of their own, or taking
+       the whole thing back would be two presses: one gesture, one step. */
+    this.remove(shapes.map((i) => i.id), false)
+    this.put(made.id, { ...made, z: ++this.topZ })
+    this.noteOrder()
+    this.order.push(made.id)
+    this.pingOrder()
+    this.touch()
+    return made.id
   }
 
   /* ---------- moving cards between boards ----------

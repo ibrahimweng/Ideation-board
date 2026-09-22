@@ -1329,6 +1329,25 @@ export default function App() {
     mark: (pick) => markPick(pick, say),
     takeAway,
     gather,
+    tidy: () => {
+      const sel = store.getSelection()
+      if (sel.length < 2) {
+        say('Pick out more than one thing to tidy')
+        return
+      }
+      store.tidy(sel)
+      say(`Tidied ${sel.length}`)
+    },
+    combine: (op) => {
+      const sel = store.getSelection()
+      const made = store.combine(sel, op)
+      if (!made) {
+        say('Pick out two drawings to combine')
+        return
+      }
+      store.select([made])
+      say(op === 'union' ? 'United' : op === 'subtract' ? 'Subtracted' : 'Excluded')
+    },
     compare,
     vary: () => void varyNow(),
     shuffle: () => void shuffleNow(),

@@ -3,7 +3,7 @@ import { GROUPS, TOOL_HINT, TOOL_NAME, armShape, armTool, groupOf } from '../boa
 
 /* Every shape tool, in the order the rail offers them. */
 const SHAPE_TOOLS = [...GROUPS.shape, ...GROUPS.pen]
-import { isSection, isWire, hasPixels } from '../state/kinds'
+import { canCombine, isSection, isWire, hasPixels } from '../state/kinds'
 import { isSound } from '../state/sounds'
 import type { Item } from '../state/types'
 import { KEYS } from './shortcuts'
@@ -83,6 +83,9 @@ const variable = (i?: Item | null): boolean => hasPixels(i) || isSound(i)
 
 export function buildCommands(a: CommandActions): Command[] {
   const sel = () => store.getSelection()
+  /* Drawings with an area to clip, by the same rule the menu and the store
+     use, so the three of them cannot drift. */
+  const shapes = () => sel().filter((id) => canCombine(store.getItem(id))).length
   const some = a.selection.length > 0
   /* What "this board" means right now — the selection, what a search has
      narrowed to, or all of it — so the names below say what they will act on
@@ -169,9 +172,27 @@ export function buildCommands(a: CommandActions): Command[] {
     /* Tidying a selection was in the right click menu and nowhere else, so
        having just picked six cards out there was no way to lay them out. */
     cmd('arrange.tidysel', 'Tidy up the selection', 'Arrange', () => store.tidy(sel()), {
+      hint: KEYS.tidy.hint,
       disabled: a.selection.length < 2,
       keywords: 'grid align layout sort selection',
     }),
+    /* Two drawings into one. Every one of them needs at least two shapes that
+       still have an outline, so the whole set stands down together rather than
+       offering four things that would each say the same no. */
+    ...(shapes() >= 2
+      ? ([
+          ['union', 'Unite the selected shapes into one', KEYS.unite.hint, 'boolean union merge weld combine add join'],
+          ['subtract', 'Subtract the shapes above from the one below', KEYS.subtract.hint, 'boolean subtract minus cut hole punch difference'],
+          ['intersect', 'Keep only what the selected shapes share', undefined, 'boolean intersect overlap common inside'],
+          ['exclude', 'Keep everything but what the selected shapes share', KEYS.exclude.hint, 'boolean exclude xor difference symmetric'],
+        ] as const
+      ).map(([op, what, hint, keywords]) =>
+          cmd(`shape.${op}`, what, 'Arrange', () => {
+            const made = store.combine(sel(), op)
+            if (made) store.select([made])
+          }, { hint, keywords })
+        )
+      : []),
     cmd('arrange.left', 'Line the selection up on the left', 'Arrange', () => store.align(sel(), 'left'), { disabled: a.selection.length < 2 }),
     cmd('arrange.top', 'Line the selection up on the top', 'Arrange', () => store.align(sel(), 'top'), { disabled: a.selection.length < 2 }),
     cmd('arrange.spreadx', 'Space the selection out across', 'Arrange', () => store.distribute(sel(), 'x'), { disabled: a.selection.length < 3 }),

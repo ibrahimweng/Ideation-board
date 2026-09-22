@@ -160,8 +160,29 @@ function parts(): Part[] {
             Double-click a drawing to move its points about: drag an anchor, drag a handle to shape
             the curve, hold <K>Alt</K> on a handle to break the pair, drag the line itself to bend
             it, double-click the line to put a point on it, hold <K>Alt</K> on an anchor to take one
-            away, and double-click an anchor to turn a corner smooth and back. <K>Esc</K> puts them
-            away again.
+            away, and double-click an anchor to turn a corner smooth and back.
+          </p>
+          <p>
+            Two drawings can be made into one: <strong>Unite</strong> them, <strong>Subtract</strong>{' '}
+            the ones above from the one below, <strong>Intersect</strong> them down to what they
+            share, or <strong>Exclude</strong> what they share and keep the rest. They are on the
+            right-click menu with the rest of the arranging, and on{' '}
+            <K>{KEYS.unite.hint}</K>, <K>{KEYS.subtract.hint}</K> and <K>{KEYS.exclude.hint}</K>.
+            Intersect has no key of its own: on a Mac the browser keeps that combination for its
+            own developer tools, so a key for it would work on some machines and quietly do nothing
+            on others.
+          </p>
+          <p>
+            What comes out is one drawing with the paint of the one that was at the bottom, and the
+            curves in it are flattened into short straight runs — under a third of a pixel from
+            where they were, and still a drawing rather than pixels. A hole is a ring of its own
+            inside the outline, which is why you can press straight through one.
+          </p>
+          <p>
+            Several at once: drag a box round them in the space beside the drawing, or hold{' '}
+            <K>Shift</K> and click to add one at a time. Picked points move together, nudge
+            together with the arrows and go together with <K>Delete</K>. <K>Esc</K> lets go of
+            them, and <K>Esc</K> again puts the points away.
           </p>
           <p>
             A drawing is a handful of numbers rather than pixels, so it is exact at any zoom and
@@ -191,8 +212,10 @@ function parts(): Part[] {
             same treatment on something else later.
           </p>
           <p>
-            Every figure in the panel can be typed into as well as dragged, and double-clicking a
-            slider puts it back where it started. Hold <K>{KEYS.original.hint}</K> at any point to
+            Every figure in the panel can be typed into as well as dragged, its name can be
+            dragged sideways to change it &mdash; one step to a pixel, ten with <K>Shift</K>, a
+            tenth with <K>Alt</K> &mdash; and double-clicking a slider puts it back where it
+            started. Hold <K>{KEYS.original.hint}</K> at any point to
             see the selection without any of it — the whole board, if nothing is selected — and let
             go to bring it back.
           </p>
@@ -419,6 +442,20 @@ function parts(): Part[] {
             <K>{KEYS.fitSelection.hint}</K> fits what you have selected.
           </p>
           <p>
+            <K>{KEYS.tidy.hint}</K> lays a selection out as a row or a grid &mdash; and once it is
+            one, the gaps between the cards become something to take hold of. Drag a gap and they
+            all open out or close up together, with the figure under the cursor; drag the ring in
+            the middle of a card and it swaps along the run, with everything else closing up
+            behind it. Pull one card out of line and the handles go, because a handle over a pile
+            would have to invent an order the cards do not have.
+          </p>
+          <p>
+            Hold <K>{KEYS.measure.hint}</K> with something selected and point at anything else,
+            and the board says how far apart they are: the gap between two cards, the space left
+            on each side of one sitting inside a section, or both at once for something away up
+            and to the right. Every figure there is one the board already had.
+          </p>
+          <p>
             It searches what a card is <em>made of</em> as well as what it is called, which is what
             you need on a board where a dozen cards have the same name. Type an effect and you get
             the cards running it, stacked ones included; type <strong>gate</strong> and you get the
@@ -525,6 +562,11 @@ const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'compare', what: 'Hold the selection up against each other' },
   { name: 'present', what: 'Present the board' },
   { name: 'gather', what: 'Bring the selection together' },
+  { name: 'tidy', what: 'Tidy the selection into a row or a grid' },
+  { name: 'measure', what: 'Hold and point at something to measure the distance' },
+  { name: 'unite', what: 'Unite the selected drawings into one' },
+  { name: 'subtract', what: 'Subtract the drawings above from the one below' },
+  { name: 'exclude', what: 'Keep everything but what the drawings share' },
   { name: 'fitBoard', what: 'Fit the whole board on screen' },
   { name: 'fitSelection', what: 'Fit the selection on screen' },
   { name: 'takeAway', what: 'Take the selection off this board' },

@@ -61,6 +61,17 @@ export interface ShapeSpec {
   /* A path's points, and whether it joins back up. */
   nodes?: Node[]
   closed?: boolean
+  /* The other closed rings this shape is made of, when it has more than one.
+   *
+   * A shape drawn by hand has one outline. A shape that came out of combining
+   * two others can have several — a hole through the middle of it, or two
+   * pieces that no longer touch — and there is no way to say that with one run
+   * of points. They are drawn even odd, so a ring inside another is a hole by
+   * arithmetic rather than by being labelled one, which is also what makes the
+   * order of them not matter.
+   *
+   * Moving the points moves the outline; the rest come along with the box. */
+  subs?: Node[][]
   /* Which ends of a line or a path wear an arrowhead. */
   heads?: Heads
   /* Paint. Null fill means no fill at all, which is not the same as white. */
@@ -323,8 +334,17 @@ export function nodesPath(nodes: Node[], closed: boolean, w: number, h: number):
   return closed ? `${d}Z` : d
 }
 
-/* The whole shape, as one `d`. */
+/* The whole shape, as one `d`: its outline, and any other rings it is made of
+ * after that. Several rings in one `d` is what an even-odd fill reads as holes
+ * and separate pieces. */
 export function pathFor(spec: ShapeSpec, w: number, h: number): string {
+  const base = outlineFor(spec, w, h)
+  if (!spec.subs?.length) return base
+  return base + spec.subs.map((ring) => nodesPath(ring, true, w, h)).join('')
+}
+
+/* The one ring every shape has. */
+function outlineFor(spec: ShapeSpec, w: number, h: number): string {
   const turn = settingOf(spec, 'turn')
   switch (spec.kind) {
     case 'rect':
@@ -367,6 +387,15 @@ export function paintOf(spec: ShapeSpec, ink?: string): Record<string, string> {
   const dash = dashFor(settingOf(spec, 'dash'), width)
   return {
     fill: fill || 'none',
+    /* Only when there is more than one ring, so everything drawn before this
+       existed is painted with exactly the markup it always was.
+       Even odd rather than the default winding, and it is a guarantee rather
+       than a fix: the rings the clipper hands back happen to be wound so that
+       the default would draw the hole too. That is a fact about the clipper
+       and not a promise — drag the outline's points back through themselves
+       and the winding changes, while even odd goes on meaning what is meant
+       whatever the points do. */
+    ...(spec.subs?.length ? { 'fill-rule': 'evenodd' } : null),
     stroke: stroke || 'none',
     'stroke-width': String(width),
     'stroke-linecap': settingOf(spec, 'cap'),
@@ -634,6 +663,47 @@ export function moveNode(nodes: Node[], at: number, dx: number, dy: number): Nod
   if (at < 0 || at >= nodes.length) return nodes
   const out = nodes.slice()
   out[at] = { ...out[at], x: out[at].x + dx, y: out[at].y + dy }
+  return out
+}
+
+/* Several points moved at once, which is what a marquee round a few of them
+ * is for. One at a time through `moveNode` would copy the list once per point;
+ * this copies it once. */
+export function moveNodes(nodes: Node[], at: number[], dx: number, dy: number): Node[] {
+  if (!at.length) return nodes
+  const which = new Set(at)
+  return nodes.map((n, i) => (which.has(i) ? { ...n, x: n.x + dx, y: n.y + dy } : n))
+}
+
+/* And several taken away, with the same floor under it: a path needs two
+ * points to be a path, so a selection that would empty it takes away as many
+ * as it can and stops there. */
+export function dropNodes(nodes: Node[], at: number[]): Node[] {
+  if (!at.length) return nodes
+  const which = new Set(at)
+  /* When the selection would empty the path, the earliest of the points it
+     asked for are put back, in the order they were drawn, so what is left is
+     still a stretch of the same path and not an arbitrary pair. */
+  let spare = Math.max(0, 2 - nodes.filter((_, i) => !which.has(i)).length)
+  return nodes.filter((_, i) => {
+    if (!which.has(i)) return true
+    if (spare > 0) {
+      spare--
+      return true
+    }
+    return false
+  })
+}
+
+/* Which points a box drawn over the drawing encloses. All in fractions of the
+ * card, which is the only unit the record knows. */
+export function nodesIn(nodes: Node[], x0: number, y0: number, x1: number, y1: number): number[] {
+  const lo = { x: Math.min(x0, x1), y: Math.min(y0, y1) }
+  const hi = { x: Math.max(x0, x1), y: Math.max(y0, y1) }
+  const out: number[] = []
+  nodes.forEach((n, i) => {
+    if (n.x >= lo.x && n.x <= hi.x && n.y >= lo.y && n.y <= hi.y) out.push(i)
+  })
   return out
 }
 

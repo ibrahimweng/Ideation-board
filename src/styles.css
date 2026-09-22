@@ -52,6 +52,7 @@
   --press: rgba(24, 24, 27, 0.09);
   --scrim: rgba(24, 24, 27, 0.5);
   --wire: #a8a8b0;
+  --measure: #d6009a;
 
   /* Elevation: three steps, and the third is only for things that float over
      the whole window. */
@@ -127,6 +128,7 @@
   --press: rgba(255, 255, 255, 0.12);
   --scrim: rgba(0, 0, 0, 0.6);
   --wire: #55565f;
+  --measure: #ff63c9;
 
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.5);
   --sh-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.45);
@@ -661,11 +663,159 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .shape-bake:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .shape-bake:disabled { opacity: 0.55; }
 
+/* ---------- the gaps, as something to take hold of ---------- */
+
+/* Over the cards and under the corner handles: the corners scale the whole
+   box, these change what is inside it, and the corners win where they meet. */
+.smart {
+  position: absolute; top: 0; left: 0;
+  z-index: 9050;
+  pointer-events: none;
+}
+
+/* A gap. Invisible until it is approached, because a row of bars drawn across
+   a board the whole time is a row of bars in the way. */
+.smart-gap {
+  position: absolute; top: 0; left: 0;
+  pointer-events: auto; cursor: ew-resize;
+  display: block;
+}
+.smart-gap[data-across] { cursor: ns-resize; }
+.smart-gap::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--sel);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.smart-gap:hover::before, .smart-gap:active::before { opacity: 0.22; }
+/* And a line down the middle of it, which is the thing being dragged. */
+.smart-gap::after {
+  content: ''; position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: var(--grip, 3px); transform: translateX(-50%);
+  background: var(--sel); border-radius: 99px;
+  opacity: 0; transition: opacity 0.1s ease;
+}
+.smart-gap[data-across]::after {
+  left: 0; right: 0; top: 50%; bottom: auto;
+  width: auto; height: var(--grip, 3px); transform: translateY(-50%);
+}
+.smart-gap:hover::after, .smart-gap:active::after { opacity: 1; }
+
+/* A ring in the middle of each card: drag it to move that card along the row
+   and have the rest close up behind it. */
+.smart-ring {
+  position: absolute; top: 0; left: 0;
+  pointer-events: auto; cursor: grab;
+  border-radius: 99px;
+  border: 1.5px solid var(--sel);
+  background: var(--surface);
+  opacity: 0.5;
+  transition: opacity 0.1s ease;
+}
+.smart:hover .smart-ring { opacity: 1; }
+.smart-ring:hover { background: var(--sel); }
+.smart-ring:active { cursor: grabbing; }
+
+/* What the gap is, while it is being dragged. */
+.smart-say {
+  position: absolute; top: 0; left: 0;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  background: var(--sel); color: var(--accent-ink, #fff);
+  font: 600 11px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
+  transform-origin: 0 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---------- a number's name, as a way to change it ---------- */
+
+/* The cursor is the whole of the discoverability: there is no badge, no
+   underline and nothing in the way, and the only thing that says this word
+   does something is that the pointer changes over it. */
+.scrub {
+  cursor: ew-resize;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+/* And it stays that way over whatever the drag wanders across, which is the
+   only sign that it is still going on once the pointer has left the word. */
+body[data-scrubbing] { cursor: ew-resize; }
+body[data-scrubbing] * { cursor: ew-resize !important; }
+
+/* ---------- how far apart two things are ---------- */
+
+/* Above everything the board draws, because it is an answer to a question
+   being asked right now and nothing should be in front of it. */
+.measure {
+  position: absolute; top: 0; left: 0;
+  z-index: 9200;
+  pointer-events: none;
+}
+
+/* The thing being pointed at, outlined so the figures are plainly about it.
+   The outline itself is drawn as a shadow, at a width the component divides
+   by the zoom, so it stays a hairline however far out the board is. */
+.measure-box {
+  position: absolute; top: 0; left: 0;
+  display: block; border-radius: var(--r-sm);
+}
+
+/* One distance. A tick at each end, because a line with no ends is a line
+   whose length you have to take on trust. */
+.measure-line {
+  position: absolute; top: 0; left: 0;
+  display: block;
+  background: var(--measure);
+}
+.measure-line::before, .measure-line::after {
+  content: ''; position: absolute;
+  background: var(--measure);
+}
+/* Across: ticks stand up at either end. */
+.measure-line:not([data-guide])::before,
+.measure-line:not([data-guide])::after {
+  left: 0; top: 50%;
+  width: var(--thin, 1px); height: var(--tick, 5px);
+  transform: translateY(-50%);
+}
+.measure-line:not([data-guide])::after { left: auto; right: 0; }
+/* Down: they lie across it instead. */
+.measure-line[data-down]:not([data-guide])::before,
+.measure-line[data-down]:not([data-guide])::after {
+  left: 50%; top: 0; right: auto; bottom: auto;
+  width: var(--tick, 5px); height: var(--thin, 1px);
+  transform: translateX(-50%);
+}
+.measure-line[data-down]:not([data-guide])::after { top: auto; bottom: 0; }
+
+/* The guide that carries the eye from a box out to a measurement drawn beside
+   it rather than across it. Not a distance, so it wears no ticks and no
+   figure, and it is drawn faintly enough not to be mistaken for one. */
+.measure-line[data-guide] { opacity: 0.4; }
+.measure-line[data-guide]::before, .measure-line[data-guide]::after { content: none; }
+
+/* What the distance is. Kept at one size on screen however far out the board
+   is, because a figure is either readable or it is nothing. */
+.measure-say {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0;
+  padding: 1px 5px; border-radius: var(--r-sm);
+  background: var(--measure); color: #fff;
+  font: 600 11px/1.45 var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ---------- moving the points of a drawing ---------- */
 
-/* Over the cards, and taking the pointer only on the line and the marks: the
-   space between them belongs to whatever is underneath, so a press that
-   misses puts the points away rather than doing nothing. */
+/* Over the cards, and taking the pointer on the line, the marks, and the
+   space round them — which is not nothing to press on: it is where a box
+   round several points is drawn from, and a press on it that never became a
+   sweep lets go of the ones that are picked. */
 .nodes {
   position: absolute; top: 0; left: 0;
   z-index: 9200;
@@ -704,6 +854,26 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   pointer-events: all; cursor: move;
 }
 .node-dot:hover { fill: var(--accent); }
+/* A picked one is filled rather than outlined: the same mark, read the other
+   way round, so a handful of them reads as a group at a glance. */
+.node-dot[data-on] { fill: var(--accent); stroke: var(--surface); }
+
+/* The space the box is drawn from. Invisible, and only there to be pressed
+   on — `pointer-events: fill` rather than the painted kind, because a
+   transparent fill is not painted and would never be hit. */
+.node-ground {
+  fill: transparent;
+  pointer-events: fill;
+  cursor: crosshair;
+}
+
+/* And the box itself while it is being swept. */
+.node-lasso {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
 
 /* The empty board. Drawn on the canvas rather than over it, so it reads as
    "there is nothing here yet" rather than as a dialog to get past. */
@@ -2035,6 +2205,12 @@ body[data-turning] .card-chrome { opacity: 0; }
   font: 500 var(--t-xs)/1.4 var(--sans); color: var(--muted);
 }
 .menu-arrange button:hover { background: var(--press); color: var(--ink); }
+/* The booleans are named rather than drawn: a glyph for "everything but what
+   these two share" is a glyph nobody reads the first time. Four words do not
+   fit beside their own label, so the label takes a line of its own. */
+.menu-arrange.menu-wide { flex-wrap: wrap; }
+.menu-arrange.menu-wide > span { flex: 1 0 100%; margin: 0 0 3px; }
+.menu-arrange.menu-wide button { padding: 0 8px; }
 
 /* ---------- sheet ---------- */
 

@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react'
+import { startScrub } from './scrub'
 
 /* A slider whose number can be typed into.
  *
@@ -8,9 +9,11 @@ import { useId, useRef, useState } from 'react'
  * cannot enter is a setting you cannot repeat, and repeating a treatment is
  * most of what this panel is for.
  *
- * Three ways in now: drag it, type it, or double-click to put it back where it
- * started. Shift with an arrow key moves in tens, because a range of two
- * hundred in steps of one is forty presses from end to end otherwise. */
+ * Four ways in now: drag the slider, type the figure, drag the name beside it,
+ * or double-click to put it back where it started. Shift with an arrow key
+ * moves in tens, because a range of two hundred in steps of one is forty
+ * presses from end to end otherwise — and shift while dragging the name does
+ * the same thing for the same reason. */
 export function Slider({
   label, min, max, step, value, unit, def, onChange,
 }: {
@@ -47,7 +50,16 @@ export function Slider({
 
   return (
     <div className="ctl">
-      <label htmlFor={id}>{label}</label>
+      {/* The name is a control too: drag it sideways and the figure follows.
+          Clicking it goes on doing what a label does, because a press that
+          never moved is not a drag. */}
+      <label
+        htmlFor={id}
+        className="scrub"
+        onPointerDown={(e) => startScrub(e, { value, step, min, max, onChange })}
+      >
+        {label}
+      </label>
       <input
         id={id}
         type="range"

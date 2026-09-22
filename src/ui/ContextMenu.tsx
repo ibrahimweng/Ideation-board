@@ -4,7 +4,13 @@ import { rollSketch } from '../state/sketches'
 import { copiedLook, copyLook, isPlain, lookFrom } from '../state/looks'
 import { TAGS } from '../state/types'
 import type { Item } from '../state/types'
-import { hasPixels, isGradeable, isSection, isThing } from '../state/kinds'
+import { canCombine, hasPixels, isGradeable, isSection, isThing } from '../state/kinds'
+import { KEYS } from './shortcuts'
+
+/* The card a boolean made, selected, so the next thing you do is to it. */
+const pick = (id: string | null) => {
+  if (id) store.select([id])
+}
 
 /* ---------------------------------------------------------------------------
  * Right click menu for cards.
@@ -120,6 +126,9 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
   /* Sections are the ground and wires have no box, so neither can be lined up
    * with anything. Two cards that can is what makes the row worth showing. */
   const movable = items.filter(isThing).length
+  /* Drawings with an area to clip. A line has none and a baked one is pixels
+     now, and neither has anything for a boolean to work on. */
+  const clippable = items.filter((i) => canCombine(i!)).length
   /* Only a picture or a video has pixels to hand over. */
   const pictures = items.filter(hasPixels).map((i) => i.id)
   /* A look can be worn by anything with a picture behind it, an embedded
@@ -162,6 +171,7 @@ export function ContextMenu({ menu, onClose, onOpenEditor, onExportPictures, onP
             currentTag={currentTag}
             currentPick={currentPick}
             movable={movable}
+            clippable={clippable}
             pictures={pictures}
             targets={targets}
             graded={graded}
@@ -215,7 +225,7 @@ function CanvasMenu({
 }
 
 function CardMenu({
-  ids, first, many, anySection, anyInSection, currentTag, currentPick, movable, pictures, targets, graded, clip,
+  ids, first, many, anySection, anyInSection, currentTag, currentPick, movable, clippable, pictures, targets, graded, clip,
   run, onOpenEditor, onExportPictures, onPullColours, onDepth, onGather, onTakeAway,
 }: {
   ids: string[]
@@ -226,6 +236,7 @@ function CardMenu({
   currentTag: string | null | undefined
   currentPick: 'in' | 'out' | null | undefined
   movable: number
+  clippable: number
   pictures: string[]
   targets: string[]
   graded: boolean
@@ -325,6 +336,35 @@ function CardMenu({
             </div>
           )}
           <button onClick={run(() => store.tidy(ids))}>Tidy up</button>
+          {clippable >= 2 && (
+            <div className="menu-arrange menu-wide">
+              <span>Combine</span>
+              <button
+                title={`Unite — one shape out of all of them  (${KEYS.unite.hint})`}
+                onClick={run(() => pick(store.combine(ids, 'union')))}
+              >
+                Unite
+              </button>
+              <button
+                title={`Subtract — the ones above taken out of the one below  (${KEYS.subtract.hint})`}
+                onClick={run(() => pick(store.combine(ids, 'subtract')))}
+              >
+                Subtract
+              </button>
+              <button
+                title="Intersect — only what all of them share"
+                onClick={run(() => pick(store.combine(ids, 'intersect')))}
+              >
+                Intersect
+              </button>
+              <button
+                title={`Exclude — everything but what they share  (${KEYS.exclude.hint})`}
+                onClick={run(() => pick(store.combine(ids, 'exclude')))}
+              >
+                Exclude
+              </button>
+            </div>
+          )}
           {/* The end of curating: what survived, in a place of its own. */}
           <button onClick={run(() => onGather())}>Put them together in one place</button>
         </>

@@ -22,6 +22,8 @@ import { DRAWN, DRAWS, FALLBACK, disarm, isShapeTool, toolNow, useTool } from '.
 import type { ShapeTool } from './tool'
 import { curveShape, drawnShape, freehandShape, pathShape, pressedShape, strokeDraft } from './drawing'
 import { Nodes } from './Nodes'
+import { SmartHandles } from './Smart'
+import { Measure } from './Measure'
 import { editNodes, hasNodes, useEditing } from './editing'
 import type { Drawn, Pt } from './drawing'
 import { pathFor } from '../state/shapes'
@@ -999,6 +1001,12 @@ export function Board({ onGather, onTakeAway, onDropFiles, onOpenEditor, onExpor
             selection so a new one gets a fresh box rather than an old one
             catching up. */}
         {grouped && <GroupHandles key={scaling.join(',')} ids={scaling} />}
+        {/* And, when those cards happen to sit in a row or a grid, the gaps
+            between them as something to take hold of. */}
+        {grouped && <SmartHandles key={`s${scaling.join(',')}`} ids={scaling} />}
+        {/* And, with anything at all selected, Alt and a hover says how far
+            away the thing under the cursor is. */}
+        {scaling.length > 0 && <Measure ids={scaling} />}
         {editing && <Nodes id={editing} />}
         {/* What is about to exist, drawn as itself. */}
         {shown && (

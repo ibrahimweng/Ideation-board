@@ -8,6 +8,7 @@ import type { Item } from '../state/types'
 import { ADJUST_0, BLENDS, blendOf } from '../engine/types'
 import type { FxState } from '../engine/types'
 import { Slider } from './Slider'
+import { startScrub } from './scrub'
 
 /* ---------------------------------------------------------------------------
  * Setting a drawing.
@@ -73,8 +74,12 @@ export function ShapePanel({ ids, id, say }: { ids: string[]; id: string; say: (
     }
   }
 
-  const place = (patch: Partial<Pick<Item, 'x' | 'y' | 'w' | 'h'>>) => {
-    store.beginGesture(0)
+  /* `smooth` is for the figures being dragged rather than typed: a scrub
+     writes a value a pixel and each of those would otherwise be its own step
+     of undo, so a drag across the panel would cost two hundred presses to
+     take back. */
+  const place = (patch: Partial<Pick<Item, 'x' | 'y' | 'w' | 'h'>>, smooth = false) => {
+    store.beginGesture(smooth ? 600 : 0)
     for (const at of ids) store.update(at, patch, false)
   }
 
@@ -340,10 +345,10 @@ export function ShapePanel({ ids, id, say }: { ids: string[]; id: string; say: (
         <section className="fx-controls">
           <h4>Where it is</h4>
           <div className="shape-box">
-            <Num label="X" value={it.x} onChange={(v) => place({ x: v })} />
-            <Num label="Y" value={it.y} onChange={(v) => place({ y: v })} />
-            <Num label="W" value={it.w} min={1} onChange={(v) => place({ w: v })} />
-            <Num label="H" value={it.h} min={1} onChange={(v) => place({ h: v })} />
+            <Num label="X" value={it.x} onChange={(v, smooth) => place({ x: v }, smooth)} />
+            <Num label="Y" value={it.y} onChange={(v, smooth) => place({ y: v }, smooth)} />
+            <Num label="W" value={it.w} min={1} onChange={(v, smooth) => place({ w: v }, smooth)} />
+            <Num label="H" value={it.h} min={1} onChange={(v, smooth) => place({ h: v }, smooth)} />
           </div>
           <p className="fx-hint">
             Board units, which are pixels at 100%. {ids.length > 1 ? 'Typing one puts all of them there.' : ''}
@@ -389,10 +394,24 @@ function Inks({ value, onPick, none }: { value: string | null; onPick: (c: strin
 
 /* One number, typed. Committed as it is typed rather than on blur, because a
  * value you have to press Enter to apply is one people think did not work. */
-function Num({ label, value, min, onChange }: { label: string; value: number; min?: number; onChange: (v: number) => void }) {
+function Num({
+  label, value, min, onChange,
+}: {
+  label: string
+  value: number
+  min?: number
+  /* `smooth` says the figure is being dragged rather than typed, and so that
+     the whole drag should be one step of undo rather than one per pixel. */
+  onChange: (v: number, smooth?: boolean) => void
+}) {
   return (
     <label className="shape-num">
-      <span>{label}</span>
+      <span
+        className="scrub"
+        onPointerDown={(e) => startScrub(e, { value, step: 1, min, onChange: (v) => onChange(v, true) })}
+      >
+        {label}
+      </span>
       <input
         type="number"
         value={Math.round(value)}

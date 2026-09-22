@@ -70,6 +70,13 @@ export interface KeyActions {
   mark: (pick: 'in' | 'out') => void
   takeAway: () => void
   gather: () => void
+  /* A pile of cards into a row or a grid. The other arrangements are on the
+     menu only; this one has a key because it is also the way the gaps between
+     cards become something you can take hold of. */
+  tidy: () => void
+  /* Two drawings into one. Intersect has no key of its own — see the note in
+     ui/shortcuts.ts — so it is not one of the three here. */
+  combine: (op: 'union' | 'subtract' | 'exclude') => void
   compare: () => void
   vary: () => void
   shuffle: () => void
@@ -119,7 +126,10 @@ export function useShortcuts(a: KeyActions) {
        baffling. Everything past this point is a bare letter or an arrow, and
        those the control is entitled to keep. */
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT')) return
-    if (cmd && e.key.toLowerCase() === 'a') {
+    /* Every one of these says `!e.altKey` as well as `cmd`. Without it a
+       shortcut with Alt in it is swallowed by the one without: ⌘⌥S is not a
+       different key from ⌘S to a handler that never looked. */
+    if (cmd && !e.altKey && e.key.toLowerCase() === 'a') {
       e.preventDefault()
       /* With a search running, everything means everything you can see. */
       store.select(
@@ -129,24 +139,24 @@ export function useShortcuts(a: KeyActions) {
       )
       return
     }
-    if (cmd && e.key.toLowerCase() === 'd') {
+    if (cmd && !e.altKey && e.key.toLowerCase() === 'd') {
       e.preventDefault()
       const made = store.duplicate(store.getSelection())
       if (made.length) store.select(made)
       return
     }
-    if (cmd && e.key.toLowerCase() === 's') {
+    if (cmd && !e.altKey && e.key.toLowerCase() === 's') {
       /* The browser's own save dialog is not useful here. */
       e.preventDefault()
       a.exportBoard()
       return
     }
-    if (cmd && e.key.toLowerCase() === 'e') {
+    if (cmd && !e.altKey && e.key.toLowerCase() === 'e') {
       e.preventDefault()
       a.exportPictures(store.getSelection())
       return
     }
-    if (cmd && e.key.toLowerCase() === 'o') {
+    if (cmd && !e.altKey && e.key.toLowerCase() === 'o') {
       e.preventDefault()
       a.importBoard()
       return
@@ -154,10 +164,35 @@ export function useShortcuts(a: KeyActions) {
     /* Taking cards off one board to put them on another. Nothing else on the
        board answers to it, and the browser's own cut has nothing to cut when
        the focus is the canvas. */
-    if (cmd && e.key.toLowerCase() === KEYS.takeAway.key) {
+    if (cmd && !e.altKey && e.key.toLowerCase() === KEYS.takeAway.key) {
       e.preventDefault()
       a.takeAway()
       return
+    }
+
+    /* A pile into a row, which is also how the gaps between cards become
+       something to take hold of: `smartOf` only offers handles over an
+       arrangement that really is evenly spaced, and this is how you get one. */
+    if (cmd && e.altKey && e.key.toLowerCase() === KEYS.tidy.key) {
+      e.preventDefault()
+      a.tidy()
+      return
+    }
+
+    /* The four booleans. Two or more drawings in, one out — and the answer is
+       the thing you go on working with, so it arrives selected. */
+    if (cmd && e.altKey) {
+      const k = e.key.toLowerCase()
+      const op =
+        k === KEYS.unite.key ? 'union' as const
+        : k === KEYS.subtract.key ? 'subtract' as const
+        : k === KEYS.exclude.key ? 'exclude' as const
+        : null
+      if (op) {
+        e.preventDefault()
+        a.combine(op)
+        return
+      }
     }
 
     /* Single key shortcuts only when no modifier is held, so they cannot
