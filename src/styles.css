@@ -661,6 +661,72 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
 .shape-bake:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .shape-bake:disabled { opacity: 0.55; }
 
+/* ---------- the gaps, as something to take hold of ---------- */
+
+/* Over the cards and under the corner handles: the corners scale the whole
+   box, these change what is inside it, and the corners win where they meet. */
+.smart {
+  position: absolute; top: 0; left: 0;
+  z-index: 9050;
+  pointer-events: none;
+}
+
+/* A gap. Invisible until it is approached, because a row of bars drawn across
+   a board the whole time is a row of bars in the way. */
+.smart-gap {
+  position: absolute; top: 0; left: 0;
+  pointer-events: auto; cursor: ew-resize;
+  display: block;
+}
+.smart-gap[data-across] { cursor: ns-resize; }
+.smart-gap::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--sel);
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.smart-gap:hover::before, .smart-gap:active::before { opacity: 0.22; }
+/* And a line down the middle of it, which is the thing being dragged. */
+.smart-gap::after {
+  content: ''; position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: var(--grip, 3px); transform: translateX(-50%);
+  background: var(--sel); border-radius: 99px;
+  opacity: 0; transition: opacity 0.1s ease;
+}
+.smart-gap[data-across]::after {
+  left: 0; right: 0; top: 50%; bottom: auto;
+  width: auto; height: var(--grip, 3px); transform: translateY(-50%);
+}
+.smart-gap:hover::after, .smart-gap:active::after { opacity: 1; }
+
+/* A ring in the middle of each card: drag it to move that card along the row
+   and have the rest close up behind it. */
+.smart-ring {
+  position: absolute; top: 0; left: 0;
+  pointer-events: auto; cursor: grab;
+  border-radius: 99px;
+  border: 1.5px solid var(--sel);
+  background: var(--surface);
+  opacity: 0.5;
+  transition: opacity 0.1s ease;
+}
+.smart:hover .smart-ring { opacity: 1; }
+.smart-ring:hover { background: var(--sel); }
+.smart-ring:active { cursor: grabbing; }
+
+/* What the gap is, while it is being dragged. */
+.smart-say {
+  position: absolute; top: 0; left: 0;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  background: var(--sel); color: var(--accent-ink, #fff);
+  font: 600 11px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
+  transform-origin: 0 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* ---------- moving the points of a drawing ---------- */
 
 /* Over the cards, and taking the pointer only on the line and the marks: the

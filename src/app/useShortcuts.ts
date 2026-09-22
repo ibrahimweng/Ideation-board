@@ -70,6 +70,10 @@ export interface KeyActions {
   mark: (pick: 'in' | 'out') => void
   takeAway: () => void
   gather: () => void
+  /* A pile of cards into a row or a grid. The other arrangements are on the
+     menu only; this one has a key because it is also the way the gaps between
+     cards become something you can take hold of. */
+  tidy: () => void
   compare: () => void
   vary: () => void
   shuffle: () => void
@@ -157,6 +161,15 @@ export function useShortcuts(a: KeyActions) {
     if (cmd && e.key.toLowerCase() === KEYS.takeAway.key) {
       e.preventDefault()
       a.takeAway()
+      return
+    }
+
+    /* A pile into a row, which is also how the gaps between cards become
+       something to take hold of: `smartOf` only offers handles over an
+       arrangement that really is evenly spaced, and this is how you get one. */
+    if (cmd && e.altKey && e.key.toLowerCase() === KEYS.tidy.key) {
+      e.preventDefault()
+      a.tidy()
       return
     }
 

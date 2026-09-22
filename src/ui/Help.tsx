@@ -419,6 +419,14 @@ function parts(): Part[] {
             <K>{KEYS.fitSelection.hint}</K> fits what you have selected.
           </p>
           <p>
+            <K>{KEYS.tidy.hint}</K> lays a selection out as a row or a grid &mdash; and once it is
+            one, the gaps between the cards become something to take hold of. Drag a gap and they
+            all open out or close up together, with the figure under the cursor; drag the ring in
+            the middle of a card and it swaps along the run, with everything else closing up
+            behind it. Pull one card out of line and the handles go, because a handle over a pile
+            would have to invent an order the cards do not have.
+          </p>
+          <p>
             It searches what a card is <em>made of</em> as well as what it is called, which is what
             you need on a board where a dozen cards have the same name. Type an effect and you get
             the cards running it, stacked ones included; type <strong>gate</strong> and you get the
@@ -525,6 +533,7 @@ const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'compare', what: 'Hold the selection up against each other' },
   { name: 'present', what: 'Present the board' },
   { name: 'gather', what: 'Bring the selection together' },
+  { name: 'tidy', what: 'Tidy the selection into a row or a grid' },
   { name: 'fitBoard', what: 'Fit the whole board on screen' },
   { name: 'fitSelection', what: 'Fit the selection on screen' },
   { name: 'takeAway', what: 'Take the selection off this board' },

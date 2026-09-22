@@ -169,6 +169,7 @@ export function buildCommands(a: CommandActions): Command[] {
     /* Tidying a selection was in the right click menu and nowhere else, so
        having just picked six cards out there was no way to lay them out. */
     cmd('arrange.tidysel', 'Tidy up the selection', 'Arrange', () => store.tidy(sel()), {
+      hint: KEYS.tidy.hint,
       disabled: a.selection.length < 2,
       keywords: 'grid align layout sort selection',
     }),

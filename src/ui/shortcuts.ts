@@ -9,6 +9,7 @@ const isApple = /Mac|iPhone|iPad|iPod/.test(
 
 export const MOD = isApple ? '⌘' : 'Ctrl'
 export const SHIFT = isApple ? '⇧' : 'Shift'
+export const ALT = isApple ? '⌥' : 'Alt'
 const join = (...parts: string[]) => (isApple ? parts.join('') : parts.join('+'))
 
 /* `label` is the sentence on the tooltip. `short` is the name of the thing,
@@ -50,6 +51,10 @@ export const KEYS = {
   takeAway: { key: 'x', hint: '⌘X', label: 'Take the selection off this board', short: 'Take away' },
   putHere: { key: 'v', hint: '⌘V', label: 'Put them on this board', short: 'Put here' },
   gather: { key: 'g', hint: 'G', label: 'Put the selection together in one place', short: 'Gather' },
+  /* Figma's own combination for this, because it is the one gesture in this
+     app that people arrive already knowing: a pile becomes a row, and a row
+     is the thing whose gaps you can then take hold of. */
+  tidy: { key: 't', mod: true, alt: true, hint: join(MOD, ALT, 'T'), label: 'Tidy the selection into a row or a grid', short: 'Tidy up' },
   compare: { key: 'c', hint: 'C', label: 'Hold the selection up against each other', short: 'Compare' },
   /* The same letter as Put here, without the modifier — which is the pattern
      already set by Draw and ⌘D, Export pictures and ⌘E, Add files and ⌘F. */
