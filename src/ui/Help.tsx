@@ -160,8 +160,13 @@ function parts(): Part[] {
             Double-click a drawing to move its points about: drag an anchor, drag a handle to shape
             the curve, hold <K>Alt</K> on a handle to break the pair, drag the line itself to bend
             it, double-click the line to put a point on it, hold <K>Alt</K> on an anchor to take one
-            away, and double-click an anchor to turn a corner smooth and back. <K>Esc</K> puts them
-            away again.
+            away, and double-click an anchor to turn a corner smooth and back.
+          </p>
+          <p>
+            Several at once: drag a box round them in the space beside the drawing, or hold{' '}
+            <K>Shift</K> and click to add one at a time. Picked points move together, nudge
+            together with the arrows and go together with <K>Delete</K>. <K>Esc</K> lets go of
+            them, and <K>Esc</K> again puts the points away.
           </p>
           <p>
             A drawing is a handful of numbers rather than pixels, so it is exact at any zoom and

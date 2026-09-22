@@ -812,9 +812,10 @@ body[data-scrubbing] * { cursor: ew-resize !important; }
 
 /* ---------- moving the points of a drawing ---------- */
 
-/* Over the cards, and taking the pointer only on the line and the marks: the
-   space between them belongs to whatever is underneath, so a press that
-   misses puts the points away rather than doing nothing. */
+/* Over the cards, and taking the pointer on the line, the marks, and the
+   space round them — which is not nothing to press on: it is where a box
+   round several points is drawn from, and a press on it that never became a
+   sweep lets go of the ones that are picked. */
 .nodes {
   position: absolute; top: 0; left: 0;
   z-index: 9200;
@@ -853,6 +854,26 @@ body[data-scrubbing] * { cursor: ew-resize !important; }
   pointer-events: all; cursor: move;
 }
 .node-dot:hover { fill: var(--accent); }
+/* A picked one is filled rather than outlined: the same mark, read the other
+   way round, so a handful of them reads as a group at a glance. */
+.node-dot[data-on] { fill: var(--accent); stroke: var(--surface); }
+
+/* The space the box is drawn from. Invisible, and only there to be pressed
+   on — `pointer-events: fill` rather than the painted kind, because a
+   transparent fill is not painted and would never be hit. */
+.node-ground {
+  fill: transparent;
+  pointer-events: fill;
+  cursor: crosshair;
+}
+
+/* And the box itself while it is being swept. */
+.node-lasso {
+  fill: var(--accent-wash);
+  stroke: var(--accent);
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
 
 /* The empty board. Drawn on the canvas rather than over it, so it reads as
    "there is nothing here yet" rather than as a dialog to get past. */

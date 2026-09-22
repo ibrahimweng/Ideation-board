@@ -406,11 +406,97 @@ await page.mouse.dblclick(first[0], first[1])
 await page.waitForTimeout(400)
 ok('and again turns it back into a corner', (await marks()).round === wasRound)
 
+/* --- several at once, and a box round them --- */
+/* One side of a shape is four points, and moving them one at a time is four
+   drags that each have to end in the same place. */
+const picked = () => page.evaluate(() => document.querySelectorAll('.node-dot[data-on]').length)
+const all = await anchors()
+const sweep = async (x0, y0, x1, y1, shift = false) => {
+  if (shift) await page.keyboard.down('Shift')
+  await page.mouse.move(x0, y0)
+  await page.mouse.down()
+  await page.mouse.move(x1, y1, { steps: 12 })
+  await page.waitForTimeout(120)
+  const mid = await page.evaluate(() => document.querySelectorAll('.node-lasso').length)
+  await page.mouse.up()
+  if (shift) await page.keyboard.up('Shift')
+  await page.waitForTimeout(250)
+  return mid
+}
+/* Worked out again each time rather than kept: the points move during this
+   stretch, the box is pulled back round them every time they do, and the
+   space a box can be swept from moves with it. */
+const round = async () => {
+  const ps = await anchors()
+  return {
+    lo: [Math.min(...ps.map((p) => p[0])) - 25, Math.min(...ps.map((p) => p[1])) - 25],
+    hi: [Math.max(...ps.map((p) => p[0])) + 25, Math.max(...ps.map((p) => p[1])) + 25],
+  }
+}
+let edge = await round()
+const sweepShown = await sweep(edge.lo[0], edge.lo[1], edge.hi[0], edge.hi[1])
+ok('a box is drawn while it is being swept', sweepShown === 1, `${sweepShown}`)
+ok('and a box round the lot picks all of them', (await picked()) === all.length, `${await picked()} of ${all.length}`)
+
+/* --- and they move together --- */
+const was3 = await anchors()
+const from3 = was3[0]
+await page.mouse.move(from3[0], from3[1])
+await page.mouse.down()
+await page.mouse.move(from3[0] + 60, from3[1] + 40, { steps: 10 })
+await page.mouse.up()
+await page.waitForTimeout(400)
+const now3 = await anchors()
+ok('dragging any one of them moves them all, by the same amount',
+   now3.length === was3.length && now3.every(([x, y], i) => Math.abs(x - was3[i][0] - 60) <= 2 && Math.abs(y - was3[i][1] - 40) <= 2),
+   `${JSON.stringify(was3)} -> ${JSON.stringify(now3)}`)
+ok('and they stay picked afterwards', (await picked()) === all.length, `${await picked()}`)
+
+/* --- the arrows nudge what is picked --- */
+const was4 = await anchors()
+await page.keyboard.press('ArrowRight')
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(400)
+const now4 = await anchors()
+ok('an arrow key nudges every picked point',
+   now4.every(([x, y], i) => Math.abs(x - was4[i][0] - 2) <= 1 && Math.abs(y - was4[i][1]) <= 1),
+   `${JSON.stringify(was4)} -> ${JSON.stringify(now4)}`)
+
+/* --- shift takes one back out --- */
+const anyOne = (await anchors())[0]
+await page.keyboard.down('Shift')
+await page.mouse.click(anyOne[0], anyOne[1])
+await page.keyboard.up('Shift')
+await page.waitForTimeout(300)
+ok('shift on a picked anchor takes it back out', (await picked()) === all.length - 1, `${await picked()}`)
+await page.keyboard.down('Shift')
+await page.mouse.click(anyOne[0], anyOne[1])
+await page.keyboard.up('Shift')
+await page.waitForTimeout(300)
+ok('and puts it back', (await picked()) === all.length, `${await picked()}`)
+
+/* --- a press on the empty space lets go --- */
+edge = await round()
+await page.mouse.click(edge.lo[0], edge.lo[1])
+await page.waitForTimeout(300)
+ok('a press on the space round them lets go of all of them', (await picked()) === 0, `${await picked()}`)
+ok('and leaves the points themselves open', (await marks()).dots === all.length, `${(await marks()).dots}`)
+
 /* --- out --- */
+/* Two presses when something is picked and one when nothing is: the first
+   lets go of the points, and only then does the second leave. One press
+   undoing two things is one press too many. */
+edge = await round()
+await sweep(edge.lo[0], edge.lo[1], edge.hi[0], edge.hi[1])
+ok('picked again, to prove the first escape is about them', (await picked()) === all.length, `${await picked()}`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+ok('escape lets go of the picked points first', (await picked()) === 0 && (await marks()).dots === all.length,
+   `${await picked()} picked, ${(await marks()).dots} anchors`)
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
 const shut2 = await marks()
-ok('escape puts the points away', shut2.dots === 0)
+ok('and escape again puts the points away', shut2.dots === 0)
 ok('and the corner handles come back', shut2.corners === 4, `${shut2.corners} corner handles`)
 
 /* --- the curvature tool opens an existing line --- */

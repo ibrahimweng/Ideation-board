@@ -46,6 +46,9 @@ import { holdPress } from './press'
 const REACH = 10
 const ANCHOR = 4.5
 const GRIP = 3.5
+/* And how far past the card's own edges the empty space reaches, so a box can
+ * be started outside the drawing and swept in over it. */
+const PAD = 40
 
 export function Nodes({ id }: { id: string }) {
   const it = useItem(id)
@@ -207,6 +210,53 @@ export function Nodes({ id }: { id: string }) {
       style={{ transform: `translate3d(${it.x}px, ${it.y}px, 0)`, width: w, height: h }}
     >
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        {/* The empty space, which is where a box round several points starts.
+            Drawn out past the card's own edges, because `refit` pulls the box
+            in tight round the drawing and a marquee that could only start
+            inside it could never get round a corner point. */}
+        <rect
+          className="node-ground"
+          x={-PAD / z}
+          y={-PAD / z}
+          width={w + (PAD * 2) / z}
+          height={h + (PAD * 2) / z}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.stopPropagation()
+            e.preventDefault()
+            holdPress()
+            const from = local(e)
+            const target = e.currentTarget as Element
+            target.setPointerCapture(e.pointerId)
+            /* Shift keeps what is already picked, so a second sweep adds to
+               the first rather than starting again. */
+            const kept = e.shiftKey ? picked : []
+            if (!e.shiftKey) setPicked([])
+            let drawn = false
+            const move = (ev: PointerEvent) => {
+              if (!drawn && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 2) return
+              drawn = true
+              const to = local(ev)
+              setLasso({ x0: from.x, y0: from.y, x1: to.x, y1: to.y })
+              const inside = nodesIn(nodes, from.x, from.y, to.x, to.y)
+              setPicked([...new Set([...kept, ...inside])])
+            }
+            const up = () => {
+              target.releasePointerCapture(e.pointerId)
+              window.removeEventListener('pointermove', move)
+              window.removeEventListener('pointerup', up)
+              window.removeEventListener('pointercancel', up)
+              setLasso(null)
+              /* A press on the empty space that never became a sweep is how
+                 you let go of everything, which is what it looks like. */
+              if (!drawn) setPicked([])
+            }
+            window.addEventListener('pointermove', move)
+            window.addEventListener('pointerup', up)
+            window.addEventListener('pointercancel', up)
+          }}
+        />
+
         {/* The line itself: press it to bend it, press it twice to put a
             point on it. Drawn as a fat invisible stroke over the real one so
             a hairline is still something you can catch. */}
@@ -315,12 +365,24 @@ export function Nodes({ id }: { id: string }) {
             />
           )
         })}
+        {lasso && (
+          <rect
+            className="node-lasso"
+            x={Math.min(lasso.x0, lasso.x1) * w}
+            y={Math.min(lasso.y0, lasso.y1) * h}
+            width={Math.abs(lasso.x1 - lasso.x0) * w}
+            height={Math.abs(lasso.y1 - lasso.y0) * h}
+            strokeWidth={1 / z}
+          />
+        )}
       </svg>
       {/* Which point a press would land on is worth knowing without pressing,
           but it is not worth a re-render per frame: the anchors are drawn big
           enough to aim at instead. */}
       <span className="said">
-        {nodes.length} points. Drag to move, alt-click to remove, double-click to add or to change a corner, escape to finish.
+        {picked.length
+          ? `${picked.length} of ${nodes.length} points picked. Drag any of them to move them all, arrows to nudge, delete to remove, escape to let go.`
+          : `${nodes.length} points. Drag to move or drag a box round several, alt-click to remove, double-click to add or to change a corner, escape to finish.`}
       </span>
     </div>
   )
