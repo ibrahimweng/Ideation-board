@@ -427,6 +427,12 @@ function parts(): Part[] {
             would have to invent an order the cards do not have.
           </p>
           <p>
+            Hold <K>{KEYS.measure.hint}</K> with something selected and point at anything else,
+            and the board says how far apart they are: the gap between two cards, the space left
+            on each side of one sitting inside a section, or both at once for something away up
+            and to the right. Every figure there is one the board already had.
+          </p>
+          <p>
             It searches what a card is <em>made of</em> as well as what it is called, which is what
             you need on a board where a dozen cards have the same name. Type an effect and you get
             the cards running it, stacked ones included; type <strong>gate</strong> and you get the
@@ -534,6 +540,7 @@ const KEY_ROWS: { name: keyof typeof KEYS; what: string }[] = [
   { name: 'present', what: 'Present the board' },
   { name: 'gather', what: 'Bring the selection together' },
   { name: 'tidy', what: 'Tidy the selection into a row or a grid' },
+  { name: 'measure', what: 'Hold and point at something to measure the distance' },
   { name: 'fitBoard', what: 'Fit the whole board on screen' },
   { name: 'fitSelection', what: 'Fit the selection on screen' },
   { name: 'takeAway', what: 'Take the selection off this board' },

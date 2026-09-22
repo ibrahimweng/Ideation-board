@@ -52,6 +52,7 @@
   --press: rgba(24, 24, 27, 0.09);
   --scrim: rgba(24, 24, 27, 0.5);
   --wire: #a8a8b0;
+  --measure: #d6009a;
 
   /* Elevation: three steps, and the third is only for things that float over
      the whole window. */
@@ -127,6 +128,7 @@
   --press: rgba(255, 255, 255, 0.12);
   --scrim: rgba(0, 0, 0, 0.6);
   --wire: #55565f;
+  --measure: #ff63c9;
 
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.5);
   --sh-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.45);
@@ -725,6 +727,71 @@ button.search-count:hover { background: var(--press); color: var(--ink); }
   transform-origin: 0 0;
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* ---------- how far apart two things are ---------- */
+
+/* Above everything the board draws, because it is an answer to a question
+   being asked right now and nothing should be in front of it. */
+.measure {
+  position: absolute; top: 0; left: 0;
+  z-index: 9200;
+  pointer-events: none;
+}
+
+/* The thing being pointed at, outlined so the figures are plainly about it.
+   The outline itself is drawn as a shadow, at a width the component divides
+   by the zoom, so it stays a hairline however far out the board is. */
+.measure-box {
+  position: absolute; top: 0; left: 0;
+  display: block; border-radius: var(--r-sm);
+}
+
+/* One distance. A tick at each end, because a line with no ends is a line
+   whose length you have to take on trust. */
+.measure-line {
+  position: absolute; top: 0; left: 0;
+  display: block;
+  background: var(--measure);
+}
+.measure-line::before, .measure-line::after {
+  content: ''; position: absolute;
+  background: var(--measure);
+}
+/* Across: ticks stand up at either end. */
+.measure-line:not([data-guide])::before,
+.measure-line:not([data-guide])::after {
+  left: 0; top: 50%;
+  width: var(--thin, 1px); height: var(--tick, 5px);
+  transform: translateY(-50%);
+}
+.measure-line:not([data-guide])::after { left: auto; right: 0; }
+/* Down: they lie across it instead. */
+.measure-line[data-down]:not([data-guide])::before,
+.measure-line[data-down]:not([data-guide])::after {
+  left: 50%; top: 0; right: auto; bottom: auto;
+  width: var(--tick, 5px); height: var(--thin, 1px);
+  transform: translateX(-50%);
+}
+.measure-line[data-down]:not([data-guide])::after { top: auto; bottom: 0; }
+
+/* The guide that carries the eye from a box out to a measurement drawn beside
+   it rather than across it. Not a distance, so it wears no ticks and no
+   figure, and it is drawn faintly enough not to be mistaken for one. */
+.measure-line[data-guide] { opacity: 0.4; }
+.measure-line[data-guide]::before, .measure-line[data-guide]::after { content: none; }
+
+/* What the distance is. Kept at one size on screen however far out the board
+   is, because a figure is either readable or it is nothing. */
+.measure-say {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0;
+  padding: 1px 5px; border-radius: var(--r-sm);
+  background: var(--measure); color: #fff;
+  font: 600 11px/1.45 var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* ---------- moving the points of a drawing ---------- */

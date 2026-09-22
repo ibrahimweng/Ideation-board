@@ -61,8 +61,12 @@ export const KEYS = {
   vary: { key: 'v', hint: 'V', label: 'Make twelve versions of it', short: 'Vary' },
   /* The same dice as Vary, thrown in place rather than into a grid. */
   shuffle: { key: 'r', hint: 'R', label: 'Throw a random treatment at the selection', short: 'Shuffle' },
-  /* Held rather than pressed, which is why it is the only one here whose key
-     is let go of again. Backslash is what every tool that grades a picture
+  /* The other one that is held. Alt already means "a copy of this" when a drag
+     starts with it down; held over a card without pressing anything it means
+     "tell me how far away that is", and the two cannot collide because one is
+     a press and the other is not. */
+  measure: { key: 'Alt', hint: ALT, label: 'Hold and point at something to measure the distance', short: 'Measure' },
+  /* The other held one. Backslash is what every tool that grades a picture
      uses for this, and it is one of the few keys nothing else wanted. */
   original: { key: '\\', hint: '\\', label: 'Hold to see it without the effect', short: 'See the original' },
   search: { key: 'f', mod: true, hint: '/', label: 'Search' },
