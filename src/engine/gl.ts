@@ -511,6 +511,16 @@ export class Renderer {
     else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.bindFramebuffer(gl.FRAMEBUFFER, f.fb)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, f.tex, 0)
+    /* A driver can advertise the extension and still refuse the attachment.
+     * Asked rather than assumed, because the failure would not be an error
+     * anywhere — it would be every developed card coming out black. */
+    if (f.deep && gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      f.deep = false
+      this.deep = false
+      gl.bindTexture(gl.TEXTURE_2D, f.tex)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, f.tex, 0)
+    }
     f.w = w
     f.h = h
   }

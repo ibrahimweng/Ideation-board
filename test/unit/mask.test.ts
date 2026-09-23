@@ -28,6 +28,14 @@ import type { Mask, MaskKind } from '../../src/state/mask'
 const KINDS: MaskKind[] = ['whole', 'linear', 'radial', 'brush', 'colour', 'luminance', 'depth']
 
 describe('the parts', () => {
+  it('gives the whole picture the code the shader treats as everything', () => {
+    /* And every other kind a code below it, because the shader's last branch
+       is the one that says "all of it" and everything past it is a kind this
+       version does not know, which has to be nowhere rather than everywhere. */
+    expect(KIND_CODE.whole).toBe(6)
+    for (const k of KINDS) if (k !== 'whole') expect(KIND_CODE[k]).toBeLessThan(6)
+  })
+
   it('gives every kind a code the shader can switch on', () => {
     const codes = KINDS.map((k) => KIND_CODE[k])
     expect(new Set(codes).size).toBe(KINDS.length)

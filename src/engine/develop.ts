@@ -425,7 +425,12 @@ float partAt(int i, vec2 uv, vec3 c){
   /* All of it. Worth having as a part of its own rather than as an ellipse
      wound up until it covers the corners: it is what "everything except this"
      starts from, and what a blur over the whole picture is. */
-  else f = 1.0;
+  else if (kind == 6) f = 1.0;
+  /* A kind this version does not know — a board saved by a later one. Nowhere
+     rather than everywhere: an edit that has gone missing is a thing somebody
+     can see and put back, and an edit smeared over the whole photograph is a
+     thing they would have to work out. */
+  else return 0.0;
   if (uPartA[i].z > 0.5) f = 1.0 - f;
   return clamp(f, 0.0, 1.0);
 }

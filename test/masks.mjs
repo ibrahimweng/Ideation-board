@@ -400,6 +400,29 @@ fs.writeFileSync(path.join(OUT, 'masks-brush.png'), await page.screenshot())
 await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
 await page.waitForTimeout(700)
 
+/* ---------- the compare key, over a mask being shown ----------
+ *
+ * Holding it asks for the photograph and nothing else, which includes not the
+ * red overlay. The bug this catches is not a wrong picture — it is the card
+ * reading one thing fewer than it did on the render before, which React ends
+ * the whole board over. */
+await page.locator('.mask-list .mask').nth(5).locator('.mask-eye').click()
+await page.waitForTimeout(700)
+await page.keyboard.down('\\')
+await page.waitForTimeout(700)
+const held = await sample(0.45, 0.75)
+check('holding the compare key over a mask being shown gives the photograph',
+      !!held && Math.abs(held[0] - 128) <= 4, held ? `${held[0]}` : 'there is no card left to read')
+await page.keyboard.up('\\')
+await page.waitForTimeout(700)
+const released = await sample(0.45, 0.75)
+check('and letting go brings the overlay back',
+      !!released && released[0] > released[1] + 40, JSON.stringify(released))
+check('and the board is still standing', errors.length === 0, errors.join(' | '))
+await hideOverlay()
+await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
+await page.waitForTimeout(700)
+
 /* ---------- what is kept between one mask and the next ----------
  *
  * Eight bits a channel cannot hold a number above one, so a highlight pushed

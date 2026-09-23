@@ -91,8 +91,12 @@ export const Card = memo(function Card({
   const moves = useMoves(it)
   /* Whether the compare key is being held over this card. */
   const plain = usePlain(id)
-  /* A mask being placed, drawn in red instead of the picture. */
-  const showMask = usePlain(id) ? undefined : useShownMask(id)
+  /* A mask being placed, drawn in red instead of the picture — unless the
+     compare key is down, which asks for the photograph and nothing else. Both
+     are read every render and the choice made after: a hook behind a condition
+     is a hook that is not there the moment the condition changes. */
+  const shown = useShownMask(id)
+  const showMask = plain ? undefined : shown
   /* A family that has to be fetched is fetched here, where every way a card
      can arrive set in one goes past: opened, undone, imported, pasted, or
      changed in the panel. Doing it in the panel alone would mean a board
