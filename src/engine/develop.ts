@@ -80,6 +80,9 @@ uniform sampler2D uBrush;    /* the painted parts, baked */
    spin turns around or a zoom runs out from. */
 uniform vec4 uBlurFx;
 uniform vec2 uBlurAt;
+/* Taking something out: where the good pixels come from, whether to do it at
+   all, and whether to keep the tone of where they are going. */
+uniform vec4 uClone;
 uniform sampler2D uDepth;    /* a depth map, when one is wired in */
 uniform vec2 uDepthOn;       /* x: a depth map is bound. y: spare */
 
@@ -277,7 +280,10 @@ vec3 applyCurve(vec3 c){
 float bandWeight(float hue, float centre){
   float d = abs(hue - centre);
   d = min(d, 1.0 - d);
-  return smoothstep(0.125, 0.0, d);
+  /* Written the way round the specification defines: smoothstep with its
+     first edge above its second is undefined, and reads as a falling ramp on
+     most drivers and as anything at all on the rest. */
+  return 1.0 - smoothstep(0.0, 0.125, d);
 }
 vec3 applyHSL(vec3 c){
   vec3 hsv = rgb2hsv(max(c, 0.0));
@@ -485,6 +491,19 @@ vec3 blurry(vec2 uv){
   return sum / 12.0;
 }
 
+/* ---------- taking something out ----------
+ *
+ * Clone puts the pixels from over there down as they are. Heal puts down their
+ * texture and this place's own tone: the difference between a blurred copy of
+ * here and a blurred copy of there is exactly the lighting that separates the
+ * two, so adding it back is what makes a patch stop looking like a patch. */
+vec3 cloned(vec2 uv){
+  vec2 from = uv + uClone.xy;
+  vec3 there = pic(from);
+  if (uClone.w < 0.5) return there;
+  return there + (soft(uv) - soft(from));
+}
+
 float maskAt(vec2 uv, vec3 c){
   if (uMask.x < 0.5) return 1.0;
   int n = int(uMask.y + 0.5);
@@ -595,18 +614,30 @@ void main(){
   /* The mask is asked about the picture as it arrived, not about a blurred
      copy of it: a colour range that read the blur would spread itself over
      everything next to the colour it was given. */
-  float m = maskAt(uv, base);
-  vec3 c = uBlurFx.y > EPS ? blurry(uv) : base;
-
   /* Show me where it is. Lightroom's red, over a picture drained to grey so
      the overlay reads on a red jumper as clearly as on a white wall — and the
-     one thing anybody needs while a mask is being built. */
+     one thing anybody needs while a mask is being built.
+     
+     Two things it has to get right. It shows the developed photograph, not the
+     file, because that is the picture the mask is asked about: a colour range
+     compares against what the global develop left. And where the mask is not,
+     it shows that picture untouched — so what is on screen outside the red is
+     the real colour, which is what the colour picker reads when somebody
+     clicks the photograph to build a range out of it. */
   if (uMask.w > 0.5){
-    float g = lum(base);
-    vec3 under = mix(vec3(g), base, 0.25);
-    outColor = vec4(clamp(mix(under, vec3(0.94, 0.19, 0.24), m * 0.62), 0.0, 1.0), 1.0);
+    vec3 shown = developed(base, uv);
+    float mm = maskAt(uv, shown);
+    float g = lum(shown);
+    vec3 tint = mix(mix(vec3(g), shown, 0.25), vec3(0.94, 0.19, 0.24), 0.62);
+    outColor = vec4(clamp(mix(shown, tint, mm), 0.0, 1.0), 1.0);
     return;
   }
+
+  float m = maskAt(uv, base);
+  vec3 c = uBlurFx.y > EPS ? blurry(uv) : base;
+  /* Before the develop, because what is being repaired is the photograph and
+     whatever this mask then does to it applies to the repair as well. */
+  if (uClone.z > 0.5) c = cloned(uv);
 
   vec3 d = developed(c, uv);
   /* A mask pass lands only where the mask is; a global pass lands everywhere,

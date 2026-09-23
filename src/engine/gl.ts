@@ -670,7 +670,10 @@ export class Renderer {
      * has just been dragged over a sky is easier to judge against the sky. */
     if (showMask) {
       const m = (masks || []).find((k) => k.id === showMask)
-      if (m) return this.devPass({}, '', src, cover, w, h, into, seed, two, m, true)
+      /* With the card's own develop on it, minus its masks: the overlay has to
+       * show the picture the mask is asked about, and a mask is asked about
+       * what the global develop left rather than about the file. */
+      if (m) return this.devPass({ ...dev, masks: undefined }, curveKey, src, cover, w, h, into, seed, two, m, true)
     }
 
     if (!live.length) return this.devPass(dev, curveKey, src, cover, w, h, into, seed, two, null, false)
@@ -785,6 +788,8 @@ export class Renderer {
       if (pr.u.uMask) gl.uniform4f(pr.u.uMask, 1, mu.n, mu.amount, overlay ? 1 : 0)
       if (pr.u.uBlurFx) gl.uniform4f(pr.u.uBlurFx, mu.blur[0], overlay ? 0 : mu.blur[1], mu.blur[2], mu.blur[3])
       if (pr.u.uBlurAt) gl.uniform2f(pr.u.uBlurAt, mu.blurAt[0], mu.blurAt[1])
+      if (pr.u.uClone)
+        gl.uniform4f(pr.u.uClone, mu.clone[0], mu.clone[1], overlay ? 0 : mu.clone[2], mu.clone[3])
       vec4s('uPartA', mu.a)
       vec4s('uPartB', mu.b)
       vec4s('uPartC', mu.c)
@@ -802,6 +807,7 @@ export class Renderer {
       gl.uniform4f(pr.u.uMask, 0, 0, 1, 0)
       if (pr.u.uBlurFx) gl.uniform4f(pr.u.uBlurFx, 0, 0, 0, 0)
       if (pr.u.uBlurAt) gl.uniform2f(pr.u.uBlurAt, 0.5, 0.5)
+      if (pr.u.uClone) gl.uniform4f(pr.u.uClone, 0, 0, 0, 0)
       /* Every sampler a program declares has to have something bound to it,
        * whether the shader reads it or not. */
       gl.activeTexture(gl.TEXTURE3)

@@ -342,8 +342,13 @@ export function developed(d?: Develop): boolean {
    * question about the mask's own parameters and would otherwise go round for
    * ever. */
   for (const m of d.masks || []) {
-    if (!m.off && m.parts.length && (m.amount ?? 100) > 0 && (developed(m.dev) || (m.blur && m.blur.amount > 0)))
-      return true
+    /* The three things a mask can be doing, asked here rather than through the
+     * mask module — which asks this one the same question about the mask's own
+     * parameters, and would go round for ever. */
+    if (m.off || !m.parts.length || (m.amount ?? 100) <= 0) continue
+    if (developed(m.dev)) return true
+    if (m.blur && m.blur.amount > 0) return true
+    if (m.clone && (Math.abs(m.clone.ox) > 0.002 || Math.abs(m.clone.oy) > 0.002)) return true
   }
   return false
 }

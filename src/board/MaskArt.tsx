@@ -199,6 +199,37 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
     store.update(id, { fx: { ...it.fx, dev: trimDev({ ...(it.fx.dev || {}), masks: next }) } }, false)
   }
 
+  /* ---- where a repair takes its pixels from ---- */
+  const clone = mask.clone
+  const putClone = (patch: { ox: number; oy: number }) => {
+    const next = (masks || []).map((m) => (m.id === maskId ? { ...m, clone: { ...m.clone!, ...patch } } : m))
+    store.update(id, { fx: { ...it.fx, dev: trimDev({ ...(it.fx.dev || {}), masks: next }) } }, false)
+  }
+
+  /* Where to draw it: the middle of whatever the mask is made of, plus the
+     offset. A repair with nowhere obvious to anchor is anchored at the middle
+     of the frame, which is still somewhere to take hold of. */
+  const anchor = () => {
+    const p = mask.parts[0]
+    if (!p) return { x: 0.5, y: 0.5 }
+    if (p.kind === 'radial') return { x: p.cx ?? 0.5, y: p.cy ?? 0.5 }
+    if (p.kind === 'linear') return { x: ((p.x1 ?? 0.5) + (p.x2 ?? 0.5)) / 2, y: ((p.y1 ?? 0.5) + (p.y2 ?? 0.5)) / 2 }
+    if (p.kind === 'brush') {
+      const pts = (p.strokes || []).flatMap((st) => st.pts)
+      if (pts.length >= 2) {
+        let sx = 0
+        let sy = 0
+        for (let i = 0; i < pts.length; i += 2) {
+          sx += pts[i]
+          sy += pts[i + 1]
+        }
+        const n = pts.length / 2
+        return { x: sx / n, y: sy / n }
+      }
+    }
+    return { x: 0.5, y: 0.5 }
+  }
+
   /* ---- painting, and picking a colour off the picture ---- */
   const brushAt = mask.parts.findIndex((p) => p.kind === 'brush')
   const pickAt = mask.parts.findIndex((p) => p.kind === 'colour')
@@ -299,6 +330,31 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
           />
         )}
         {mask.parts.map(artFor)}
+        {clone && (() => {
+          const a = anchor()
+          const sx = (a.x + clone.ox) * w
+          const sy = (a.y + clone.oy) * h
+          const r = Math.max(g * 2.6, Math.min(w, h) * 0.05)
+          return (
+            <g className="mk-clone">
+              {/* A line from what is being repaired to where the good pixels
+                  are coming from, because the two only mean anything as a
+                  pair. */}
+              <line className="mk-edge mk-faint" x1={a.x * w} y1={a.y * h} x2={sx} y2={sy} />
+              <circle
+                className="mk-ring"
+                cx={sx}
+                cy={sy}
+                r={r}
+                strokeWidth={hit}
+                onPointerDown={(e) =>
+                  drag(e, (at, f) => putClone({ ox: clone.ox + (at.x - f.x), oy: clone.oy + (at.y - f.y) }))
+                }
+              />
+              <circle className="mk-grip mk-open" cx={sx} cy={sy} r={g} />
+            </g>
+          )
+        })()}
         {spin && (
           /* A cross rather than a dot, because what it marks is a centre and a
              dot on a photograph is indistinguishable from a speck on it. */

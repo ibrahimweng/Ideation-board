@@ -115,12 +115,41 @@ export const BLUR_KINDS: { k: BlurKind; name: string; hint: string }[] = [
 
 export const BLUR_CODE: Record<BlurKind, number> = { defocus: 0, spin: 1, zoom: 2, motion: 3 }
 
+/* ---------------------------------------------------------------------------
+ * Taking something out.
+ *
+ * The one everyday tool a photograph needs that no slider can be: a mark on a
+ * wall, a bin in the corner, a spot on a face. Photoshop calls it the clone
+ * stamp and the healing brush, Lightroom calls it Remove; they are the same
+ * gesture — paint over the thing, then say where to take the good pixels from.
+ *
+ * The difference between the two is one line. Clone puts those pixels down as
+ * they are, which is right for a repeating texture — brickwork, grass, sky.
+ * Heal puts down their texture and the destination's own tone, which is right
+ * for anything the light falls across unevenly: a cheek, a wall in sun. The
+ * arithmetic for that is the oldest trick there is — take the difference
+ * between a blurred copy of here and a blurred copy of there, and add it.
+ * ------------------------------------------------------------------------- */
+export interface Clone {
+  /* Where the good pixels come from, as an offset in the picture's own nought
+   * to one. Nought and nought is no repair at all, which is also what a repair
+   * nobody has placed yet looks like. */
+  ox: number
+  oy: number
+  /* Whether the tone of the destination is kept. */
+  heal?: boolean
+}
+
+export const cloneOn = (m: Mask) => !!m.clone && (Math.abs(m.clone.ox) > 0.002 || Math.abs(m.clone.oy) > 0.002)
+
 export interface Mask {
   id: string
   name: string
   parts: MaskPart[]
   /* A blur, and the mask says where it comes from. */
   blur?: Blur
+  /* Or good pixels from somewhere else on the same photograph. */
+  clone?: Clone
   /* What this mask does where it is. */
   dev?: Develop
   /* The whole mask's strength, 0..100. Lightroom's Amount slider: the way to
@@ -233,7 +262,7 @@ export const maskEmpty = (m: Mask) => !m.parts.length || partEmpty(m.parts[0])
 /* Worth rendering: switched on, somewhere, doing something. */
 export const blurOn = (m: Mask) => !!m.blur && m.blur.amount > 0
 export const maskLive = (m: Mask) =>
-  !m.off && !maskEmpty(m) && (m.amount ?? 100) > 0 && (developed(m.dev) || blurOn(m))
+  !m.off && !maskEmpty(m) && (m.amount ?? 100) > 0 && (developed(m.dev) || blurOn(m) || cloneOn(m))
 
 export const liveMasks = (masks?: Mask[]) => (masks || []).filter(maskLive)
 
@@ -311,6 +340,8 @@ export interface MaskUniforms {
   /* kind, amount, angle in radians, spare — and where it turns or runs from. */
   blur: [number, number, number, number]
   blurAt: [number, number]
+  /* offset x, offset y, on, heal. */
+  clone: [number, number, number, number]
   /* How wide the gaussian chain has to be run for this mask, in the units the
    * effects use. Zero for every mask that is not a defocus. */
   blurRadius: number
@@ -359,10 +390,14 @@ export function maskUniforms(m: Mask): MaskUniforms {
     brush: parts.some((p) => p.kind === 'brush' && !partEmpty(p)),
     blur: [bl ? BLUR_CODE[bl.kind] : 0, amt, (((bl?.angle ?? 0) * Math.PI) / 180), 0],
     blurAt: [bl?.cx ?? 0.5, bl?.cy ?? 0.5],
+    clone: [m.clone?.ox ?? 0, m.clone?.oy ?? 0, cloneOn(m) ? 1 : 0, m.clone?.heal ? 1 : 0],
     /* Wide enough to be a defocus rather than a softening, and no wider: the
        chain downsamples by a sixth of the radius, so asking for more than the
        picture needs costs resolution the blur cannot get back. */
-    blurRadius: bl && bl.kind === 'defocus' && amt > 0 ? amt * 46 + 5 : 0,
+    /* A heal needs a softened copy of the picture too, to read the tone it is
+       repairing into. Not as wide as a defocus: wide enough to be the lighting
+       and not the thing being taken out. */
+    blurRadius: bl && bl.kind === 'defocus' && amt > 0 ? amt * 46 + 5 : m.clone?.heal && cloneOn(m) ? 26 : 0,
   }
 }
 

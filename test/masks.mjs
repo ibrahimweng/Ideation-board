@@ -157,9 +157,17 @@ check('the picture starts as the browser drew it', (await drawnBy()) === 'img', 
 await addMask('Linear gradient')
 check('adding a mask shows where it is', (await drawnBy()) === 'canvas', await drawnBy())
 const red = await sample(0.5, 0.06)
-const notRed = await sample(0.5, 0.94)
+/* Read on the blue square rather than on the grey: draining a grey towards
+   grey leaves it exactly where it was, so a grey cannot tell the difference
+   between an overlay that leaves the picture alone and one that drains all of
+   it. A saturated colour can. */
+const notRed = await sample(0.88, 0.88)
 check('and shows it in red', red && red[0] > red[1] + 40 && red[0] > red[2] + 40, JSON.stringify(red))
-check('and only where it is', notRed && Math.abs(notRed[0] - notRed[1]) < 10, JSON.stringify(notRed))
+/* Not merely neutral where the mask is not — the photograph itself, to the
+   level. That is what makes clicking the picture to pick a colour off it an
+   honest thing to do while the overlay is up. */
+check('and leaves the picture alone everywhere else',
+      notRed && Math.abs(notRed[0] - 40) <= 2 && Math.abs(notRed[2] - 220) <= 2, JSON.stringify(notRed))
 fs.writeFileSync(path.join(OUT, 'masks-overlay.png'), await page.screenshot())
 
 /* Off again, so the checks below read the photograph and not the overlay. */

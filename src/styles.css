@@ -3261,3 +3261,8 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
+
+.mk-clone .mk-ring {
+  cursor: move;
+  stroke-dasharray: 6 4;
+}

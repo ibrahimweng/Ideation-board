@@ -186,6 +186,33 @@ describe('the blur gallery', () => {
   })
 })
 
+describe('taking something out', () => {
+  const at = (ox: number, oy: number, heal?: boolean): Mask => ({ ...newMask('brush'), parts: [{ kind: 'brush', strokes: [{ pts: [0.4, 0.4, 0.5, 0.5], size: 8, soft: 50, flow: 100 }] }], clone: { ox, oy, heal } })
+
+  it('is not a repair until it has been given somewhere to take pixels from', () => {
+    expect(liveMasks([at(0, 0)])).toHaveLength(0)
+    expect(liveMasks([at(0.12, 0)])).toHaveLength(1)
+    /* And a card with nothing on it but a repair is a developed card. */
+    expect(developed({ masks: [at(0.12, 0)] })).toBe(true)
+    expect(developed({ masks: [at(0, 0)] })).toBe(false)
+  })
+
+  it('tells the shader the offset, whether to do it, and whether to keep the tone', () => {
+    const u = maskUniforms(at(0.1, -0.06, true))
+    expect(u.clone).toEqual([0.1, -0.06, 1, 1])
+    expect(maskUniforms(at(0.1, -0.06)).clone[3]).toBe(0)
+    expect(maskUniforms(at(0, 0)).clone[2]).toBe(0)
+  })
+
+  it('asks for a softened copy only when it is healing', () => {
+    /* Heal reads the difference between a blurred here and a blurred there,
+       which is the lighting. A clone has no use for it. */
+    expect(maskUniforms(at(0.1, 0, true)).blurRadius).toBeGreaterThan(0)
+    expect(maskUniforms(at(0.1, 0)).blurRadius).toBe(0)
+    expect(maskUniforms(at(0, 0, true)).blurRadius).toBe(0)
+  })
+})
+
 describe('the brush', () => {
   const stroke = (pts: number[]) => ({ pts, size: 10, soft: 50, flow: 100 })
 

@@ -75,7 +75,10 @@ export function Curve({
     target.setPointerCapture(e.pointerId)
     const move = (ev: PointerEvent) => {
       const q = at(ev)
-      const next = sorted(pts.length >= list.length ? list : list)
+      /* Worked out from the list as it was when the pointer went down, not
+         from the last frame's: a drag is one gesture against one starting
+         shape, and reading back what the drag itself wrote would compound. */
+      const next = sorted(list)
       const first = i === 0
       const last = i === next.length - 1
       /* The two ends keep their own x. A curve whose left end slid right has a
@@ -94,7 +97,11 @@ export function Curve({
       window.removeEventListener('pointerup', up)
       setHeld(-1)
       const q = at(ev)
-      const list2 = sorted(pts)
+      /* The list as it stands, which includes a point this gesture put down —
+         `pts` is the render the drag started from and is one point short, so
+         reading it here would take the index past the end or, worse, name a
+         different point than the one being held. */
+      const list2 = sorted(list)
       /* Off the top or the bottom and it is gone, unless it is an end or there
          is nothing left to be a curve. */
       const inner = i > 0 && i < list2.length - 1

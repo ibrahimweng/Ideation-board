@@ -15,7 +15,7 @@ import {
   newPart,
   trimMaskDev,
 } from '../state/mask'
-import type { Blur, Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
+import type { Blur, Clone, Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
 import { hideMask, hideOtherCards, showMask, useShowing } from '../board/showmask'
 
 /* ---------------------------------------------------------------------------
@@ -77,17 +77,28 @@ function PartControls({ part, onChange }: { part: MaskPart; onChange: (p: Partia
   if (k === 'brush') {
     const strokes = part.strokes || []
     const last = strokes[strokes.length - 1]
+    /* The last entry may be the brush rather than a mark: changing a setting
+       lands on an empty stroke that the next drag fills. It is not a stroke
+       until something has been painted with it, so it is not counted as one
+       and "undo the last stroke" does not take it. */
+    const drawn = strokes.filter((st) => st.pts.length >= 2)
     return (
       <>
         <Slider label="Size" min={1} max={60} step={1} def={12} value={last?.size ?? 12} onChange={(v) => onChange({ strokes: bumpBrush(strokes, { size: v }) })} />
         <Slider label="Softness" min={0} max={100} step={1} def={60} value={last?.soft ?? 60} onChange={(v) => onChange({ strokes: bumpBrush(strokes, { soft: v }) })} />
         <Slider label="Flow" min={5} max={100} step={1} def={100} value={last?.flow ?? 100} onChange={(v) => onChange({ strokes: bumpBrush(strokes, { flow: v }) })} />
         <p className="panel-note">
-          {strokes.length ? `${strokes.length} ${strokes.length === 1 ? 'stroke' : 'strokes'}. ` : 'Nothing painted yet. '}
+          {drawn.length ? `${drawn.length} ${drawn.length === 1 ? 'stroke' : 'strokes'}. ` : 'Nothing painted yet. '}
           Paint on the picture; hold Alt to rub out.
         </p>
-        {strokes.length > 0 && (
-          <button className="ghost" onClick={() => onChange({ strokes: strokes.slice(0, -1) })}>
+        {drawn.length > 0 && (
+          <button
+            className="ghost"
+            onClick={() => {
+              const at = strokes.lastIndexOf(drawn[drawn.length - 1])
+              onChange({ strokes: strokes.filter((_, i) => i !== at) })
+            }}
+          >
             Undo the last stroke
           </button>
         )}
@@ -165,6 +176,12 @@ function OneMask({
   const addPart = (kind: MaskKind) => {
     setAddOpen(false)
     onChange({ ...mask, parts: [...mask.parts, newPart(kind, 'add')] }, true)
+  }
+
+  const setRepair = (patch: Partial<Clone> | null) => {
+    if (!patch) return onChange({ ...mask, clone: undefined }, true)
+    const cur: Clone = mask.clone || { ox: 0.12, oy: 0.0 }
+    onChange({ ...mask, clone: { ...cur, ...patch } }, true)
   }
 
   const setBlur = (patch: Partial<Blur>) => {
@@ -310,6 +327,38 @@ function OneMask({
           )}
           {(mask.blur?.kind === 'spin' || mask.blur?.kind === 'zoom') && (
             <p className="panel-note">Drag the cross on the picture to say where it turns from.</p>
+          )}
+
+          <h5>Repair</h5>
+          {/* The one everyday tool no slider can be: paint over the thing, say
+              where to take the good pixels from. Clone puts them down as they
+              are, which is right for brickwork; heal puts down their texture
+              and this place's own tone, which is right for a cheek. */}
+          <div className="mask-blurkinds">
+            <button
+              data-on={(!!mask.clone && !mask.clone.heal) || undefined}
+              title="The pixels from over there, as they are"
+              onClick={() => setRepair({ heal: false })}
+            >
+              Clone
+            </button>
+            <button
+              data-on={(!!mask.clone && !!mask.clone.heal) || undefined}
+              title="Their texture, and the tone of where it is going"
+              onClick={() => setRepair({ heal: true })}
+            >
+              Heal
+            </button>
+          </div>
+          {mask.clone ? (
+            <>
+              <p className="panel-note">Drag the second ring on the picture to say where from.</p>
+              <button className="ghost" onClick={() => setRepair(null)}>
+                No repair
+              </button>
+            </>
+          ) : (
+            <p className="panel-note">Paint over what has to go, then pick one of those.</p>
           )}
 
           <h5>What it does there</h5>
