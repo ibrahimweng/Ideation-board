@@ -302,6 +302,109 @@ check('and not its mirror image, which is the same distance from grey',
 check('and leaves everything that is not it', Math.abs(notBlue[0] - 128) <= 3, JSON.stringify(notBlue))
 fs.writeFileSync(path.join(OUT, 'masks-colour.png'), await page.screenshot())
 
+/* ---------- putting one somewhere, by pointing at it ----------
+ *
+ * The panel can say how soft a gradient is. It cannot say where — where is a
+ * place on a photograph, and the only honest way to give a place is to point
+ * at it. So the last thing to prove is that the handles on the picture move
+ * the mask, and move it to where they were dragged.
+ */
+await page.locator('.mask-list .mask').nth(3).locator('.mask-off').click()  /* the colour one off */
+await page.waitForTimeout(500)
+await addMask('Radial gradient')
+const art = page.locator('.mask-art')
+check('a mask being placed puts its handles on the picture', (await art.count()) === 1)
+check('and the handles are the ones that kind has', (await art.locator('.mk-radial .mk-grip').count()) === 2,
+      `${await art.locator('.mk-grip').count()} grips`)
+
+const frame = await art.boundingBox()
+const centre = { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 }
+/* Drag the middle handle up and left, into the bright band. */
+await page.mouse.move(centre.x, centre.y)
+await page.mouse.down()
+await page.mouse.move(centre.x - frame.width * 0.3, centre.y - frame.height * 0.36, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(900)
+
+await hideOverlay()
+await setMask('Exposure', -2)
+const moved = await sample(0.2, 0.14)
+const away = await sample(0.5, 0.6)
+check('dragging the middle moves the mask to where it was dragged', moved[0] < 190, `${moved[0]}`)
+check('and takes it off where it was', Math.abs(away[0] - 128) <= 4, `${away[0]}`)
+fs.writeFileSync(path.join(OUT, 'masks-dragged.png'), await page.screenshot())
+
+/* And the ring, which is how it is made bigger. A point well outside it at
+   the size it was drawn, inside it once the rim has been dragged out to twice
+   the radius. */
+const wideBefore = await sample(0.55, 0.25)
+check('a point outside the mask is untouched to start with', Math.abs(wideBefore[0] - 128) <= 4, `${wideBefore[0]}`)
+await page.locator('.mask-list .mask').nth(4).locator('.mask-eye').click()
+await page.waitForTimeout(700)
+const ring = await page.locator('.mask-art').boundingBox()
+await page.mouse.move(ring.x + ring.width * 0.5, ring.y + ring.height * 0.14)
+await page.mouse.down()
+await page.mouse.move(ring.x + ring.width * 0.8, ring.y + ring.height * 0.14, { steps: 12 })
+await page.mouse.up()
+await page.waitForTimeout(900)
+await hideOverlay()
+const wideAfter = await sample(0.55, 0.25)
+check('dragging the ring makes the mask bigger', wideAfter[0] < 110, `${wideBefore[0]} -> ${wideAfter[0]}`)
+await page.locator('.mask-list .mask').nth(4).locator('.mask-off').click()
+await page.waitForTimeout(700)
+
+/* ---------- painting one by hand ---------- */
+await addMask('Brush')
+check('a brush mask offers a surface to paint on', (await page.locator('.mask-art .mk-ground').count()) === 1)
+const canvasBox = await page.locator('.mask-art').boundingBox()
+await page.mouse.move(canvasBox.x + canvasBox.width * 0.25, canvasBox.y + canvasBox.height * 0.75)
+await page.mouse.down()
+for (let i = 1; i <= 10; i++) {
+  await page.mouse.move(
+    canvasBox.x + canvasBox.width * (0.25 + i * 0.03),
+    canvasBox.y + canvasBox.height * 0.75,
+    { steps: 2 }
+  )
+}
+await page.mouse.up()
+await page.waitForTimeout(900)
+check('painting leaves strokes on the mask',
+      /stroke/.test(await page.locator('.mask-body .panel-note').first().innerText()),
+      await page.locator('.mask-body .panel-note').first().innerText())
+
+await hideOverlay()
+await setMask('Exposure', -2)
+const painted = await sample(0.3, 0.75)
+const unpainted = await sample(0.75, 0.3)
+check('and the edit lands under the paint', painted[0] < 110, `${painted[0]}`)
+check('and nowhere the brush did not go', Math.abs(unpainted[0] - 128) <= 4, `${unpainted[0]}`)
+
+/* A second stroke, somewhere else. The first one could land on a brush that
+   is baked once and then cached for ever; the second one cannot. */
+await page.locator('.mask-list .mask').nth(5).locator('.mask-eye').click()
+await page.waitForTimeout(600)
+const again = await page.locator('.mask-art').boundingBox()
+await page.mouse.move(again.x + again.width * 0.62, again.y + again.height * 0.42)
+await page.mouse.down()
+for (let i = 1; i <= 10; i++) {
+  await page.mouse.move(again.x + again.width * (0.62 + i * 0.02), again.y + again.height * 0.42, { steps: 2 })
+}
+await page.mouse.up()
+await page.waitForTimeout(900)
+await hideOverlay()
+const second = await sample(0.66, 0.42)
+check('a second stroke lands too, on a brush that has already been baked once',
+      second[0] < 110, `${second[0]}`)
+check('and the first one is still there', (await sample(0.3, 0.75))[0] < 110, `${(await sample(0.3, 0.75))[0]}`)
+fs.writeFileSync(path.join(OUT, 'masks-brush.png'), await page.screenshot())
+await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
+await page.waitForTimeout(700)
+
+/* The colour range back on, since the export below is read on the blue
+   square it found. */
+await page.locator('.mask-list .mask').nth(3).locator('.mask-off').click()
+await page.waitForTimeout(800)
+
 /* ---------- and it survives leaving ----------
  *
  * An export goes down a different road: not the card's canvas but a one-shot

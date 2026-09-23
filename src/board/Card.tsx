@@ -18,6 +18,7 @@ import { editNodes, hasNodes, useEditing } from './editing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
 import { useShownMask } from './showmask'
+import { MaskArt } from './MaskArt'
 import { RichText } from './RichText'
 import { ShapeArt } from './ShapeArt'
 import { todoCount } from '../state/rich'
@@ -569,6 +570,11 @@ export const Card = memo(function Card({
               <span className="file-why">Made by a newer version of the app</span>
             </div>
           )}
+          {/* The mask's own handles, inside the frame so they are moved,
+              zoomed, turned and flipped by the same transform the picture is —
+              a handle that stayed put while the picture under it moved would
+              be pointing at the wrong thing. */}
+          {showMask && <MaskArt id={id} maskId={showMask} />}
         </div>
 
         {grain > 0 && (

@@ -3162,3 +3162,69 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .mask-foot button {
   flex: 1;
 }
+
+/* ---------------------------------------------------------------------------
+ * The mask's handles, on the picture.
+ *
+ * White on a dark halo, which is the one pair that reads on any photograph:
+ * a light handle vanishes into a sky and a dark one into a shadow, and a
+ * handle you cannot see is not a handle. Over the red overlay rather than
+ * under it, since the overlay is what they are moving.
+ * ------------------------------------------------------------------------- */
+.mask-art {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.mask-art svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.mask-art [data-brush] {
+  cursor: crosshair;
+}
+.mk-ground {
+  fill: transparent;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.mk-edge,
+.mk-spine,
+.mk-ring {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.5;
+  paint-order: stroke;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.85));
+  vector-effect: non-scaling-stroke;
+}
+.mk-faint {
+  opacity: 0.45;
+  stroke-dasharray: 5 5;
+}
+.mk-spine,
+.mk-ring {
+  pointer-events: stroke;
+  cursor: move;
+}
+.mk-ring {
+  cursor: nwse-resize;
+}
+.mk-grip {
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.85);
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: grab;
+  vector-effect: non-scaling-stroke;
+}
+.mk-grip:active {
+  cursor: grabbing;
+}
+.mk-open {
+  fill: rgba(0, 0, 0, 0.35);
+}
