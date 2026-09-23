@@ -139,7 +139,7 @@ vec3 toneRegions(vec3 c, float hi, float sh, float wh, float bl){
      keep its colour, and adding a negative number to a channel that is already
      at one turns it grey. */
   float k = 1.0;
-  k *= 1.0 + hi * -0.75 * wHi;
+  k *= 1.0 + hi * 0.75 * wHi;
   k *= 1.0 + sh * 0.9 * wSh;
   k *= 1.0 + wh * 0.5 * wWh;
   k *= 1.0 + bl * 0.6 * wBl;
@@ -341,7 +341,10 @@ void main(){
     float r = length(sq) / max(mix(0.6, 1.8, uVign.y), EPS);
     float f = mix(0.02, 1.0, uVign.w);
     float v = 1.0 - smoothstep(1.0 - f, 1.0 + f * 0.25, r) * abs(uVign.x);
-    c = uVign.x > 0.0 ? c * v : c / max(v, 0.25);
+    /* Lightroom's sign, not the one that reads more naturally: a negative
+       amount darkens the corners and a positive one opens them up. Everybody
+       who has ever put a vignette on a photograph learned it that way round. */
+    c = uVign.x < 0.0 ? c * v : c / max(v, 0.25);
   }
   if (uGrain.x > EPS){
     /* Ground at a size of its own rather than per output pixel, so a grain set

@@ -155,7 +155,7 @@ const select = async (id) => {
   await page.waitForTimeout(300)
 }
 const adjust = async () => {
-  await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+  await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
   await page.waitForTimeout(300)
 }
 const num = (label) => page.locator('.ctl', { hasText: label }).first().locator('input.ctl-num')

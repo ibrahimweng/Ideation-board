@@ -159,7 +159,7 @@ check('and leaves the picture where it was in its card', afterMove.frame === bef
  * rather than an edge to pull off the card — which is what framing is for. */
 await page.locator(`.card[data-id="${A}"]`).click()
 await page.waitForTimeout(400)
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(400)
 await page.locator('.ctl', { hasText: 'Zoom' }).first().locator("input[type='range']").fill('1.8')
 await page.waitForTimeout(500)
@@ -292,7 +292,7 @@ check('and the copy is where the drag ended',
 
 await page.locator(`.card[data-id="${A}"]`).click()
 await page.waitForTimeout(400)
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(400)
 check('the panel says the gesture exists, since nothing else would',
   /alt/i.test(await page.locator('.fx-hint').first().innerText()),

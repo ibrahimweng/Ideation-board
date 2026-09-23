@@ -151,7 +151,7 @@ async function grade(id) {
   await tab('Effect').click()
   await page.locator('.fx-thumb[title="Halftone"]').click()
   await page.waitForTimeout(1800)
-  await tab('Adjust').click()
+  await tab('Develop').click()
   await page.waitForTimeout(300)
   await page.locator('.preset-row button', { hasText: 'Noir' }).click()
   await page.waitForTimeout(400)
@@ -308,7 +308,7 @@ await page.waitForTimeout(700)
 /* ---------- the button that does the same thing ---------- */
 
 await select(A)
-await tab('Adjust').click()
+await tab('Develop').click()
 await page.waitForTimeout(300)
 const button = page.locator('.panel-compare button')
 check('the panel offers it too, for anyone who does not know the key',
@@ -341,7 +341,7 @@ await page.waitForTimeout(200)
 /* ---------- a number that can be typed ---------- */
 
 await select(A)
-await tab('Adjust').click()
+await tab('Develop').click()
 await page.waitForTimeout(400)
 check('every slider now has a figure that can be typed into',
   (await page.locator('.fx-controls input.ctl-num').count()) >= 10,
