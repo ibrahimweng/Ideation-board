@@ -26,6 +26,7 @@ export interface Job {
   params: Params | null
   dev?: Develop
   curveKey?: string
+  showMask?: string
   width: number
   height: number
   seed: number

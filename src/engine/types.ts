@@ -1,7 +1,8 @@
 /* Shared engine vocabulary. Kept free of DOM types so the worker can import it. */
 
 import type { Develop } from '../state/develop'
-export type { Develop }
+import type { Mask } from '../state/mask'
+export type { Develop, Mask }
 
 export interface NumControl {
   k: string

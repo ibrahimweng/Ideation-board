@@ -17,6 +17,7 @@ import { startWriting, stopWriting, useWriting } from './writing'
 import { editNodes, hasNodes, useEditing } from './editing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
+import { useShownMask } from './showmask'
 import { RichText } from './RichText'
 import { ShapeArt } from './ShapeArt'
 import { todoCount } from '../state/rich'
@@ -89,6 +90,8 @@ export const Card = memo(function Card({
   const moves = useMoves(it)
   /* Whether the compare key is being held over this card. */
   const plain = usePlain(id)
+  /* A mask being placed, drawn in red instead of the picture. */
+  const showMask = usePlain(id) ? undefined : useShownMask(id)
   /* A family that has to be fetched is fetched here, where every way a card
      can arrive set in one goes past: opened, undone, imported, pasted, or
      changed in the panel. Doing it in the panel alone would mean a board
@@ -119,7 +122,10 @@ export const Card = memo(function Card({
      shader, no tone, no grain, no framing. All four go together, because half
      a comparison is not one — the question being asked is what the picture
      looked like before any of this, not before some of it. */
-  const effected = hasEffect(fx) && canShade(it) && !plain
+  /* An overlay needs the shader whether or not anything has been developed:
+     the moment somebody adds a mask they want to see where it is, and at that
+     moment it has no parameters on it at all. */
+  const effected = (hasEffect(fx) || !!showMask) && canShade(it) && !plain
   const filter = plain ? '' : adjustCSS(fx)
   const frame = plain ? '' : frameCSS(fx)
   const grain = plain ? 0 : fx.grain
@@ -224,6 +230,7 @@ export const Card = memo(function Card({
                 params={fx.ep}
                 more={fx.more}
                 dev={plain ? undefined : fx.dev}
+                showMask={showMask}
                 seed={hashSeed(id)}
                 w={it.w}
                 h={it.h}
@@ -385,6 +392,7 @@ export const Card = memo(function Card({
                 params={fx.ep}
                 more={fx.more}
                 dev={plain ? undefined : fx.dev}
+                showMask={showMask}
                 seed={hashSeed(id)}
                 w={it.w}
                 h={it.h}
@@ -427,6 +435,7 @@ export const Card = memo(function Card({
                   params={fx.ep}
                   more={fx.more}
                   dev={plain ? undefined : fx.dev}
+                  showMask={showMask}
                   seed={hashSeed(id)}
                   w={it.w}
                   h={it.h}

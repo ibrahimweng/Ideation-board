@@ -31,6 +31,7 @@ export interface RenderRequest {
   /* What was done to the photograph before any effect was put on it. */
   dev?: Develop
   curveKey?: string
+  showMask?: string
   /* CSS pixel size of the card's canvas. */
   cssW: number
   cssH: number
@@ -58,6 +59,7 @@ const jobFor = (req: RenderRequest, size: { w: number; h: number }, tier: Tier):
   n: req.n,
   dev: req.dev,
   curveKey: req.curveKey,
+  showMask: req.showMask,
   width: size.w,
   height: size.h,
   seed: req.seed,
@@ -279,6 +281,7 @@ export class FxEngine {
           n: req.n,
           dev: req.dev,
           curveKey: req.curveKey,
+          showMask: req.showMask,
           width: size.w,
           height: size.h,
           seed: req.seed,
@@ -302,6 +305,7 @@ export class FxEngine {
         n: req.n,
         dev: req.dev,
         curveKey: req.curveKey,
+        showMask: req.showMask,
         width: size.w,
         height: size.h,
         seed: req.seed,
@@ -336,6 +340,7 @@ export class FxEngine {
          must never do. */
       dev?: Develop
       curveKey?: string
+      showMask?: string
       seed: number
       width: number
       height: number
@@ -367,7 +372,7 @@ export class FxEngine {
         this.inflight++
         this.send(
           { t: 'live', id, jobId, bitmap: source, effectId: job.effectId, stack: job.stack, params: job.params,
-            n: job.n, dev: job.dev, curveKey: job.curveKey, width: job.width, height: job.height, seed: job.seed },
+            n: job.n, dev: job.dev, curveKey: job.curveKey, showMask: job.showMask, width: job.width, height: job.height, seed: job.seed },
           [source]
         )
         return
@@ -381,7 +386,7 @@ export class FxEngine {
       try {
         const okRender = r.render(source, source.width, source.height, null, {
           effectId: job.effectId,
-          stack: job.stack, params: job.params, n: job.n, dev: job.dev, curveKey: job.curveKey,
+          stack: job.stack, params: job.params, n: job.n, dev: job.dev, curveKey: job.curveKey, showMask: job.showMask,
           width: job.width, height: job.height, seed: job.seed,
         })
         finish(okRender ? r.takeBitmap() : null)
@@ -450,6 +455,7 @@ export class FxEngine {
         n: job.n,
         dev: job.dev,
         curveKey: job.curveKey,
+        showMask: job.showMask,
         width: job.width,
         height: job.height,
         seed: job.seed,
@@ -471,6 +477,7 @@ export class FxEngine {
         n: job.n,
         dev: job.dev,
         curveKey: job.curveKey,
+        showMask: job.showMask,
         width: job.width,
         height: job.height,
         seed: job.seed,

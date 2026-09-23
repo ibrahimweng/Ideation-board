@@ -2972,3 +2972,193 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .boom p { margin: 0 0 .75rem; color: var(--ink-2, var(--ink)); }
 .boom button { font: inherit; padding: .5rem 1rem; margin: .5rem 0 1.25rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); cursor: pointer; }
 .boom pre { font: var(--t-xs)/1.5 var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-word; margin: 0; }
+
+/* ---------------------------------------------------------------------------
+ * Masks.
+ *
+ * A list that reads as a list of places rather than a list of controls: the
+ * name and the two switches on one line, everything a mask is made of indented
+ * under it when it is open. The red of the overlay is used here too, on the
+ * eye, so that "this one is being shown" and "that red shape on the picture"
+ * are visibly the same thing.
+ * ------------------------------------------------------------------------- */
+.masks h5 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mask {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel-2, transparent);
+}
+.mask[data-off] .mask-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.mask-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 2px;
+}
+.mask-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mask[data-open] .mask-name .dev-caret {
+  transform: rotate(90deg);
+}
+.mask-warn {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 20%, transparent);
+  font-size: 10px;
+  color: var(--muted);
+}
+.mask-eye,
+.mask-off,
+.mask-inv,
+.mask-drop {
+  flex: none;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mask-eye[data-on] {
+  border-color: #ef3038;
+  background: color-mix(in srgb, #ef3038 18%, transparent);
+  color: #ef3038;
+}
+.mask-off[data-on],
+.mask-inv[data-on] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mask-body {
+  padding: 2px 8px 10px;
+  border-top: 1px solid var(--line);
+}
+.mask-part {
+  margin: 6px 0 10px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--line);
+}
+.mask-part-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.mask-part-name {
+  flex: 1;
+  min-width: 80px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mask-ops {
+  display: flex;
+  flex: 0 0 100%;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.mask-ops button {
+  flex: 1;
+  padding: 3px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mask-ops button[data-on] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.mask-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.mask-pick input {
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+.mask-add {
+  position: relative;
+  margin-top: 8px;
+}
+.mask-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.mask-kinds button {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mask-kinds button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.mask-kinds small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mask-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.mask-foot button {
+  flex: 1;
+}

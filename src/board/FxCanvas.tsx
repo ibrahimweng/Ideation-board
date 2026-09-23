@@ -113,6 +113,9 @@ interface Props {
   n?: number
   /* What was done to the photograph itself, before any effect. */
   dev?: Develop
+  /* One of that develop's masks, drawn in red over the picture while it is
+     being placed. Transient: it belongs to the panel, not to the card. */
+  showMask?: string
   seed: number
   /* Card size in CSS pixels. */
   w: number
@@ -122,7 +125,7 @@ interface Props {
   className?: string
 }
 
-export function FxCanvas({ id, mediaKey, effectId, params, more, n, dev, seed, w, h, distance, className }: Props) {
+export function FxCanvas({ id, mediaKey, effectId, params, more, n, dev, showMask, seed, w, h, distance, className }: Props) {
   /* Whatever card is wired into this one, for the effects that read two.
    *
    * The fed card's pixels have to be on the GPU as well, and a card with no
@@ -164,7 +167,7 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, n, dev, seed, w
        screen. Left out, a card would keep the picture it had before the
        exposure was moved and never ask for another. */
     const devKey = dev ? JSON.stringify(dev) : ''
-    const sig = `${mediaKey}|${feed || ''}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${n || 1}|${devKey}|${Math.round(w)}x${Math.round(h)}`
+    const sig = `${mediaKey}|${feed || ''}|${effectId}|${JSON.stringify(params)}|${JSON.stringify(more || null)}|${n || 1}|${devKey}|${showMask || ''}|${Math.round(w)}x${Math.round(h)}`
     if (sigRef.current === sig) return
     sigRef.current = sig
     engine.request({
@@ -176,6 +179,7 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, n, dev, seed, w
       stack: asStack(more),
       n,
       dev,
+      showMask,
       /* Only the curves, so moving the exposure does not re-upload the table. */
       curveKey: curveKeyOf(dev),
       cssW: w,
@@ -183,7 +187,7 @@ export function FxCanvas({ id, mediaKey, effectId, params, more, n, dev, seed, w
       seed,
       distance: distRef.current,
     })
-  }, [id, mediaKey, feed, feedReady, effectId, params, more, n, dev, seed, w, h, sourceReady])
+  }, [id, mediaKey, feed, feedReady, effectId, params, more, n, dev, showMask, seed, w, h, sourceReady])
 
   return <canvas ref={ref} className={className} aria-hidden />
 }

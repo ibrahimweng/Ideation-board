@@ -57,6 +57,24 @@ uniform float uHslH[8], uHslS[8], uHslL[8];
 uniform vec3 uGradeS, uGradeM, uGradeH, uGradeG;  /* each: hue, sat, lum */
 uniform vec2 uGradeMix;                            /* blending, balance */
 
+/* ---------- the mask ----------
+ *
+ * One mask per pass, so only one mask's worth of numbers is ever in flight and
+ * the develop chain below does not have to know that masks exist at all: it
+ * develops the colour it is given, and main() decides how much of that lands.
+ *
+ * uMask.x  on at all
+ * uMask.y  how many parts
+ * uMask.z  the whole mask's strength
+ * uMask.w  1 to draw the mask itself in red instead of the picture */
+uniform vec4 uMask;
+uniform vec4 uPartA[4];      /* kind, op, invert, feather */
+uniform vec4 uPartB[4];      /* the part's own geometry */
+uniform vec4 uPartC[4];
+uniform sampler2D uBrush;    /* the painted parts, baked */
+uniform sampler2D uDepth;    /* a depth map, when one is wired in */
+uniform vec2 uDepthOn;       /* x: a depth map is bound. y: spare */
+
 in vec2 vUv;
 out vec4 outColor;
 
@@ -276,9 +294,105 @@ vec3 sharpen(vec3 c, vec2 uv, float detail){
   return c + hp * uSharp.x * mask * mix(0.6, 1.6, uSharp.z) + detail * 0.0;
 }
 
-void main(){
-  vec2 uv = vUv;
-  vec3 c = pic(uv);
+/* ---------- where a mask is ----------
+ *
+ * Each part answers "how much of me is here" for a point, between nothing and
+ * all of it, and the parts fold together in order. The first part is the mask;
+ * every one after it adds to what is there, takes itself out of it, or keeps
+ * only what both of them cover. Which is the whole of Lightroom's masking
+ * model, and enough to say "the sky, but not the building in front of it". */
+
+float lin(int i, vec2 uv){
+  /* A gradient along a line: all of it behind the first point, none of it past
+     the second, and a smooth ramp between. That way round because of how the
+     thing is used — you drag from the sky you want darkened towards where you
+     want it to stop, so the edge you started at is the edge that gets the
+     edit. Lightroom's sense, and everybody's muscle memory. */
+  vec2 a = uPartB[i].xy;
+  vec2 b = uPartB[i].zw;
+  vec2 d = b - a;
+  float len2 = max(dot(d, d), EPS);
+  float t = dot(uv - a, d) / len2;
+  return 1.0 - smoothstep(0.0, 1.0, clamp(t, 0.0, 1.0));
+}
+
+float rad(int i, vec2 uv){
+  /* An ellipse, turned by its own angle, with the feather saying how much of
+     the radius the edge takes up. Measured against the card's proportions so a
+     circle drawn on a wide card is still a circle. */
+  float aspect = uRes.x / max(uRes.y, 1.0);
+  vec2 p = (uv - uPartB[i].xy) * vec2(aspect, 1.0);
+  float a = uPartC[i].x;
+  float ca = cos(a), sa = sin(a);
+  p = vec2(p.x * ca + p.y * sa, -p.x * sa + p.y * ca);
+  vec2 rr = max(uPartB[i].zw * vec2(aspect, 1.0), vec2(EPS));
+  float r = length(p / rr);
+  float f = max(uPartA[i].w, 0.01);
+  return 1.0 - smoothstep(1.0 - f, 1.0, clamp(r, 0.0, 2.0));
+}
+
+float colourRange(int i, vec3 c){
+  /* Distance in hue first and then in saturation and brightness, because two
+     colours people would call "the same blue" can be a long way apart in RGB
+     and are always close in hue. */
+  vec3 a = rgb2hsv(max(c, 0.0));
+  vec3 b = rgb2hsv(max(uPartB[i].xyz, 0.0));
+  float dh = abs(a.x - b.x);
+  dh = min(dh, 1.0 - dh) * 2.0;
+  float ds = abs(a.y - b.y);
+  float dv = abs(a.z - b.z);
+  /* A grey has no hue worth comparing, so for an unsaturated pick the answer
+     is about brightness instead. */
+  float w = smoothstep(0.02, 0.15, b.y);
+  float d = mix(sqrt(ds * ds + dv * dv), sqrt(dh * dh * 1.6 + ds * ds * 0.5 + dv * dv * 0.25), w);
+  float tol = max(uPartB[i].w, 0.01);
+  return 1.0 - smoothstep(tol * 0.5, tol, d);
+}
+
+float band(float v, float lo, float hi, float soft){
+  /* Inside the band is all of it, and it falls away over the softness on each side.
+     One function for luminance and for depth, which are the same question
+     asked of two different pictures. */
+  float f = max(soft, 0.005);
+  return smoothstep(lo - f, lo + f, v) * (1.0 - smoothstep(hi - f, hi + f, v));
+}
+
+float partAt(int i, vec2 uv, vec3 c){
+  int kind = int(uPartA[i].x + 0.5);
+  float f = 0.0;
+  if (kind == 0) f = lin(i, uv);
+  else if (kind == 1) f = rad(i, uv);
+  else if (kind == 2) f = texture(uBrush, uv).a;
+  else if (kind == 3) f = colourRange(i, c);
+  else if (kind == 4) f = band(clamp(lum(c), 0.0, 1.0), uPartB[i].x, uPartB[i].y, uPartB[i].z);
+  else if (kind == 5){
+    /* Without a depth map there is no answer, and covering the whole picture
+       would be a worse one than covering none of it. */
+    if (uDepthOn.x < 0.5) return 0.0;
+    float d = lum(texture(uDepth, uv).rgb);
+    f = band(d, uPartB[i].x, uPartB[i].y, uPartB[i].z);
+  }
+  if (uPartA[i].z > 0.5) f = 1.0 - f;
+  return clamp(f, 0.0, 1.0);
+}
+
+float maskAt(vec2 uv, vec3 c){
+  if (uMask.x < 0.5) return 1.0;
+  int n = int(uMask.y + 0.5);
+  float m = 0.0;
+  for (int i = 0; i < 4; i++){
+    if (i >= n) break;
+    float f = partAt(i, uv, c);
+    if (i == 0){ m = f; continue; }
+    int op = int(uPartA[i].y + 0.5);
+    if (op == 0) m = max(m, f);            /* add */
+    else if (op == 1) m = min(m, 1.0 - f); /* subtract */
+    else m = min(m, f);                    /* intersect */
+  }
+  return clamp(m, 0.0, 1.0) * uMask.z;
+}
+
+vec3 developed(vec3 c, vec2 uv){
 
   /* -------- linear light -------- */
   c = toLinear(c);
@@ -358,5 +472,26 @@ void main(){
     c += n * uGrain.x * 0.34 * (0.35 + 0.65 * body);
   }
 
-  outColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+  return c;
+}
+
+void main(){
+  vec2 uv = vUv;
+  vec3 c = pic(uv);
+  float m = maskAt(uv, c);
+
+  /* Show me where it is. Lightroom's red, over a picture drained to grey so
+     the overlay reads on a red jumper as clearly as on a white wall — and the
+     one thing anybody needs while a mask is being built. */
+  if (uMask.w > 0.5){
+    float g = lum(c);
+    vec3 under = mix(vec3(g), c, 0.25);
+    outColor = vec4(clamp(mix(under, vec3(0.94, 0.19, 0.24), m * 0.62), 0.0, 1.0), 1.0);
+    return;
+  }
+
+  vec3 d = developed(c, uv);
+  /* A mask pass lands only where the mask is; a global pass lands everywhere,
+     and maskAt has already returned 1 for it. */
+  outColor = vec4(clamp(mix(c, d, m), 0.0, 1.0), 1.0);
 }`

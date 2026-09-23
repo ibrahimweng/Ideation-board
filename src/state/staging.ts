@@ -6,6 +6,7 @@ import { STAGE_0, renderModel, textureOf } from '../store/model'
 import { exportSize, renderCardPicture } from './exportImage'
 import { getEngine } from '../engine/client'
 import { hasEffect } from '../board/adjust'
+import { curveKeyOf } from './develop'
 import { feederCard, refreshFeeds } from './feeds'
 import { SLOT_BY_ID, dressOf, withSkin, withoutSkin } from './skins'
 import type { Stage } from '../store/model'
@@ -283,6 +284,10 @@ export async function treatSkin(id: string, material: string, slot = 'colour'): 
     params: it.fx.ep,
     stack: it.fx.more?.length ? it.fx.more.map((l) => ({ effectId: l.fxid, params: l.ep, n: l.n })) : undefined,
     n: it.fx.n,
+    /* The develop under it too, masks and all: a texture baked off a card
+       that has been graded has to be the graded one. */
+    dev: it.fx.dev,
+    curveKey: curveKeyOf(it.fx.dev),
     seed: 11,
     /* Square and generous. A texture is not a card and has no aspect to
      * preserve; what it has is UVs, and stretching it would move the picture

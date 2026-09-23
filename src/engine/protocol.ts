@@ -33,6 +33,7 @@ export interface RenderMsg {
   n?: number
   /* What was done to the photograph before any effect was put on it. */
   dev?: Develop
+  showMask?: string
   curveKey?: string
   width: number
   height: number
@@ -52,6 +53,7 @@ export interface RenderLiveMsg {
   params: Params | null
   n?: number
   dev?: Develop
+  showMask?: string
   curveKey?: string
   width: number
   height: number

@@ -23,6 +23,7 @@ import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 import { Slider } from './Slider'
 import { DevelopPanel, devPatch } from './DevelopPanel'
+import { MaskPanel } from './MaskPanel'
 import { TextTab } from './TextTab'
 import { ShapePanel } from './ShapePanel'
 import { unrasterise } from '../state/raster'
@@ -490,6 +491,17 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
               dev={fx.dev}
               onChange={(patch, discrete) => patchFx({ dev: devPatch(fx.dev, patch) }, discrete)}
               onReset={() => patchFx({ dev: undefined }, true)}
+            />
+          )}
+
+          {/* And where any of it happens. Below the develop panel because the
+              order on the screen is the order of the work: get the picture
+              right, then go and fix the two places it is still wrong. */}
+          {shadeable && primaryId && (
+            <MaskPanel
+              card={primaryId}
+              masks={fx.dev?.masks || []}
+              onChange={(masks, discrete) => patchFx({ dev: devPatch(fx.dev, { masks }) }, discrete)}
             />
           )}
 

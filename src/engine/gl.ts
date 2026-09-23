@@ -4,7 +4,9 @@ import { BY_ID } from './effects'
 import { DEVELOP_FRAG } from './develop'
 import { REPEATS } from './types'
 import { CURVE_W, curveTable, devUniforms } from '../state/develop'
+import { BRUSH_W, brushKey, liveMasks, maskUniforms, paintBrush } from '../state/mask'
 import type { Develop } from '../state/develop'
+import type { Mask } from '../state/mask'
 import type { EffectSpec, Params } from './types'
 
 /* ---------------------------------------------------------------------------
@@ -85,6 +87,11 @@ export interface RenderJob {
      Absent for a card nobody has developed, which is nearly every card — and
      that path is untouched: no extra buffer, no extra pass, no compile. */
   dev?: Develop
+  /* One of that develop's masks, drawn as a red overlay instead of the
+     picture, while it is being placed. Carried beside the develop rather than
+     inside it because it is never saved: it is a thing the panel is doing, not
+     a thing the card is wearing. */
+  showMask?: string
   /* Identity of the four tone curves, so the table is re-uploaded only when
      the curve actually changed rather than on every draw. */
   curveKey?: string
@@ -164,6 +171,18 @@ export class Renderer {
   private stack: [FBO, FBO] | null = null
   private stackW = 0
   private stackH = 0
+  /* Where the develop chain ping-pongs while it works through the masks. Its
+   * own pair rather than the stack's, because the stack's first buffer is
+   * where this chain is asked to leave its answer. Made on the first masked
+   * card and never before: a board of unmasked pictures pays nothing. */
+  private devbuf: [FBO, FBO] | null = null
+  private devbufW = 0
+  private devbufH = 0
+  /* The painted parts of a mask, baked once and kept until the strokes
+   * change. */
+  private brushTex: WebGLTexture | null = null
+  private brushKeyed = ''
+  private brushCv: OffscreenCanvas | null = null
   private fboW = 0
   private fboH = 0
 
@@ -479,6 +498,15 @@ export class Renderer {
    * blur is throwing detail away on purpose and a stacked effect is not. Made
    * on first use and not before, so a board that never stacks anything never
    * pays for these at all. */
+  private ensureDevBufs(w: number, h: number) {
+    if (!this.devbuf) this.devbuf = [this.mkFBO(), this.mkFBO()]
+    if (this.devbufW === w && this.devbufH === h) return
+    this.devbufW = w
+    this.devbufH = h
+    this.sizeFBO(this.devbuf[0], w, h)
+    this.sizeFBO(this.devbuf[1], w, h)
+  }
+
   private ensureStackBufs(w: number, h: number) {
     if (!this.stack) this.stack = [this.mkFBO(), this.mkFBO()]
     if (this.stackW === w && this.stackH === h) return
@@ -566,7 +594,69 @@ export class Renderer {
     return this.curveTex
   }
 
+  /* ---------------------------------------------------------------------
+   * The develop chain.
+   *
+   * The photograph, developed; then one more pass for every mask on it, each
+   * reading what the last one wrote and laying its own edit down only where
+   * its mask says. Which is to say: exactly the shader above, run again with
+   * different numbers, instead of a second shader that has to be kept in step
+   * with the first one for ever.
+   *
+   * A masked pass costs one more full-screen draw, and a card has masks only
+   * while somebody is working on it. The unmasked card — every card on every
+   * board that nobody is editing right now — takes the same single pass it
+   * took before any of this existed.
+   * ------------------------------------------------------------------------ */
   private develop(
+    dev: Develop,
+    masks: Mask[] | undefined,
+    curveKey: string,
+    src: WebGLTexture,
+    cover: Cover,
+    w: number,
+    h: number,
+    into: FBO | null,
+    seed: number,
+    two: { tex: WebGLTexture; cover: Cover } | null,
+    showMask?: string
+  ): boolean {
+    const live = liveMasks(masks)
+
+    /* Show me where it is: the mask alone, in red, over the photograph. Drawn
+     * from the source rather than from the developed picture, because the
+     * question being asked is "is this the right place", and a gradient that
+     * has just been dragged over a sky is easier to judge against the sky. */
+    if (showMask) {
+      const m = (masks || []).find((k) => k.id === showMask)
+      if (m) return this.devPass({}, '', src, cover, w, h, into, seed, two, m, true)
+    }
+
+    if (!live.length) return this.devPass(dev, curveKey, src, cover, w, h, into, seed, two, null, false)
+
+    this.ensureDevBufs(w, h)
+    const bufs = this.devbuf!
+    let t = 0
+    if (!this.devPass(dev, curveKey, src, cover, w, h, bufs[t], seed, two, null, false)) return false
+    let read = bufs[t].tex
+    t = 1 - t
+    /* Everything after the first reads a buffer that is already the shape of
+     * the card, so it takes the whole of it. */
+    const whole: Cover = { sx: 1, sy: 1, ox: 0, oy: 0 }
+    for (let i = 0; i < live.length; i++) {
+      const last = i === live.length - 1
+      const dst = last ? into : bufs[t]
+      if (!this.devPass(live[i].dev || {}, '', read, whole, w, h, dst, seed, two, live[i], false)) return false
+      if (!last) {
+        read = bufs[t].tex
+        t = 1 - t
+      }
+    }
+    return true
+  }
+
+  /* One draw of the develop shader: the global pass, or one mask's. */
+  private devPass(
     dev: Develop,
     curveKey: string,
     src: WebGLTexture,
@@ -574,7 +664,10 @@ export class Renderer {
     w: number,
     h: number,
     into: FBO | null,
-    seed: number
+    seed: number,
+    two: { tex: WebGLTexture; cover: Cover } | null,
+    mask: Mask | null,
+    overlay: boolean
   ): boolean {
     const gl = this.gl
     const pr = this.developProg()
@@ -633,8 +726,91 @@ export class Renderer {
     if (pr.u.uGradeG) gl.uniform3f(pr.u.uGradeG, u.gradeG[0], u.gradeG[1], u.gradeG[2])
     if (pr.u.uGradeMix) gl.uniform2f(pr.u.uGradeMix, u.gradeMix[0], u.gradeMix[1])
 
+    /* ---- the mask ---- */
+    const vec4s = (name: string, v: number[]) => {
+      const loc = pr.u![name] || pr.u![name + '[0]']
+      if (loc) gl.uniform4fv(loc, v)
+    }
+    if (mask) {
+      const mu = maskUniforms(mask)
+      if (pr.u.uMask) gl.uniform4f(pr.u.uMask, 1, mu.n, mu.amount, overlay ? 1 : 0)
+      vec4s('uPartA', mu.a)
+      vec4s('uPartB', mu.b)
+      vec4s('uPartC', mu.c)
+      gl.activeTexture(gl.TEXTURE3)
+      gl.bindTexture(gl.TEXTURE_2D, mu.brush ? this.brushFor(mask) : this.blankTex())
+      if (pr.u.uBrush) gl.uniform1i(pr.u.uBrush, 3)
+      /* A depth-range part reads whatever is wired into this card, which is
+       * the same picture the depth effects read and the same one the app made
+       * when it offered to work out how far away things are. */
+      gl.activeTexture(gl.TEXTURE4)
+      gl.bindTexture(gl.TEXTURE_2D, two ? two.tex : this.blankTex())
+      if (pr.u.uDepth) gl.uniform1i(pr.u.uDepth, 4)
+      if (pr.u.uDepthOn) gl.uniform2f(pr.u.uDepthOn, two ? 1 : 0, 0)
+    } else if (pr.u.uMask) {
+      gl.uniform4f(pr.u.uMask, 0, 0, 1, 0)
+      /* Every sampler a program declares has to have something bound to it,
+       * whether the shader reads it or not. */
+      gl.activeTexture(gl.TEXTURE3)
+      gl.bindTexture(gl.TEXTURE_2D, this.blankTex())
+      if (pr.u.uBrush) gl.uniform1i(pr.u.uBrush, 3)
+      gl.activeTexture(gl.TEXTURE4)
+      gl.bindTexture(gl.TEXTURE_2D, this.blankTex())
+      if (pr.u.uDepth) gl.uniform1i(pr.u.uDepth, 4)
+      if (pr.u.uDepthOn) gl.uniform2f(pr.u.uDepthOn, 0, 0)
+    }
+
     this.draw()
     return true
+  }
+
+  /* One transparent pixel, for a sampler a pass does not use. */
+  private blank: WebGLTexture | null = null
+  private blankTex(): WebGLTexture {
+    if (this.blank) return this.blank
+    const gl = this.gl
+    const t = gl.createTexture()!
+    gl.bindTexture(gl.TEXTURE_2D, t)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]))
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    this.blank = t
+    return t
+  }
+
+  /* The painted parts of a mask, drawn once into a small picture and kept
+   * until a stroke changes. Strokes are geometry, and geometry a fragment
+   * shader would have to walk through for every pixel of every frame; a 2D
+   * context draws the same thing once. */
+  private brushFor(mask: Mask): WebGLTexture {
+    const gl = this.gl
+    const key = brushKey(mask)
+    if (this.brushTex && this.brushKeyed === key) return this.brushTex
+    if (!this.brushCv) {
+      try {
+        this.brushCv = new OffscreenCanvas(BRUSH_W, BRUSH_W)
+      } catch {
+        return this.blankTex()
+      }
+    }
+    const ctx = this.brushCv.getContext('2d', { willReadFrequently: false })
+    if (!ctx) return this.blankTex()
+    paintBrush(ctx as unknown as Parameters<typeof paintBrush>[0], mask, BRUSH_W, BRUSH_W)
+    if (!this.brushTex) {
+      this.brushTex = gl.createTexture()
+      gl.bindTexture(gl.TEXTURE_2D, this.brushTex)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.brushTex)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.brushCv)
+    this.brushKeyed = key
+    return this.brushTex!
   }
 
   private blurChain(src: WebGLTexture, radius: number, w: number, h: number, cover: Cover) {
@@ -741,13 +917,22 @@ export class Renderer {
     /* Developing runs before any of it, because developing is what is done to
      * the photograph and an effect is a look put on the developed thing. */
     const dev = job.dev
+    /* Masks ride on the develop record, so there is nothing extra to carry
+     * from the card to here: a look that brings a develop brings its masks. */
+    const masks = dev?.masks
+    const show = job.showMask
     const plain = passes.length === 1 && passes[0].effectId === 'none'
+
+    /* The mask overlay is about the mask and not about the picture, so it goes
+     * straight to the canvas whatever else is on the card: an effect drawn on
+     * top of it would hide the one thing it is for. */
+    if (show) return this.develop(dev || {}, masks, '', src, cover, w, h, null, job.seed, two, show)
 
     if (dev && plain) {
       /* Developed, with no effect over it: one pass, straight to the canvas.
        * The common case for anybody using this as a photo editor, and it must
        * not cost a buffer it does not need. */
-      return this.develop(dev, job.curveKey || '', src, cover, w, h, null, job.seed)
+      return this.develop(dev, masks, job.curveKey || '', src, cover, w, h, null, job.seed, two)
     }
 
     const stacked = passes.length > 1 ? passes.slice(1) : null
@@ -774,7 +959,7 @@ export class Renderer {
     if (dev) {
       /* The developed photograph into a buffer, and the effects read that
        * instead of the source. From here down nothing else knows or cares. */
-      if (!this.develop(dev, job.curveKey || '', src, cover, w, h, bufs[target], job.seed)) {
+      if (!this.develop(dev, masks, job.curveKey || '', src, cover, w, h, bufs[target], job.seed, two)) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         return false
       }

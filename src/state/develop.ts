@@ -1,3 +1,7 @@
+/* The mask model lives next door and imports this one for its parameters, so
+ * this edge is deliberately type-only: erased at build, no cycle at runtime. */
+import type { Mask } from './mask'
+
 /* ---------------------------------------------------------------------------
  * Developing a picture.
  *
@@ -176,6 +180,14 @@ export interface Develop {
   cssContrast?: number
   cssSaturate?: number
   cssWarm?: number
+
+  /* ---- where an edit happens ----
+   *
+   * Masks live on the develop rather than beside it, because a mask is a
+   * develop parameter in every sense that matters: a look that carries a
+   * develop carries its masks, undo treats them as one edit, and a card with
+   * nothing but a masked exposure is a developed card. */
+  masks?: Mask[]
 }
 
 /* What every one of them is when it has not been moved.
@@ -300,6 +312,13 @@ export function developed(d?: Develop): boolean {
   for (const w of [d.gradeShadow, d.gradeMid, d.gradeHigh, d.gradeGlobal]) {
     if (w && (w.s !== 0 || w.l !== 0)) return true
   }
+  /* A card whose only edit is inside a mask is a developed card. Asked
+   * directly rather than through the mask module, which asks this one the same
+   * question about the mask's own parameters and would otherwise go round for
+   * ever. */
+  for (const m of d.masks || []) {
+    if (!m.off && m.parts.length && (m.amount ?? 100) > 0 && developed(m.dev)) return true
+  }
   return false
 }
 
@@ -324,6 +343,10 @@ export function trimDev(d: Develop): Develop | undefined {
   if (d.gradeMid && (d.gradeMid.s || d.gradeMid.l)) out.gradeMid = d.gradeMid
   if (d.gradeHigh && (d.gradeHigh.s || d.gradeHigh.l)) out.gradeHigh = d.gradeHigh
   if (d.gradeGlobal && (d.gradeGlobal.s || d.gradeGlobal.l)) out.gradeGlobal = d.gradeGlobal
+  /* A mask that has been drawn but not yet given a parameter is kept: it is
+   * work somebody did, it is on the screen, and losing it the moment the
+   * panel re-renders would be unforgivable. An empty list is not. */
+  if (d.masks && d.masks.length) out.masks = d.masks
   return Object.keys(out).length ? out : undefined
 }
 

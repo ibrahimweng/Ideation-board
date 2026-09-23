@@ -46,6 +46,7 @@
     "test:boolean": "node test/boolean.mjs",
     "test:develop": "node test/develop.mjs",
     "test:developui": "node test/developui.mjs",
+    "test:masks": "node test/masks.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",
