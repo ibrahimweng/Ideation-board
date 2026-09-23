@@ -40,6 +40,9 @@ uniform sampler2D uBlur;     /* the same, blurred, for local contrast */
 uniform sampler2D uCurve;    /* 256x4: composite, r, g, b */
 uniform vec2 uRes, uCover, uCoverOff, uBlurScale, uBlurOff;
 uniform float uSeed;
+/* One when this pass has to clamp what it writes, nought when it is writing
+   into a buffer that can hold more than eight bits a channel. */
+uniform float uClamp;
 
 /* White balance, tone, presence. Packed as vectors rather than a uniform each
    so the binding side is four calls instead of sixteen. */
@@ -51,6 +54,7 @@ uniform vec4 uSharp;         /* amount, radius, detail, masking */
 uniform vec3 uNoise;         /* luminance, detail, colour */
 uniform vec4 uVign;          /* amount, midpoint, roundness, feather */
 uniform vec3 uGrain;         /* amount, size, roughness */
+uniform vec4 uOptics;        /* distortion, chromatic aberration, violet, green */
 
 /* The eight colour bands, and the four grading wheels. */
 uniform float uHslH[8], uHslS[8], uHslL[8];
@@ -117,7 +121,49 @@ vec3 hsv2rgb(vec3 c){
  *
  * Cropped to fill the card the same way an untreated card is, so developing a
  * picture changes how it looks and never how it is framed. */
-vec3 pic(vec2 uv){ return texture(uTex, clamp(uv * uCover + uCoverOff, 0.001, 0.999)).rgb; }
+/* ---------- what the lens did ----------
+ *
+ * Distortion is a radial warp about the middle of the frame: a wide lens bends
+ * a straight wall outwards and a long one bends it in, and undoing either is
+ * the same arithmetic with the sign the other way. At nought the expression is
+ * exactly uv, so a picture nobody has corrected reads the pixels it always
+ * read — not nearly the same ones. */
+vec2 lens(vec2 uv){
+  if (abs(uOptics.x) < EPS) return uv;
+  float aspect = uRes.x / max(uRes.y, 1.0);
+  vec2 d = (uv - 0.5) * vec2(aspect, 1.0);
+  float r2 = dot(d, d);
+  /* Normalised so the correction is worth the same on any shape of card:
+     r2 at the corner is a quarter of one plus the aspect squared. */
+  float k = uOptics.x * 0.45;
+  d *= 1.0 + k * r2 * 4.0 / (1.0 + aspect * aspect);
+  return 0.5 + d / vec2(aspect, 1.0);
+}
+
+vec3 tex0(vec2 uv){ return texture(uTex, clamp(uv * uCover + uCoverOff, 0.001, 0.999)).rgb; }
+
+/* The photograph, as the lens correction says it should have been. Everything
+   below reads it through here and nothing below knows the correction exists —
+   including the sharpening, the local contrast and the blur gallery, which
+   would otherwise be working on a picture the screen never shows.
+   Chromatic aberration is the three colours not landing at the same size, so
+   undoing it is reading red and blue at two slightly different scales. */
+vec3 pic(vec2 uv){
+  vec2 p = lens(uv);
+  if (abs(uOptics.y) < EPS) return tex0(p);
+  vec2 d = p - 0.5;
+  float k = uOptics.y * 0.0075;
+  return vec3(tex0(0.5 + d * (1.0 - k)).r, tex0(p).g, tex0(0.5 + d * (1.0 + k)).b);
+}
+
+/* And defringe, for the violet and green edges the last of it leaves on a
+   branch against a bright sky. Held to where the picture actually has an edge,
+   because a violet flower is not a fringe and desaturating it would be the
+   cure being worse than the illness. */
+float hueNear(float h, float want){
+  float d = abs(h - want);
+  return min(d, 1.0 - d);
+}
 vec3 soft(vec2 uv){ return texture(uBlur, clamp(uv, 0.0, 1.0) * uBlurScale + uBlurOff).rgb; }
 
 float hash(vec2 p){
@@ -384,6 +430,17 @@ float partAt(int i, vec2 uv, vec3 c){
   return clamp(f, 0.0, 1.0);
 }
 
+vec3 defringe(vec3 c, vec2 uv){
+  if (uOptics.z < EPS && uOptics.w < EPS) return c;
+  vec3 hsv = rgb2hsv(max(c, 0.0));
+  /* An edge, measured the same way the texture slider measures one. */
+  float edge = clamp(abs(localDetail(uv)) * 11.0, 0.0, 1.0);
+  float violet = (1.0 - smoothstep(0.045, 0.14, hueNear(hsv.x, 0.79))) * uOptics.z;
+  float green = (1.0 - smoothstep(0.040, 0.12, hueNear(hsv.x, 0.33))) * uOptics.w;
+  float k = clamp((violet + green) * smoothstep(0.08, 0.45, hsv.y) * edge, 0.0, 1.0);
+  return mix(c, vec3(lum(c)), k);
+}
+
 /* ---------- the blur gallery ----------
  *
  * Defocus is the gaussian chain, which is already built and already bound —
@@ -489,6 +546,7 @@ vec3 developed(vec3 c, vec2 uv){
 
   /* -------- detail -------- */
   c = sharpen(c, uv, uNoise.y);
+  c = defringe(c, uv);
 
   /* -------- effects -------- */
   if (abs(uVign.x) > EPS){
@@ -524,6 +582,10 @@ vec3 developed(vec3 c, vec2 uv){
 
 void main(){
   vec2 uv = vUv;
+  /* The lens correction is the one thing that happens before anything else,
+     because it is about where the light landed rather than what colour it
+     was. Masks and the vignette stay in the frame as it is displayed, which is
+     where somebody put them. */
   vec3 base = pic(uv);
   /* The mask is asked about the picture as it arrived, not about a blurred
      copy of it: a colour range that read the blur would spread itself over
@@ -544,5 +606,6 @@ void main(){
   vec3 d = developed(c, uv);
   /* A mask pass lands only where the mask is; a global pass lands everywhere,
      and maskAt has already returned 1 for it. */
-  outColor = vec4(clamp(mix(base, d, m), 0.0, 1.0), 1.0);
+  vec3 out3 = mix(base, d, m);
+  outColor = vec4(uClamp > 0.5 ? clamp(out3, 0.0, 1.0) : out3, 1.0);
 }`

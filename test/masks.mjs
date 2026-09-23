@@ -400,6 +400,33 @@ fs.writeFileSync(path.join(OUT, 'masks-brush.png'), await page.screenshot())
 await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
 await page.waitForTimeout(700)
 
+/* ---------- what is kept between one mask and the next ----------
+ *
+ * Eight bits a channel cannot hold a number above one, so a highlight pushed
+ * up by one mask is clipped before the next mask can see it, and the recovery
+ * has nothing left to recover. Three stops up and three stops down over the
+ * same place is the plainest way to ask: through eight-bit buffers a mid grey
+ * comes back at 98, through sixteen it comes back where it started.
+ */
+const offAll = async () => {
+  const on = page.locator('.mask-off[data-on]')
+  for (let i = (await on.count()) - 1; i >= 0; i--) await on.nth(i).click()
+  await page.waitForTimeout(900)
+}
+await offAll()
+await addMask('The whole picture')
+await hideOverlay()
+await setMask('Exposure', 3)
+const blown = await sample(0.5, 0.6)
+check('three stops up takes a mid grey past white', blown[0] > 250, `${blown[0]}`)
+await addMask('The whole picture')
+await hideOverlay()
+await setMask('Exposure', -3)
+const back = await sample(0.5, 0.6)
+check('and the next mask can pull it back, because the buffer between them is deeper than the screen',
+      Math.abs(back[0] - 128) <= 3, `128 -> ${blown[0]} -> ${back[0]}`)
+await offAll()
+
 /* The colour range back on, since the export below is read on the blue
    square it found. */
 await page.locator('.mask-list .mask').nth(3).locator('.mask-off').click()

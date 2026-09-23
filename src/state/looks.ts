@@ -1,4 +1,6 @@
 import { blendOf } from '../engine/types'
+import { developed } from './develop'
+import type { Develop } from './develop'
 import type { FxState, Layer, Params } from '../engine/types'
 
 /* ---------------------------------------------------------------------------
@@ -26,6 +28,10 @@ export interface LookFx {
    * a stacked card to its bottom layer, which is the sort of loss nobody
    * notices until the picture is wrong. */
   more?: Layer[]
+  /* What was done to the photograph under the effect — the exposure, the
+   * curve, the colour mixer, and every mask on it. The reason a look is worth
+   * having: a grade made once on the best frame, put on the other eleven. */
+  dev?: Develop
   exp: number
   con: number
   sat: number
@@ -56,6 +62,12 @@ export function lookFrom(fx: FxState): LookFx {
     fxid: fx.fxid,
     ep: fx.ep ? { ...fx.ep } : null,
     more: fx.more?.length ? fx.more.map((l) => ({ fxid: l.fxid, ep: l.ep ? { ...l.ep } : null })) : undefined,
+    /* Copied rather than shared: masks are nested, and two cards wearing the
+       same look must not be holding the same array of them. The key is always
+       set, even when there is nothing to put in it, so that putting a plain
+       look on a developed card takes the develop off rather than leaving it
+       showing through. */
+    dev: fx.dev ? (structuredClone(fx.dev) as Develop) : undefined,
     exp: fx.exp,
     con: fx.con,
     sat: fx.sat,
@@ -70,7 +82,7 @@ export function lookFrom(fx: FxState): LookFx {
 
 /* True when there is anything worth saving or copying. */
 export const isPlain = (fx: LookFx) =>
-  fx.fxid === 'none' && !fx.exp && !fx.con && fx.sat === 100 && !fx.warm && !fx.blur && !fx.grain &&
+  fx.fxid === 'none' && !developed(fx.dev) && !fx.exp && !fx.con && fx.sat === 100 && !fx.warm && !fx.blur && !fx.grain &&
   (fx.op ?? 100) === 100 && blendOf(fx.mix) === 'normal'
 
 /* ---------- the saved list ---------- */
@@ -165,6 +177,10 @@ export function describe(fx: LookFx, effectName: string): string {
   else if (fx.warm > 20) bits.push('warm')
   else if (fx.warm < -20) bits.push('cool')
   if (fx.grain > 30) bits.push('grain')
+  /* Named for what it carries, so a look with a local edit in it does not read
+     as a look with nothing in it. */
+  if (fx.dev?.masks?.length) bits.push(fx.dev.masks.length === 1 ? 'masked' : `${fx.dev.masks.length} masks`)
+  else if (developed(fx.dev)) bits.push('developed')
   if (blendOf(fx.mix) !== 'normal') bits.push(blendOf(fx.mix))
   else if ((fx.op ?? 100) < 100) bits.push('faded')
   if (!bits.length) bits.push('Look')

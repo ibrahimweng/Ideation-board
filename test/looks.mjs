@@ -233,6 +233,94 @@ const pasted = await worn(B)
 check('pasting puts the same treatment on', pasted.filter === graded.filter && pasted.shaded, JSON.stringify(pasted))
 check('and still leaves the framing', /scale\(1.6/.test(pasted.frame), pasted.frame)
 
+/* ---------- a look carries the develop, masks and all ----------
+ *
+ * The reason to have looks at all: a grade made once on the best frame, put
+ * on the other eleven. A look that dropped the develop would carry the six
+ * CSS filters and leave behind the exposure, the curve and every local edit —
+ * which is nearly the whole of the treatment, and the sort of loss nobody
+ * notices until the pictures are wrong.
+ */
+await select(A)
+await tab('Develop').click()
+await page.waitForTimeout(300)
+const devBox = page.locator('.develop .ctl', { hasText: /^Exposure/ }).locator('input.ctl-num').first()
+await devBox.scrollIntoViewIfNeeded()
+await devBox.fill('1.5')
+await devBox.press('Enter')
+await page.waitForTimeout(800)
+const addMask = page.locator('.masks > .mask-add > button', { hasText: 'New mask' })
+await addMask.scrollIntoViewIfNeeded()
+await addMask.click()
+await page.waitForTimeout(200)
+await page.locator('.masks > .mask-add .mask-kinds button', { hasText: 'Radial gradient' }).click()
+await page.waitForTimeout(900)
+const maskBox = page.locator('.mask-body .ctl', { hasText: /^Exposure/ }).locator('input.ctl-num').first()
+await maskBox.scrollIntoViewIfNeeded()
+await maskBox.fill('-2')
+await maskBox.press('Enter')
+await page.waitForTimeout(800)
+await page.locator('.mask-eye[data-on]').first().click()
+await page.waitForTimeout(600)
+
+/* Read off the card, like everything else here. */
+const pixelOf = (id, fx, fy) =>
+  page.evaluate(({ cid, fx, fy }) => {
+    const card = document.querySelector(`.card[data-id="${cid}"]`)
+    const el = card?.querySelector('canvas.media') || card?.querySelector('img.media')
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(r.width))
+    c.height = Math.max(1, Math.round(r.height))
+    const g = c.getContext('2d', { willReadFrequently: true })
+    try {
+      g.drawImage(el, 0, 0, c.width, c.height)
+    } catch {
+      return null
+    }
+    const d = g.getImageData(Math.round(c.width * fx), Math.round(c.height * fy), 1, 1).data
+    return [d[0], d[1], d[2]]
+  }, { cid: id, fx, fy })
+
+await tab('Looks').click()
+await page.waitForTimeout(300)
+await page.locator('.look-actions button', { hasText: 'Save this look' }).click()
+await page.waitForTimeout(200)
+const devName = await page.locator('.look-name input').inputValue()
+check('a look with a mask in it says so in its name', /mask/.test(devName), devName)
+await page.locator('.look-name input').fill('Graded')
+await page.locator('.look-name button', { hasText: 'Save' }).click()
+await page.waitForTimeout(700)
+
+const aCorner = await pixelOf(A, 0.12, 0.12)
+const aMiddle = await pixelOf(A, 0.5, 0.5)
+
+await select(B)
+await tab('Looks').click()
+await page.waitForTimeout(400)
+const bWas = await pixelOf(B, 0.12, 0.12)
+await page.locator('.look-shot').first().click()
+await page.waitForTimeout(1800)
+const bNow = await pixelOf(B, 0.12, 0.12)
+const bMiddle = await pixelOf(B, 0.5, 0.5)
+check('a look carries the develop onto another card', bNow[0] > bWas[0] + 20, `${bWas[0]} -> ${bNow[0]}`)
+/* The mask is a two-stop hole in the middle of a stop and a half up, so the
+   middle of the card has to be darker than the corner on both of them. That
+   it is true of A is the grade; that it is true of B is the look carrying it. */
+check('and the mask with it', bMiddle[0] < bNow[0] - 20,
+      `corner ${bNow[0]}, middle ${bMiddle[0]} — and A was ${aCorner[0]}/${aMiddle[0]}`)
+await tab('Develop').click()
+await page.waitForTimeout(400)
+check('and the other card now has the mask in its own list',
+      (await page.locator('.mask-list .mask').count()) === 1,
+      `${await page.locator('.mask-list .mask').count()} masks`)
+await page.keyboard.press('Control+z')
+await page.waitForTimeout(900)
+check('and putting a look on is still one step of undo',
+      Math.abs((await pixelOf(B, 0.12, 0.12))[0] - bWas[0]) <= 3,
+      `${bWas[0]} -> ${(await pixelOf(B, 0.12, 0.12))[0]}`)
+
 /* ---------- renaming ---------- */
 await select(A)
 await tab('Looks').click()
@@ -251,7 +339,8 @@ const after = await ids()
 await select(after[0])
 await tab('Looks').click()
 await page.waitForTimeout(500)
-check('a saved look is still there after a reload', (await page.locator('.look-grid .look').count()) === 1)
+check('a saved look is still there after a reload', (await page.locator('.look-grid .look').count()) === 2,
+      `${await page.locator('.look-grid .look').count()}`)
 check('with the name it was given', (await page.locator('.look-title').first().innerText()) === 'Cover set')
 check(
   'and the copied one is still on the clipboard',
@@ -259,10 +348,12 @@ check(
 )
 
 /* ---------- and can be thrown away ---------- */
-await page.locator('.look').first().hover()
-await page.waitForTimeout(150)
-await page.locator('.look-drop').first().click()
-await page.waitForTimeout(400)
+for (let i = 0; i < 2; i++) {
+  await page.locator('.look').first().hover()
+  await page.waitForTimeout(150)
+  await page.locator('.look-drop').first().click()
+  await page.waitForTimeout(400)
+}
 check('a look can be forgotten', (await page.locator('.look-grid .look').count()) === 0)
 await page.reload({ waitUntil: 'domcontentloaded' })
 await page.waitForTimeout(1600)

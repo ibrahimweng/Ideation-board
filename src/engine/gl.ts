@@ -54,6 +54,9 @@ interface FBO {
   fb: WebGLFramebuffer
   w: number
   h: number
+  /* Sixteen bits a channel rather than eight, where the driver will give it.
+   * Only the develop chain asks. */
+  deep?: boolean
 }
 
 /* One effect and its settings. A card is a list of these. */
@@ -468,8 +471,35 @@ export class Renderer {
 
   /* ---------- framebuffers ---------- */
 
-  private mkFBO(): FBO {
-    return { tex: this.mkTex(), fb: this.gl.createFramebuffer()!, w: 0, h: 0 }
+  private mkFBO(deep = false): FBO {
+    return { tex: this.mkTex(), fb: this.gl.createFramebuffer()!, w: 0, h: 0, deep: deep && this.deepOk() }
+  }
+
+  /* ---------- colour depth ----------
+   *
+   * Eight bits a channel is two hundred and fifty six steps, which is enough
+   * to show a photograph and not enough to work on one. Every buffer between
+   * one develop pass and the next quantises to those steps, so a chain of four
+   * masks quantises four times, and a sky that was smooth in the file comes
+   * out of it in bands. Worse, eight bits cannot hold a number above one, so a
+   * highlight pushed up by one mask is clipped before the next mask can pull
+   * it back down — the recovery has nothing left to recover.
+   *
+   * Half floats fix both. The extension is asked for once; where it is not
+   * given, the chain falls back to eight bits and clamps between passes, which
+   * is exactly what it did before.
+   * ------------------------------------------------------------------------ */
+  private deep: boolean | null = null
+  private deepOk(): boolean {
+    if (this.deep !== null) return this.deep
+    const gl = this.gl
+    /* Rendering to a half float target needs the colour-buffer extension;
+       sampling one back needs nothing extra in WebGL2, and linear filtering of
+       it needs one more. Asked for in that order so a driver that gives the
+       first and not the second still gets the depth. */
+    this.deep = !!(gl.getExtension('EXT_color_buffer_half_float') || gl.getExtension('EXT_color_buffer_float'))
+    if (this.deep) gl.getExtension('OES_texture_half_float_linear')
+    return this.deep
   }
 
   /* Sized to the job and allowed to shrink. The old engine only ever grew. */
@@ -477,7 +507,8 @@ export class Renderer {
     if (f.w === w && f.h === h) return
     const gl = this.gl
     gl.bindTexture(gl.TEXTURE_2D, f.tex)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    if (f.deep) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null)
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
     gl.bindFramebuffer(gl.FRAMEBUFFER, f.fb)
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, f.tex, 0)
     f.w = w
@@ -499,7 +530,7 @@ export class Renderer {
    * on first use and not before, so a board that never stacks anything never
    * pays for these at all. */
   private ensureDevBufs(w: number, h: number) {
-    if (!this.devbuf) this.devbuf = [this.mkFBO(), this.mkFBO()]
+    if (!this.devbuf) this.devbuf = [this.mkFBO(true), this.mkFBO(true)]
     if (this.devbufW === w && this.devbufH === h) return
     this.devbufW = w
     this.devbufH = h
@@ -687,6 +718,11 @@ export class Renderer {
 
     gl.useProgram(pr.p)
     if (pr.u.uFlip) gl.uniform1f(pr.u.uFlip, into ? -1 : 1)
+    /* A pass writing into a half float buffer keeps whatever it worked out,
+       above one and below nought alike, so the next mask still has a highlight
+       to recover. The write that leaves the chain is clamped, because what it
+       leaves for is eight bits either way. */
+    if (pr.u.uClamp) gl.uniform1f(pr.u.uClamp, into && into.deep ? 0 : 1)
     gl.bindFramebuffer(gl.FRAMEBUFFER, into ? into.fb : null)
     gl.viewport(0, 0, w, h)
 
@@ -715,6 +751,7 @@ export class Renderer {
     if (pr.u.uNoise) gl.uniform3f(pr.u.uNoise, u.noise[0], u.noise[1], u.noise[2])
     if (pr.u.uVign) gl.uniform4f(pr.u.uVign, u.vign[0], u.vign[1], u.vign[2], u.vign[3])
     if (pr.u.uGrain) gl.uniform3f(pr.u.uGrain, u.grain[0], u.grain[1], u.grain[2])
+    if (pr.u.uOptics) gl.uniform4f(pr.u.uOptics, u.optics[0], u.optics[1], u.optics[2], u.optics[3])
     /* An array uniform is located by its first element's name. */
     const arr = (name: string, v: number[]) => {
       const loc = pr.u![name] || pr.u![name + '[0]']

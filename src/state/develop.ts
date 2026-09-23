@@ -161,6 +161,23 @@ export interface Develop {
   noiseDetail?: number
   noiseColour?: number
 
+  /* ---- optics ----
+   *
+   * Lightroom's Optics panel: what the lens did to the picture rather than
+   * what the light did. Distortion is the barrel a wide lens bends a straight
+   * wall into and the pincushion a long one bends it the other way; chromatic
+   * aberration is the colours not landing on the sensor at the same size; and
+   * defringe takes off the violet and green edges the last of it leaves behind
+   * on a branch against a bright sky.
+   *
+   * All four are nought by default, and at nought the sampling is untouched —
+   * not nearly untouched, exactly: a picture nobody has corrected reads the
+   * same pixels it always read. */
+  distortion?: number
+  ca?: number
+  defringeP?: number
+  defringeG?: number
+
   /* ---- effects ---- */
   vignette?: number
   vignetteMid?: number
@@ -219,6 +236,10 @@ export const DEV_0 = {
   noise: 0,
   noiseDetail: 50,
   noiseColour: 0,
+  distortion: 0,
+  ca: 0,
+  defringeP: 0,
+  defringeG: 0,
   vignette: 0,
   vignetteMid: 50,
   vignetteRound: 0,
@@ -279,6 +300,10 @@ export const RANGES: Range[] = [
   { k: 'noise', label: 'Luminance', min: 0, max: 100, step: 1 },
   { k: 'noiseDetail', label: 'Detail', min: 0, max: 100, step: 1 },
   { k: 'noiseColour', label: 'Colour', min: 0, max: 100, step: 1 },
+  { k: 'distortion', label: 'Distortion', min: -100, max: 100, step: 1 },
+  { k: 'ca', label: 'Chromatic aberration', min: -100, max: 100, step: 1 },
+  { k: 'defringeP', label: 'Violet fringes', min: 0, max: 100, step: 1 },
+  { k: 'defringeG', label: 'Green fringes', min: 0, max: 100, step: 1 },
   { k: 'vignette', label: 'Amount', min: -100, max: 100, step: 1 },
   { k: 'vignetteMid', label: 'Midpoint', min: 0, max: 100, step: 1 },
   { k: 'vignetteRound', label: 'Roundness', min: -100, max: 100, step: 1 },
@@ -637,6 +662,8 @@ export interface DevUniforms {
   sharp: [number, number, number, number]
   noise: [number, number, number]
   vign: [number, number, number, number]
+  /* distortion, chromatic aberration, violet defringe, green defringe. */
+  optics: [number, number, number, number]
   grain: [number, number, number]
   hslH: number[]
   hslS: number[]
@@ -667,6 +694,7 @@ export function devUniforms(d?: Develop): DevUniforms {
     sharp: [pct(devOf(d, 'sharpen')), devOf(d, 'sharpenRadius'), pct(devOf(d, 'sharpenDetail')), pct(devOf(d, 'sharpenMask'))],
     noise: [pct(devOf(d, 'noise')), pct(devOf(d, 'noiseDetail')), pct(devOf(d, 'noiseColour'))],
     vign: [pct(devOf(d, 'vignette')), pct(devOf(d, 'vignetteMid')), pct(devOf(d, 'vignetteRound')), pct(devOf(d, 'vignetteFeather'))],
+    optics: [pct(devOf(d, 'distortion')), pct(devOf(d, 'ca')), pct(devOf(d, 'defringeP')), pct(devOf(d, 'defringeG'))],
     grain: [pct(devOf(d, 'grain')), pct(devOf(d, 'grainSize')), pct(devOf(d, 'grainRough'))],
     hslH: hsl ? hsl.h.map(pct) : HSL_0.h,
     hslS: hsl ? hsl.s.map(pct) : HSL_0.s,

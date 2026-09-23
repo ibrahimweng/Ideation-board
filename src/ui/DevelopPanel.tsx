@@ -224,6 +224,25 @@ export function DevelopPanel({
       </Section>
 
       <Section
+        name="Optics"
+        open={!!open.optics}
+        onToggle={() => toggle('optics')}
+        touched={moved(['distortion', 'ca', 'defringeP', 'defringeG'])}
+        onReset={() => onChange({ distortion: 0, ca: 0, defringeP: 0, defringeG: 0 }, true)}
+      >
+        {/* What the lens did, rather than what the light did. Lightroom keeps
+            these apart from the tone for the same reason: they are corrections
+            to a fault in the equipment, not judgements about the picture. */}
+        <h5>Lens</h5>
+        {S('distortion')}
+        {S('ca')}
+        <h5>Defringe</h5>
+        <p className="fx-hint">Takes the coloured edges off a branch against a bright sky, and leaves a violet flower alone.</p>
+        {S('defringeP')}
+        {S('defringeG')}
+      </Section>
+
+      <Section
         name="Effects"
         open={!!open.effects}
         onToggle={() => toggle('effects')}

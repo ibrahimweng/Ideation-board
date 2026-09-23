@@ -280,6 +280,68 @@ check('and the whole pipeline at its neutral gives the picture back untouched',
       `${JSON.stringify(through.map((p) => p && p[0]))} vs ${JSON.stringify(want)}`)
 await reset('Effects')
 
+/* ---------- optics ----------
+ *
+ * Distortion is read as a straight line stopping being straight. The picture
+ * has a hard disc in the middle of it, and a barrel or a pincushion moves its
+ * edge in or out — so the question is where the edge of the disc is, measured
+ * along one row, and whether the correction moves it the way its sign says. */
+await panel('Optics')
+/* Read at the dark corner rather than on the disc in the middle. A radial
+   correction goes as the square of the distance from the centre, which is the
+   physics and not a choice: near the middle it barely moves anything, and the
+   check has to be asked where the answer is. */
+const cornerEdge = async () =>
+  page.evaluate(async () => {
+    const card = document.querySelector('.card[data-kind="image"]')
+    const el = card.querySelector('canvas.media') || card.querySelector('img.media')
+    const r = el.getBoundingClientRect()
+    const c = document.createElement('canvas')
+    c.width = Math.round(r.width)
+    c.height = Math.round(r.height)
+    const g = c.getContext('2d', { willReadFrequently: true })
+    g.drawImage(el, 0, 0, c.width, c.height)
+    const row = g.getImageData(0, Math.round(c.height * 0.04), c.width, 1).data
+    /* Walking out from the left, where the dark square stops. */
+    for (let x = 0; x < c.width; x++) if (row[x * 4] > 100) return x / c.width
+    return 1
+  })
+
+const straight = await cornerEdge()
+await set('Distortion', 100)
+const barrelled = await cornerEdge()
+await set('Distortion', -100)
+const pinched = await cornerEdge()
+check('distortion moves a straight edge, and the two signs move it opposite ways',
+      Math.abs(barrelled - straight) > 0.02 && (barrelled - straight) * (pinched - straight) < 0,
+      `${straight.toFixed(3)} straight, ${barrelled.toFixed(3)} at +100, ${pinched.toFixed(3)} at -100`)
+await set('Distortion', 0)
+const backAgain = await cornerEdge()
+check('and nought puts it back exactly where it was', Math.abs(backAgain - straight) < 0.005,
+      `${straight.toFixed(3)} -> ${backAgain.toFixed(3)}`)
+
+/* Chromatic aberration reads the same edge on two channels: correcting it
+   pulls red and blue to different sizes, so the edge is in a different place
+   for each of them. */
+await set('Chromatic aberration', 100)
+const split = await page.evaluate(async () => {
+  const card = document.querySelector('.card[data-kind="image"]')
+  const el = card.querySelector('canvas.media')
+  const r = el.getBoundingClientRect()
+  const c = document.createElement('canvas')
+  c.width = Math.round(r.width)
+  c.height = Math.round(r.height)
+  const g = c.getContext('2d', { willReadFrequently: true })
+  g.drawImage(el, 0, 0, c.width, c.height)
+  const row = g.getImageData(0, Math.round(c.height * 0.5), c.width, 1).data
+  let most = 0
+  for (let x = 0; x < c.width; x++) most = Math.max(most, Math.abs(row[x * 4] - row[x * 4 + 2]))
+  return most
+})
+check('chromatic aberration reads red and blue at different sizes', split > 20, `${split}`)
+await set('Chromatic aberration', 0)
+await reset('Optics')
+
 /* ---------- and it all comes back off ---------- */
 await panel('Basic')
 await set('Exposure', 2)
