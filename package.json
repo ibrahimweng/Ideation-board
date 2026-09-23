@@ -44,6 +44,7 @@
     "test:measure": "node test/measure.mjs",
     "test:scrub": "node test/scrub.mjs",
     "test:boolean": "node test/boolean.mjs",
+    "test:develop": "node test/develop.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",
