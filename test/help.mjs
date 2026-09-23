@@ -123,18 +123,19 @@ await page.locator('.help-nav button').last().click()
    stopped — so the two together take as long as they take, and a number chosen
    in advance is a number that is too small on a loaded machine. This was the
    one check in the whole suite that failed only when all of it ran at once. */
-const settled = await page
-  .waitForFunction(
-    (want) => {
-      const body = document.querySelector('.help-body')
-      const on = [...document.querySelectorAll('.help-nav button[data-on]')]
-      return !!body && body.scrollTop > 300 && !!on.length && on[on.length - 1].innerText.trim() === want
-    },
-    navs[navs.length - 1],
-    { timeout: 10000 }
-  )
-  .then(() => true)
-  .catch(() => false)
+const want = navs[navs.length - 1]
+const state = () =>
+  page.evaluate(() => {
+    const body = document.querySelector('.help-body')
+    const on = [...document.querySelectorAll('.help-nav button[data-on]')].map((b) => b.innerText.trim())
+    return { top: body ? body.scrollTop : 0, on: on.length ? on[on.length - 1] : null }
+  })
+let settled = false
+for (let i = 0; i < 40 && !settled; i++) {
+  await page.waitForTimeout(400)
+  const s = await state()
+  settled = s.top > 300 && s.on === want
+}
 
 ok('clicking a section in the list goes to it', (await top()) > 300, `${await top()}px`)
 ok('and the list keeps up with where you are', settled &&

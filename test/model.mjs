@@ -473,7 +473,14 @@ await page.locator(`.card[data-id="${green}"]`).click()
 await page.waitForTimeout(500)
 await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(500)
-const sat = page.locator('.ctl').filter({ hasText: 'Saturation' }).locator('.ctl-num')
+/* Scoped to the section it belongs to. "Saturation" names a slider in the
+   develop panel as well now — the photograph's own — and an unqualified
+   locator stopped naming one control the moment there were two. */
+const sat = page
+  .locator('.fx-controls', { hasText: 'Finish' })
+  .locator('.ctl')
+  .filter({ hasText: 'Saturation' })
+  .locator('.ctl-num')
 await sat.fill('0')
 await sat.press('Enter')
 await page.waitForTimeout(1200)
