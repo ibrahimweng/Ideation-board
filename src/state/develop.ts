@@ -317,7 +317,8 @@ export function developed(d?: Develop): boolean {
    * question about the mask's own parameters and would otherwise go round for
    * ever. */
   for (const m of d.masks || []) {
-    if (!m.off && m.parts.length && (m.amount ?? 100) > 0 && developed(m.dev)) return true
+    if (!m.off && m.parts.length && (m.amount ?? 100) > 0 && (developed(m.dev) || (m.blur && m.blur.amount > 0)))
+      return true
   }
   return false
 }

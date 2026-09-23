@@ -72,6 +72,10 @@ uniform vec4 uPartA[4];      /* kind, op, invert, feather */
 uniform vec4 uPartB[4];      /* the part's own geometry */
 uniform vec4 uPartC[4];
 uniform sampler2D uBrush;    /* the painted parts, baked */
+/* The blur this mask carries: kind, amount, angle, spare — and the point a
+   spin turns around or a zoom runs out from. */
+uniform vec4 uBlurFx;
+uniform vec2 uBlurAt;
 uniform sampler2D uDepth;    /* a depth map, when one is wired in */
 uniform vec2 uDepthOn;       /* x: a depth map is bound. y: spare */
 
@@ -372,8 +376,51 @@ float partAt(int i, vec2 uv, vec3 c){
     float d = lum(texture(uDepth, uv).rgb);
     f = band(d, uPartB[i].x, uPartB[i].y, uPartB[i].z);
   }
+  /* All of it. Worth having as a part of its own rather than as an ellipse
+     wound up until it covers the corners: it is what "everything except this"
+     starts from, and what a blur over the whole picture is. */
+  else f = 1.0;
   if (uPartA[i].z > 0.5) f = 1.0 - f;
   return clamp(f, 0.0, 1.0);
+}
+
+/* ---------- the blur gallery ----------
+ *
+ * Defocus is the gaussian chain, which is already built and already bound —
+ * a real separable blur at a real radius, not a handful of taps pretending.
+ * The other three cannot be got by softening evenly, so they are their own
+ * arithmetic: twelve samples along a line, an arc or a ray. Twelve because
+ * that is where the banding stops being visible on a photograph and every
+ * tap after it costs the whole picture.
+ *
+ * Measured against the card's proportions, so a spin on a wide card is a
+ * circle rather than an oval. */
+vec3 blurry(vec2 uv){
+  int k = int(uBlurFx.x + 0.5);
+  float amt = uBlurFx.y;
+  if (k == 0) return soft(uv);
+  float aspect = uRes.x / max(uRes.y, 1.0);
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < 12; i++){
+    float t = float(i) / 11.0 - 0.5;
+    vec2 p = uv;
+    if (k == 3){
+      vec2 dir = vec2(cos(uBlurFx.z), sin(uBlurFx.z));
+      p += dir * t * amt * 0.28 / vec2(1.0, aspect);
+    } else {
+      vec2 d = (uv - uBlurAt) * vec2(aspect, 1.0);
+      if (k == 1){
+        float a = t * amt * 0.9;
+        float ca = cos(a), sa = sin(a);
+        d = vec2(d.x * ca - d.y * sa, d.x * sa + d.y * ca);
+      } else {
+        d *= 1.0 + t * amt * 0.7;
+      }
+      p = uBlurAt + d / vec2(aspect, 1.0);
+    }
+    sum += pic(p);
+  }
+  return sum / 12.0;
 }
 
 float maskAt(vec2 uv, vec3 c){
@@ -477,15 +524,19 @@ vec3 developed(vec3 c, vec2 uv){
 
 void main(){
   vec2 uv = vUv;
-  vec3 c = pic(uv);
-  float m = maskAt(uv, c);
+  vec3 base = pic(uv);
+  /* The mask is asked about the picture as it arrived, not about a blurred
+     copy of it: a colour range that read the blur would spread itself over
+     everything next to the colour it was given. */
+  float m = maskAt(uv, base);
+  vec3 c = uBlurFx.y > EPS ? blurry(uv) : base;
 
   /* Show me where it is. Lightroom's red, over a picture drained to grey so
      the overlay reads on a red jumper as clearly as on a white wall — and the
      one thing anybody needs while a mask is being built. */
   if (uMask.w > 0.5){
-    float g = lum(c);
-    vec3 under = mix(vec3(g), c, 0.25);
+    float g = lum(base);
+    vec3 under = mix(vec3(g), base, 0.25);
     outColor = vec4(clamp(mix(under, vec3(0.94, 0.19, 0.24), m * 0.62), 0.0, 1.0), 1.0);
     return;
   }
@@ -493,5 +544,5 @@ void main(){
   vec3 d = developed(c, uv);
   /* A mask pass lands only where the mask is; a global pass lands everywhere,
      and maskAt has already returned 1 for it. */
-  outColor = vec4(clamp(mix(c, d, m), 0.0, 1.0), 1.0);
+  outColor = vec4(clamp(mix(base, d, m), 0.0, 1.0), 1.0);
 }`

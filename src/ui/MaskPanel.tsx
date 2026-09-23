@@ -3,16 +3,19 @@ import { Slider } from './Slider'
 import { DEV_0, devOf, rangeOf } from '../state/develop'
 import type { DevKey, Develop } from '../state/develop'
 import {
+  BLUR_KINDS,
+  BLUR_STARTS,
   MASK_KEYS,
   MASK_KINDS,
   MAX_PARTS,
   kindName,
   maskEmpty,
+  newBlurMask,
   newMask,
   newPart,
   trimMaskDev,
 } from '../state/mask'
-import type { Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
+import type { Blur, Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
 import { hideMask, showMask, useShowing } from '../board/showmask'
 
 /* ---------------------------------------------------------------------------
@@ -91,6 +94,9 @@ function PartControls({ part, onChange }: { part: MaskPart; onChange: (p: Partia
       </>
     )
   }
+  if (k === 'whole') {
+    return <p className="panel-note">Everything. Add a part below and subtract it to leave a hole.</p>
+  }
   if (k === 'colour') {
     const hex = rgbHex(part.r ?? 0.5, part.g ?? 0.5, part.b ?? 0.5)
     return (
@@ -159,6 +165,12 @@ function OneMask({
   const addPart = (kind: MaskKind) => {
     setAddOpen(false)
     onChange({ ...mask, parts: [...mask.parts, newPart(kind, 'add')] }, true)
+  }
+
+  const setBlur = (patch: Partial<Blur>) => {
+    const cur: Blur = mask.blur || { kind: 'defocus', amount: 0, angle: 0, cx: 0.5, cy: 0.5 }
+    const next = { ...cur, ...patch }
+    onChange({ ...mask, blur: next.amount > 0 ? next : undefined })
   }
 
   const S = (k: DevKey) => {
@@ -254,6 +266,52 @@ function OneMask({
             </div>
           )}
 
+          <h5>Blur</h5>
+          {/* Photoshop's gallery is five entries on a submenu and every one of
+              them is this: a shape of blur, and a mask saying where. The
+              shapes are here; the where is the parts above. */}
+          <div className="mask-blurkinds">
+            {BLUR_KINDS.map((b) => (
+              <button
+                key={b.k}
+                data-on={(mask.blur?.kind || 'defocus') === b.k && (mask.blur?.amount || 0) > 0 || undefined}
+                title={b.hint}
+                onClick={() =>
+                  onChange(
+                    {
+                      ...mask,
+                      blur: {
+                        kind: b.k,
+                        amount: mask.blur?.amount || 45,
+                        angle: mask.blur?.angle ?? 0,
+                        cx: mask.blur?.cx ?? 0.5,
+                        cy: mask.blur?.cy ?? 0.5,
+                      },
+                    },
+                    true
+                  )
+                }
+              >
+                {b.name}
+              </button>
+            ))}
+          </div>
+          <Slider
+            label="Blur"
+            min={0}
+            max={100}
+            step={1}
+            def={0}
+            value={mask.blur?.amount ?? 0}
+            onChange={(v) => setBlur({ amount: v })}
+          />
+          {mask.blur?.kind === 'motion' && (
+            <Slider label="Direction" min={-180} max={180} step={1} def={0} unit="°" value={mask.blur.angle ?? 0} onChange={(v) => setBlur({ angle: v })} />
+          )}
+          {(mask.blur?.kind === 'spin' || mask.blur?.kind === 'zoom') && (
+            <p className="panel-note">Drag the cross on the picture to say where it turns from.</p>
+          )}
+
           <h5>What it does there</h5>
           <Slider
             label="Amount"
@@ -286,6 +344,7 @@ export function MaskPanel({
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [blurring, setBlurring] = useState(false)
 
   const add = (kind: MaskKind) => {
     setAdding(false)
@@ -295,6 +354,15 @@ export function MaskPanel({
     setOpen(m.id)
     /* Straight into the overlay, because a mask nobody can see is not yet a
        place — and this is the moment it is being put somewhere. */
+    showMask(card, m.id)
+  }
+
+  const addBlur = (start: string) => {
+    setBlurring(false)
+    const n = masks.filter((k) => !!k.blur).length + 1
+    const m = newBlurMask(start, n)
+    onChange([...masks, m], true)
+    setOpen(m.id)
     showMask(card, m.id)
   }
 
@@ -330,7 +398,7 @@ export function MaskPanel({
       </div>
 
       <div className="mask-add">
-        <button className="ghost" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+        <button className="ghost" onClick={() => { setBlurring(false); setAdding((a) => !a) }} aria-expanded={adding}>
           New mask
         </button>
         {adding && (
@@ -339,6 +407,26 @@ export function MaskPanel({
               <button key={m.k} title={m.hint} onClick={() => add(m.k)}>
                 <b>{m.name}</b>
                 <small>{m.hint}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* And the five entries off Photoshop's gallery, as five starting
+          points. Each is a mask already put where that kind of blur belongs,
+          so the next thing anybody does is drag it — which is the answer to
+          "where does the blur come from". */}
+      <div className="mask-add blurs">
+        <button className="ghost" onClick={() => { setAdding(false); setBlurring((b) => !b) }} aria-expanded={blurring}>
+          New blur
+        </button>
+        {blurring && (
+          <div className="mask-kinds">
+            {BLUR_STARTS.map((b) => (
+              <button key={b.k} title={b.hint} onClick={() => addBlur(b.k)}>
+                <b>{b.name}</b>
+                <small>{b.hint}</small>
               </button>
             ))}
           </div>

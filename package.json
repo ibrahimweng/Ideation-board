@@ -47,6 +47,7 @@
     "test:develop": "node test/develop.mjs",
     "test:developui": "node test/developui.mjs",
     "test:masks": "node test/masks.mjs",
+    "test:blur": "node test/blur.mjs",
     "test:touch": "node test/touch.mjs",
     "test:menu": "node test/menu.mjs",
     "test:search": "node test/search.mjs",

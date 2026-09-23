@@ -25,7 +25,7 @@ import type { DevKey, Develop } from './develop'
  * radial gradient is not a thing anybody has ever wanted.
  * ------------------------------------------------------------------------- */
 
-export type MaskKind = 'linear' | 'radial' | 'brush' | 'colour' | 'luminance' | 'depth'
+export type MaskKind = 'whole' | 'linear' | 'radial' | 'brush' | 'colour' | 'luminance' | 'depth'
 
 /* How a part joins the ones before it. The first part in a mask is the mask;
  * `op` is what the second and later ones do to it. */
@@ -73,10 +73,54 @@ export interface MaskPart {
   strokes?: Stroke[]
 }
 
+/* ---------------------------------------------------------------------------
+ * The blur gallery.
+ *
+ * Photoshop has five of these on a submenu — field, iris, tilt-shift, path,
+ * spin — and every one of them is the same two questions: how the blur is
+ * shaped, and where it happens. The second question is a mask, and the masks
+ * are already here, which leaves only the first.
+ *
+ * So there are four shapes rather than five names. Defocus is what a lens out
+ * of focus does and what field, iris and tilt-shift all are — those three
+ * differ only in the mask, so they are three starting points rather than
+ * three features. Spin turns around a point, zoom runs out from one, and
+ * motion runs along a line: the three that cannot be got by softening evenly,
+ * and so the three that have to be their own arithmetic.
+ *
+ * Which means the thing the gallery is actually for — saying where the blur
+ * comes from — is not a special mode. It is a linear gradient, or an ellipse,
+ * or something painted by hand, exactly like every other local edit.
+ * ------------------------------------------------------------------------- */
+export type BlurKind = 'defocus' | 'spin' | 'zoom' | 'motion'
+
+export interface Blur {
+  kind: BlurKind
+  /* 0..100 */
+  amount: number
+  /* motion: which way it runs, in degrees. */
+  angle?: number
+  /* spin and zoom: the point it turns or runs out from, in the picture's own
+   * nought to one. Draggable on the picture, like every other place. */
+  cx?: number
+  cy?: number
+}
+
+export const BLUR_KINDS: { k: BlurKind; name: string; hint: string }[] = [
+  { k: 'defocus', name: 'Defocus', hint: 'What a lens out of focus does' },
+  { k: 'spin', name: 'Spin', hint: 'Turning around a point' },
+  { k: 'zoom', name: 'Zoom', hint: 'Running out from a point' },
+  { k: 'motion', name: 'Motion', hint: 'Along a line, at an angle' },
+]
+
+export const BLUR_CODE: Record<BlurKind, number> = { defocus: 0, spin: 1, zoom: 2, motion: 3 }
+
 export interface Mask {
   id: string
   name: string
   parts: MaskPart[]
+  /* A blur, and the mask says where it comes from. */
+  blur?: Blur
   /* What this mask does where it is. */
   dev?: Develop
   /* The whole mask's strength, 0..100. Lightroom's Amount slider: the way to
@@ -92,6 +136,7 @@ export interface Mask {
 export const MAX_PARTS = 4
 
 export const MASK_KINDS: { k: MaskKind; name: string; hint: string }[] = [
+  { k: 'whole', name: 'The whole picture', hint: 'All of it — something to take pieces out of' },
   { k: 'linear', name: 'Linear gradient', hint: 'A sky, a foreground, one side of a room' },
   { k: 'radial', name: 'Radial gradient', hint: 'A face, a lamp, anything roughly round' },
   { k: 'brush', name: 'Brush', hint: 'Paint it in by hand' },
@@ -109,6 +154,7 @@ export const kindName = (k: MaskKind) => MASK_KINDS.find((m) => m.k === k)?.name
 export function newPart(kind: MaskKind, op?: MaskOp): MaskPart {
   const p: MaskPart = { kind }
   if (op) p.op = op
+  if (kind === 'whole') return p
   if (kind === 'linear') return { ...p, x1: 0.5, y1: 0.05, x2: 0.5, y2: 0.45 }
   if (kind === 'radial') return { ...p, cx: 0.5, cy: 0.5, rx: 0.3, ry: 0.3, rot: 0, feather: 50 }
   if (kind === 'brush') return { ...p, strokes: [] }
@@ -116,6 +162,56 @@ export function newPart(kind: MaskKind, op?: MaskOp): MaskPart {
   if (kind === 'luminance') return { ...p, lo: 60, hi: 100, tol: 20 }
   if (kind === 'depth') return { ...p, lo: 0, hi: 40, tol: 20 }
   return p
+}
+
+/* The five entries on Photoshop's own submenu, as five starting points: the
+ * shape of the blur, and a mask already put where that shape belongs. Every
+ * one of them can then be dragged, softened, inverted and added to like any
+ * other mask, which is the whole point of building them out of masks. */
+export const BLUR_STARTS: { k: string; name: string; hint: string }[] = [
+  { k: 'field', name: 'Field blur', hint: 'The whole picture, softened' },
+  { k: 'iris', name: 'Iris blur', hint: 'Sharp inside an ellipse, soft outside it' },
+  { k: 'tilt', name: 'Tilt-shift', hint: 'Sharp across a band, soft above and below' },
+  { k: 'spin', name: 'Spin blur', hint: 'Turning, inside a circle' },
+  { k: 'motion', name: 'Motion blur', hint: 'The whole picture, along a line' },
+]
+
+export function newBlurMask(start: string, n = 1): Mask {
+  const base = newMask('whole', n)
+  if (start === 'iris') {
+    return {
+      ...base,
+      name: `Iris blur ${n}`,
+      parts: [{ ...newPart('radial'), rx: 0.32, ry: 0.32, feather: 65, inv: true }],
+      blur: { kind: 'defocus', amount: 55 },
+    }
+  }
+  if (start === 'tilt') {
+    /* Two gradients pointing away from each other: full above the top line,
+       full below the bottom one, and nothing in the band between. Which is
+       what a tilt-shift is, and why it takes two parts rather than a mode. */
+    return {
+      ...base,
+      name: `Tilt-shift ${n}`,
+      parts: [
+        { ...newPart('linear'), x1: 0.5, y1: 0.3, x2: 0.5, y2: 0.45 },
+        { ...newPart('linear', 'add'), x1: 0.5, y1: 0.7, x2: 0.5, y2: 0.55 },
+      ],
+      blur: { kind: 'defocus', amount: 55 },
+    }
+  }
+  if (start === 'spin') {
+    return {
+      ...base,
+      name: `Spin blur ${n}`,
+      parts: [{ ...newPart('radial'), rx: 0.35, ry: 0.35, feather: 45 }],
+      blur: { kind: 'spin', amount: 35, cx: 0.5, cy: 0.5 },
+    }
+  }
+  if (start === 'motion') {
+    return { ...base, name: `Motion blur ${n}`, blur: { kind: 'motion', amount: 35, angle: 0 } }
+  }
+  return { ...base, name: `Field blur ${n}`, blur: { kind: 'defocus', amount: 45 } }
 }
 
 let seq = 0
@@ -135,7 +231,9 @@ export const partEmpty = (p: MaskPart) =>
 export const maskEmpty = (m: Mask) => !m.parts.length || partEmpty(m.parts[0])
 
 /* Worth rendering: switched on, somewhere, doing something. */
-export const maskLive = (m: Mask) => !m.off && !maskEmpty(m) && (m.amount ?? 100) > 0 && developed(m.dev)
+export const blurOn = (m: Mask) => !!m.blur && m.blur.amount > 0
+export const maskLive = (m: Mask) =>
+  !m.off && !maskEmpty(m) && (m.amount ?? 100) > 0 && (developed(m.dev) || blurOn(m))
 
 export const liveMasks = (masks?: Mask[]) => (masks || []).filter(maskLive)
 
@@ -190,6 +288,7 @@ export function trimMaskDev(d?: Develop): Develop | undefined {
  * ------------------------------------------------------------------------- */
 
 export const KIND_CODE: Record<MaskKind, number> = {
+  whole: 6,
   linear: 0,
   radial: 1,
   brush: 2,
@@ -209,6 +308,12 @@ export interface MaskUniforms {
   /* Whether any part of this mask is painted, and so whether the brush
    * texture has to be baked and bound. */
   brush: boolean
+  /* kind, amount, angle in radians, spare — and where it turns or runs from. */
+  blur: [number, number, number, number]
+  blurAt: [number, number]
+  /* How wide the gaussian chain has to be run for this mask, in the units the
+   * effects use. Zero for every mask that is not a defocus. */
+  blurRadius: number
 }
 
 const pct = (n: number) => n / 100
@@ -243,6 +348,8 @@ export function maskUniforms(m: Mask): MaskUniforms {
     b.push(0, 0, 0, 0)
     c.push(0, 0, 0, 0)
   }
+  const bl = m.blur
+  const amt = bl ? pct(Math.max(0, Math.min(100, bl.amount))) : 0
   return {
     n: parts.length,
     amount: pct(m.amount ?? 100),
@@ -250,6 +357,12 @@ export function maskUniforms(m: Mask): MaskUniforms {
     b,
     c,
     brush: parts.some((p) => p.kind === 'brush' && !partEmpty(p)),
+    blur: [bl ? BLUR_CODE[bl.kind] : 0, amt, (((bl?.angle ?? 0) * Math.PI) / 180), 0],
+    blurAt: [bl?.cx ?? 0.5, bl?.cy ?? 0.5],
+    /* Wide enough to be a defocus rather than a softening, and no wider: the
+       chain downsamples by a sixth of the radius, so asking for more than the
+       picture needs costs resolution the blur cannot get back. */
+    blurRadius: bl && bl.kind === 'defocus' && amt > 0 ? amt * 46 + 5 : 0,
   }
 }
 

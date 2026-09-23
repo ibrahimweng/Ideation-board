@@ -3228,3 +3228,36 @@ body[data-pressing] .embed-frame { pointer-events: none; }
 .mk-open {
   fill: rgba(0, 0, 0, 0.35);
 }
+
+.mask-blurkinds {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+  margin: 4px 0 8px;
+}
+.mask-blurkinds button {
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mask-blurkinds button[data-on] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.mk-hit {
+  fill: transparent;
+  pointer-events: auto;
+  cursor: move;
+}
+.mk-cross {
+  stroke: #fff;
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.85));
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}

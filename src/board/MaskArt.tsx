@@ -190,6 +190,15 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
     return null
   }
 
+  /* ---- where a spin turns from, or a zoom runs out of ---- */
+  const spin = mask.blur && (mask.blur.kind === 'spin' || mask.blur.kind === 'zoom') && mask.blur.amount > 0
+    ? mask.blur
+    : null
+  const putBlur = (patch: { cx: number; cy: number }) => {
+    const next = (masks || []).map((m) => (m.id === maskId ? { ...m, blur: { ...m.blur!, ...patch } } : m))
+    store.update(id, { fx: { ...it.fx, dev: trimDev({ ...(it.fx.dev || {}), masks: next }) } }, false)
+  }
+
   /* ---- painting, and picking a colour off the picture ---- */
   const brushAt = mask.parts.findIndex((p) => p.kind === 'brush')
   const pickAt = mask.parts.findIndex((p) => p.kind === 'colour')
@@ -290,6 +299,23 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
           />
         )}
         {mask.parts.map(artFor)}
+        {spin && (
+          /* A cross rather than a dot, because what it marks is a centre and a
+             dot on a photograph is indistinguishable from a speck on it. */
+          <g
+            className="mk-centre"
+            onPointerDown={(e) =>
+              drag(e, (at, f) =>
+                putBlur({ cx: (spin.cx ?? 0.5) + (at.x - f.x), cy: (spin.cy ?? 0.5) + (at.y - f.y) })
+              )
+            }
+          >
+            <circle className="mk-hit" cx={(spin.cx ?? 0.5) * w} cy={(spin.cy ?? 0.5) * h} r={hit} />
+            <line className="mk-cross" x1={(spin.cx ?? 0.5) * w - g * 1.6} y1={(spin.cy ?? 0.5) * h} x2={(spin.cx ?? 0.5) * w + g * 1.6} y2={(spin.cy ?? 0.5) * h} />
+            <line className="mk-cross" x1={(spin.cx ?? 0.5) * w} y1={(spin.cy ?? 0.5) * h - g * 1.6} x2={(spin.cx ?? 0.5) * w} y2={(spin.cy ?? 0.5) * h + g * 1.6} />
+            <circle className="mk-grip mk-open" cx={(spin.cx ?? 0.5) * w} cy={(spin.cy ?? 0.5) * h} r={g} />
+          </g>
+        )}
       </svg>
     </div>
   )

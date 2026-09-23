@@ -674,10 +674,13 @@ export class Renderer {
     if (pr.failed || !pr.u || !pr.p) return false
     const u = devUniforms(dev)
 
-    /* Clarity and dehaze are the only two that need a softened copy of the
-       picture, and `blurRadius` is zero unless one of them asked. */
-    const bl = u.blurRadius
-      ? this.blurChain(src, u.blurRadius * (h / 420), w, h, cover)
+    /* Clarity and dehaze need a softened copy of the picture, and so does a
+       mask carrying a defocus — the same chain, asked for a wider radius.
+       Zero unless one of the three asked, and the chain is skipped. */
+    const mu = mask ? maskUniforms(mask) : null
+    const radius = Math.max(u.blurRadius, mu ? mu.blurRadius : 0)
+    const bl = radius
+      ? this.blurChain(src, radius * (h / 420), w, h, cover)
       : { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
 
     const curve = this.curveFor(dev, curveKey)
@@ -731,9 +734,10 @@ export class Renderer {
       const loc = pr.u![name] || pr.u![name + '[0]']
       if (loc) gl.uniform4fv(loc, v)
     }
-    if (mask) {
-      const mu = maskUniforms(mask)
+    if (mask && mu) {
       if (pr.u.uMask) gl.uniform4f(pr.u.uMask, 1, mu.n, mu.amount, overlay ? 1 : 0)
+      if (pr.u.uBlurFx) gl.uniform4f(pr.u.uBlurFx, mu.blur[0], overlay ? 0 : mu.blur[1], mu.blur[2], mu.blur[3])
+      if (pr.u.uBlurAt) gl.uniform2f(pr.u.uBlurAt, mu.blurAt[0], mu.blurAt[1])
       vec4s('uPartA', mu.a)
       vec4s('uPartB', mu.b)
       vec4s('uPartC', mu.c)
@@ -749,6 +753,8 @@ export class Renderer {
       if (pr.u.uDepthOn) gl.uniform2f(pr.u.uDepthOn, two ? 1 : 0, 0)
     } else if (pr.u.uMask) {
       gl.uniform4f(pr.u.uMask, 0, 0, 1, 0)
+      if (pr.u.uBlurFx) gl.uniform4f(pr.u.uBlurFx, 0, 0, 0, 0)
+      if (pr.u.uBlurAt) gl.uniform2f(pr.u.uBlurAt, 0.5, 0.5)
       /* Every sampler a program declares has to have something bound to it,
        * whether the shader reads it or not. */
       gl.activeTexture(gl.TEXTURE3)
