@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BANDS, DEV_0, HSL_0, RANGES, apply3, developed, devOf, fromLegacy, hueRotateMatrix,
+  CURVE_W, curveTable, devUniforms, evalCurve, hasCurve,
   isFlatHSL, legacyStages, mul3, rangeOf, runStages, satMatrix, sepiaMatrix, toneOf, trimDev,
 } from '../../src/state/develop'
 import type { Develop, Mat3 } from '../../src/state/develop'
@@ -225,5 +226,138 @@ describe('an old card, brought across', () => {
   it('and a record carrying none of them asks the shader for nothing', () => {
     expect(toneOf(undefined)).toEqual([])
     expect(toneOf({ exposure: 2 })).toEqual([])
+  })
+})
+
+/* -------------------------------------------------------------------------
+ * The tone curve, and what the shader is handed.
+ * ----------------------------------------------------------------------- */
+
+describe('the tone curve', () => {
+  const line = [{ x: 0, y: 0 }, { x: 1, y: 1 }]
+
+  it('a straight line is the identity, everywhere', () => {
+    for (const x of [0, 0.01, 0.25, 0.5, 0.731, 0.99, 1]) {
+      expect(evalCurve(line, x)).toBeCloseTo(x, 6)
+    }
+  })
+
+  it('passes exactly through every point it was drawn through', () => {
+    const pts = [{ x: 0, y: 0.05 }, { x: 0.3, y: 0.2 }, { x: 0.7, y: 0.85 }, { x: 1, y: 0.95 }]
+    for (const p of pts) expect(evalCurve(pts, p.x)).toBeCloseTo(p.y, 6)
+  })
+
+  it('holds flat outside its own ends rather than running off', () => {
+    const pts = [{ x: 0.2, y: 0.3 }, { x: 0.8, y: 0.7 }]
+    expect(evalCurve(pts, 0)).toBeCloseTo(0.3, 9)
+    expect(evalCurve(pts, 1)).toBeCloseTo(0.7, 9)
+  })
+
+  it('never overshoots, which in a tone curve is an inversion', () => {
+    /* A plain spline through these overshoots past the flat stretch and makes
+       a band where brighter input comes out darker. */
+    const pts = [{ x: 0, y: 0 }, { x: 0.4, y: 0.4 }, { x: 0.5, y: 0.4 }, { x: 1, y: 1 }]
+    let last = -1
+    for (let i = 0; i <= 512; i++) {
+      const y = evalCurve(pts, i / 512)
+      expect(y).toBeGreaterThanOrEqual(-1e-9)
+      expect(y).toBeLessThanOrEqual(1 + 1e-9)
+      /* Monotone: a curve drawn through rising points never falls. */
+      expect(y).toBeGreaterThanOrEqual(last - 1e-9)
+      last = y
+    }
+  })
+
+  it('reads a curve given out of order, because a dragged point crosses others', () => {
+    const jumbled = [{ x: 1, y: 1 }, { x: 0.5, y: 0.8 }, { x: 0, y: 0 }]
+    expect(evalCurve(jumbled, 0.5)).toBeCloseTo(0.8, 6)
+  })
+
+  it('and with no curve at all is the identity', () => {
+    expect(evalCurve(undefined, 0.4)).toBeCloseTo(0.4, 9)
+  })
+})
+
+describe('the table the shader reads', () => {
+  it('is four rows of two hundred and fifty six', () => {
+    expect(curveTable().length).toBe(CURVE_W * 4 * 4)
+  })
+
+  it('an untouched record gives four straight ramps', () => {
+    const t = curveTable()
+    for (let row = 0; row < 4; row++) {
+      for (const i of [0, 64, 128, 255]) {
+        expect(t[(row * CURVE_W + i) * 4]).toBe(i)
+      }
+    }
+  })
+
+  it('a bent composite bends row zero and leaves the channels alone', () => {
+    const t = curveTable({ curve: [{ x: 0, y: 0 }, { x: 0.5, y: 0.75 }, { x: 1, y: 1 }] })
+    expect(t[(0 * CURVE_W + 128) * 4]).toBeGreaterThan(160)
+    expect(t[(1 * CURVE_W + 128) * 4]).toBe(128)
+    expect(t[(3 * CURVE_W + 128) * 4]).toBe(128)
+  })
+
+  it('and a blue curve bends only blue', () => {
+    const t = curveTable({ curveB: [{ x: 0, y: 0.1 }, { x: 1, y: 1 }] })
+    expect(t[(3 * CURVE_W + 0) * 4]).toBeGreaterThan(20)
+    expect(t[(1 * CURVE_W + 0) * 4]).toBe(0)
+  })
+
+  it('says whether there is a curve worth uploading at all', () => {
+    expect(hasCurve(undefined)).toBe(false)
+    expect(hasCurve({ curve: [{ x: 0, y: 0 }, { x: 1, y: 1 }] })).toBe(false)
+    expect(hasCurve({ curveG: [{ x: 0, y: 0 }, { x: 0.5, y: 0.6 }, { x: 1, y: 1 }] })).toBe(true)
+  })
+})
+
+describe('what the shader is handed', () => {
+  it('turns the figures a person reads into the figures the arithmetic reads', () => {
+    const u = devUniforms({ contrast: 50, clarity: -25, exposure: 1.5 })
+    expect(u.tone[0]).toBe(1.5)
+    expect(u.tone[1]).toBeCloseTo(0.5, 9)
+    expect(u.tone2[3]).toBeCloseTo(-0.25, 9)
+  })
+
+  it('an untouched record is zero everywhere it should be', () => {
+    const u = devUniforms(undefined)
+    expect(u.wb).toEqual([0, 0])
+    expect(u.tone).toEqual([0, 0, 0, 0])
+    expect(u.presence[3]).toBe(0)
+    expect(u.hslH.every((n) => n === 0)).toBe(true)
+    expect(u.blurRadius).toBe(0)
+  })
+
+  it('asks for no softened copy unless clarity or dehaze wants one', () => {
+    /* The blur chain is two draws. A card that is not asking for local
+       contrast must not pay for them. */
+    expect(devUniforms({ exposure: 2, vibrance: 40, sharpen: 60 }).blurRadius).toBe(0)
+    expect(devUniforms({ clarity: 30 }).blurRadius).toBeGreaterThan(6)
+    expect(devUniforms({ dehaze: -30 }).blurRadius).toBeGreaterThan(6)
+  })
+
+  it('and asks for a wider one the harder it is pushed', () => {
+    const small = devUniforms({ clarity: 10 }).blurRadius
+    const large = devUniforms({ clarity: 100 }).blurRadius
+    expect(large).toBeGreaterThan(small)
+  })
+
+  it('carries the eight bands across in order', () => {
+    const u = devUniforms({ hsl: { h: [10, 0, 0, 0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0, 0, 0, 50], l: [...HSL_0.l] } })
+    expect(u.hslH[0]).toBeCloseTo(0.1, 9)
+    expect(u.hslS[7]).toBeCloseTo(0.5, 9)
+  })
+
+  it('and a grading wheel keeps its hue in degrees and its strength in parts', () => {
+    const u = devUniforms({ gradeShadow: { h: 210, s: 40, l: -20 } })
+    expect(u.gradeS[0]).toBe(210)
+    expect(u.gradeS[1]).toBeCloseTo(0.4, 9)
+    expect(u.gradeS[2]).toBeCloseTo(-0.2, 9)
+  })
+
+  it('tells the shader there is a curve only when there is one', () => {
+    expect(devUniforms({ curve: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }).presence[3]).toBe(0)
+    expect(devUniforms({ curve: [{ x: 0, y: 0 }, { x: 0.3, y: 0.5 }, { x: 1, y: 1 }] }).presence[3]).toBe(1)
   })
 })

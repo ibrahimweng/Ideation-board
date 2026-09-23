@@ -1,7 +1,10 @@
 import { VERT, BLUR, PRE } from './shaders'
 import { paintGlyphs } from './glyphs'
 import { BY_ID } from './effects'
+import { DEVELOP_FRAG } from './develop'
 import { REPEATS } from './types'
+import { CURVE_W, curveTable, devUniforms } from '../state/develop'
+import type { Develop } from '../state/develop'
 import type { EffectSpec, Params } from './types'
 
 /* ---------------------------------------------------------------------------
@@ -78,6 +81,13 @@ export interface RenderJob {
    * nearly every card — and that path is untouched by any of this: no extra
    * buffer, no extra pass, the same one draw straight to the canvas. */
   stack?: JobLayer[]
+  /* What was done to the photograph itself, before any effect was put on it.
+     Absent for a card nobody has developed, which is nearly every card — and
+     that path is untouched: no extra buffer, no extra pass, no compile. */
+  dev?: Develop
+  /* Identity of the four tone curves, so the table is re-uploaded only when
+     the curve actually changed rather than on every draw. */
+  curveKey?: string
   width: number
   height: number
   seed: number
@@ -141,6 +151,13 @@ export class Renderer {
   private pext: { COMPLETION_STATUS_KHR: number } | null = null
   private vao!: WebGLVertexArrayObject
   private blurProg!: Program
+  /* The develop pass. Built the first time a picture is actually developed, so
+     a board of untouched photographs never compiles it. */
+  private devProg: Program | null = null
+  /* The four tone curves as a 256 by 4 table, re-uploaded only when the curve
+     the card asks for is not the one already there. */
+  private curveTex: WebGLTexture | null = null
+  private curveKey = ''
   private glyph!: WebGLTexture
   private fbo!: [FBO, FBO]
   /* Only ever made if something is actually stacked. */
@@ -504,6 +521,122 @@ export class Renderer {
 
   /* Blur runs at reduced resolution: a wide blur destroys the detail anyway,
    * so full-resolution passes are wasted fill rate. */
+  /* ---------- developing ----------
+   *
+   * One pass, before any effect, that turns the photograph into the developed
+   * photograph. It is its own program rather than an entry in the effects
+   * table because it needs thirty uniforms where an effect gets six, and
+   * because it is not a look: every effect on this board is something you put
+   * on a picture, and this is the picture.
+   *
+   * Built lazily and cached like everything else, so a board nobody has
+   * developed never compiles it and never pays for it. */
+  private developProg(): Program {
+    if (!this.devProg) {
+      try {
+        this.devProg = this.build(DEVELOP_FRAG)
+      } catch {
+        this.devProg = { p: null, fs: null, u: null, pending: false, failed: true }
+      }
+    }
+    if (this.devProg.pending) this.finalize(this.devProg)
+    return this.devProg
+  }
+
+  /* The curve table, uploaded only when it changed. A card whose curve is
+   * straight still gets a table, because the shader would otherwise need a
+   * branch per pixel to find out; it is 4KB and it is uploaded once. */
+  private curveFor(dev: Develop | undefined, key: string): WebGLTexture {
+    const gl = this.gl
+    if (!this.curveTex) {
+      this.curveTex = this.mkTex()
+      /* Nearest across the table's four rows and linear along them: a row is a
+         different curve and must not bleed into its neighbour, while along a
+         row the table is a sampled function and linear is the point of it. */
+      gl.bindTexture(gl.TEXTURE_2D, this.curveTex)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+      this.curveKey = ''
+    }
+    if (this.curveKey !== key) {
+      gl.bindTexture(gl.TEXTURE_2D, this.curveTex)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, CURVE_W, 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, curveTable(dev))
+      this.curveKey = key
+    }
+    return this.curveTex
+  }
+
+  private develop(
+    dev: Develop,
+    curveKey: string,
+    src: WebGLTexture,
+    cover: Cover,
+    w: number,
+    h: number,
+    into: FBO | null,
+    seed: number
+  ): boolean {
+    const gl = this.gl
+    const pr = this.developProg()
+    if (pr.failed || !pr.u || !pr.p) return false
+    const u = devUniforms(dev)
+
+    /* Clarity and dehaze are the only two that need a softened copy of the
+       picture, and `blurRadius` is zero unless one of them asked. */
+    const bl = u.blurRadius
+      ? this.blurChain(src, u.blurRadius * (h / 420), w, h, cover)
+      : { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
+
+    const curve = this.curveFor(dev, curveKey)
+
+    gl.useProgram(pr.p)
+    if (pr.u.uFlip) gl.uniform1f(pr.u.uFlip, into ? -1 : 1)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, into ? into.fb : null)
+    gl.viewport(0, 0, w, h)
+
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, src)
+    gl.activeTexture(gl.TEXTURE1)
+    gl.bindTexture(gl.TEXTURE_2D, bl.tex)
+    gl.activeTexture(gl.TEXTURE2)
+    gl.bindTexture(gl.TEXTURE_2D, curve)
+    if (pr.u.uTex) gl.uniform1i(pr.u.uTex, 0)
+    if (pr.u.uBlur) gl.uniform1i(pr.u.uBlur, 1)
+    if (pr.u.uCurve) gl.uniform1i(pr.u.uCurve, 2)
+
+    if (pr.u.uRes) gl.uniform2f(pr.u.uRes, w, h)
+    if (pr.u.uCover) gl.uniform2f(pr.u.uCover, cover.sx, cover.sy)
+    if (pr.u.uCoverOff) gl.uniform2f(pr.u.uCoverOff, cover.ox, cover.oy)
+    if (pr.u.uBlurScale) gl.uniform2f(pr.u.uBlurScale, bl.sx, bl.sy)
+    if (pr.u.uBlurOff) gl.uniform2f(pr.u.uBlurOff, bl.ox, bl.oy)
+    if (pr.u.uSeed) gl.uniform1f(pr.u.uSeed, seed)
+
+    if (pr.u.uWB) gl.uniform2f(pr.u.uWB, u.wb[0], u.wb[1])
+    if (pr.u.uTone) gl.uniform4f(pr.u.uTone, u.tone[0], u.tone[1], u.tone[2], u.tone[3])
+    if (pr.u.uTone2) gl.uniform4f(pr.u.uTone2, u.tone2[0], u.tone2[1], u.tone2[2], u.tone2[3])
+    if (pr.u.uPresence) gl.uniform4f(pr.u.uPresence, u.presence[0], u.presence[1], u.presence[2], u.presence[3])
+    if (pr.u.uSharp) gl.uniform4f(pr.u.uSharp, u.sharp[0], u.sharp[1], u.sharp[2], u.sharp[3])
+    if (pr.u.uNoise) gl.uniform3f(pr.u.uNoise, u.noise[0], u.noise[1], u.noise[2])
+    if (pr.u.uVign) gl.uniform4f(pr.u.uVign, u.vign[0], u.vign[1], u.vign[2], u.vign[3])
+    if (pr.u.uGrain) gl.uniform3f(pr.u.uGrain, u.grain[0], u.grain[1], u.grain[2])
+    /* An array uniform is located by its first element's name. */
+    const arr = (name: string, v: number[]) => {
+      const loc = pr.u![name] || pr.u![name + '[0]']
+      if (loc) gl.uniform1fv(loc, v)
+    }
+    arr('uHslH', u.hslH)
+    arr('uHslS', u.hslS)
+    arr('uHslL', u.hslL)
+    if (pr.u.uGradeS) gl.uniform3f(pr.u.uGradeS, u.gradeS[0], u.gradeS[1], u.gradeS[2])
+    if (pr.u.uGradeM) gl.uniform3f(pr.u.uGradeM, u.gradeM[0], u.gradeM[1], u.gradeM[2])
+    if (pr.u.uGradeH) gl.uniform3f(pr.u.uGradeH, u.gradeH[0], u.gradeH[1], u.gradeH[2])
+    if (pr.u.uGradeG) gl.uniform3f(pr.u.uGradeG, u.gradeG[0], u.gradeG[1], u.gradeG[2])
+    if (pr.u.uGradeMix) gl.uniform2f(pr.u.uGradeMix, u.gradeMix[0], u.gradeMix[1])
+
+    this.draw()
+    return true
+  }
+
   private blurChain(src: WebGLTexture, radius: number, w: number, h: number, cover: Cover) {
     /* Unblurred, the effect samples the source itself, so it needs the same
      * crop the sharp path uses. */
@@ -605,8 +738,20 @@ export class Renderer {
       for (let i = 0; i < times; i++) passes.push(l)
     }
 
+    /* Developing runs before any of it, because developing is what is done to
+     * the photograph and an effect is a look put on the developed thing. */
+    const dev = job.dev
+    const plain = passes.length === 1 && passes[0].effectId === 'none'
+
+    if (dev && plain) {
+      /* Developed, with no effect over it: one pass, straight to the canvas.
+       * The common case for anybody using this as a photo editor, and it must
+       * not cost a buffer it does not need. */
+      return this.develop(dev, job.curveKey || '', src, cover, w, h, null, job.seed)
+    }
+
     const stacked = passes.length > 1 ? passes.slice(1) : null
-    if (!stacked) {
+    if (!stacked && !dev) {
       /* The whole of the board, nearly always: one effect, one draw, straight
        * to the canvas. Deliberately not routed through the loop below — a card
        * with one effect must cost exactly what it cost before any of this. */
@@ -625,6 +770,18 @@ export class Renderer {
      * the card, so it takes the whole of it. */
     let from = cover
     let target = 0
+
+    if (dev) {
+      /* The developed photograph into a buffer, and the effects read that
+       * instead of the source. From here down nothing else knows or cares. */
+      if (!this.develop(dev, job.curveKey || '', src, cover, w, h, bufs[target], job.seed)) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        return false
+      }
+      read = bufs[target].tex
+      from = { sx: 1, sy: 1, ox: 0, oy: 0 }
+      target = 1 - target
+    }
 
     for (let i = 0; i < layers.length; i++) {
       const last = i === layers.length - 1

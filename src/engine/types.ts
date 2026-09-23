@@ -1,5 +1,8 @@
 /* Shared engine vocabulary. Kept free of DOM types so the worker can import it. */
 
+import type { Develop } from '../state/develop'
+export type { Develop }
+
 export interface NumControl {
   k: string
   label: string
@@ -116,6 +119,15 @@ export interface Layer {
 export const REPEATS = 12
 
 export interface FxState extends Adjust {
+  /* What was done to the photograph itself: exposure, white balance, the
+     curve, the colour, the masks. Absent on a card nobody has developed, and
+     on every card saved before any of this existed.
+
+     It sits here rather than on the item because it is part of the treatment,
+     the same way the blend mode is: a saved look carries a develop the way it
+     carries a tone, and copying a look onto forty cards copies the develop
+     with it — which is most of what anybody wants from a look. */
+  dev?: Develop
   preset: string
   fxid: string
   ep: Params | null

@@ -494,3 +494,166 @@ export const toneOf = (d?: Develop): Stage[] =>
     sat: devOf(d, 'cssSaturate'),
     warm: devOf(d, 'cssWarm'),
   })
+
+/* ---------------------------------------------------------------------------
+ * The tone curve.
+ *
+ * Drawn through its points with a monotone cubic rather than a plain spline.
+ * A Catmull-Rom through hand-placed points overshoots between them, and an
+ * overshoot in a tone curve is not a wobble: it is a stretch of the range
+ * where making the picture brighter makes it darker. The Fritsch-Carlson
+ * conditioning below is the standard fix and costs three lines.
+ *
+ * What comes out is a table, because four curves evaluated per pixel with an
+ * arbitrary number of points is a loop with a branch in it, and a table is one
+ * texture read that is exact everywhere a point was placed.
+ * ------------------------------------------------------------------------- */
+
+export const CURVE_W = 256
+
+const LINE: CurvePt[] = [{ x: 0, y: 0 }, { x: 1, y: 1 }]
+
+/* One curve, evaluated at x in 0..1. */
+export function evalCurve(pts: CurvePt[] | undefined, x: number): number {
+  const p = pts && pts.length >= 2 ? [...pts].sort((a, b) => a.x - b.x) : LINE
+  if (x <= p[0].x) return p[0].y
+  if (x >= p[p.length - 1].x) return p[p.length - 1].y
+
+  let i = 0
+  while (i < p.length - 2 && x > p[i + 1].x) i++
+  const x0 = p[i].x
+  const x1 = p[i + 1].x
+  const y0 = p[i].y
+  const y1 = p[i + 1].y
+  const h = x1 - x0
+  if (h <= 1e-9) return y1
+
+  /* The secant either side of each end, and the tangents conditioned so the
+     curve cannot leave the box its two points make. */
+  const slope = (a: CurvePt, b: CurvePt) => (b.y - a.y) / Math.max(b.x - a.x, 1e-9)
+  const d = slope(p[i], p[i + 1])
+  const dPrev = i > 0 ? slope(p[i - 1], p[i]) : d
+  const dNext = i < p.length - 2 ? slope(p[i + 1], p[i + 2]) : d
+  const tame = (a: number, b: number) => (a * b <= 0 ? 0 : (a + b) / 2)
+  let m0 = i > 0 ? tame(dPrev, d) : d
+  let m1 = i < p.length - 2 ? tame(d, dNext) : d
+  if (Math.abs(d) < 1e-9) {
+    m0 = 0
+    m1 = 0
+  } else {
+    const a = m0 / d
+    const b = m1 / d
+    const s = a * a + b * b
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s)
+      m0 = t * a * d
+      m1 = t * b * d
+    }
+  }
+
+  const t = (x - x0) / h
+  const t2 = t * t
+  const t3 = t2 * t
+  return (
+    (2 * t3 - 3 * t2 + 1) * y0 +
+    (t3 - 2 * t2 + t) * h * m0 +
+    (-2 * t3 + 3 * t2) * y1 +
+    (t3 - t2) * h * m1
+  )
+}
+
+/* All four curves as one table: 256 wide, four rows — composite, red, green,
+ * blue — as RGBA bytes with the answer in the red channel, which is the one
+ * the shader reads. */
+export function curveTable(d?: Develop): Uint8Array {
+  const rows = [d?.curve, d?.curveR, d?.curveG, d?.curveB]
+  const out = new Uint8Array(CURVE_W * 4 * 4)
+  for (let row = 0; row < 4; row++) {
+    const pts = rows[row]
+    for (let i = 0; i < CURVE_W; i++) {
+      const x = i / (CURVE_W - 1)
+      const y = pts ? evalCurve(pts, x) : x
+      const v = Math.round(Math.min(1, Math.max(0, y)) * 255)
+      const at = (row * CURVE_W + i) * 4
+      out[at] = v
+      out[at + 1] = v
+      out[at + 2] = v
+      out[at + 3] = 255
+    }
+  }
+  return out
+}
+
+/* What identifies the four curves, and nothing else about the record.
+ *
+ * The table is a texture upload. Keyed on the whole develop record it would be
+ * re-uploaded every time the exposure slider moved; keyed on the curves it is
+ * uploaded when a curve is dragged, which is the only time it changed. */
+export const curveKeyOf = (d?: Develop): string =>
+  !d ? '' : JSON.stringify([d.curve, d.curveR, d.curveG, d.curveB])
+
+export const hasCurve = (d?: Develop): boolean =>
+  !!d && (!STRAIGHT(d.curve) || !STRAIGHT(d.curveR) || !STRAIGHT(d.curveG) || !STRAIGHT(d.curveB))
+
+/* ---------------------------------------------------------------------------
+ * What the shader is handed.
+ *
+ * The sliders are in the figures a person reads — stops, and minus a hundred
+ * to a hundred — and the shader wants them in the figures the arithmetic
+ * reads. Converting here rather than in GLSL means the conversion can be
+ * checked without a GPU, and means there is one place that knows a Clarity of
+ * fifty is 0.5 and not 50.
+ * ------------------------------------------------------------------------- */
+
+export interface DevUniforms {
+  wb: [number, number]
+  tone: [number, number, number, number]
+  tone2: [number, number, number, number]
+  presence: [number, number, number, number]
+  sharp: [number, number, number, number]
+  noise: [number, number, number]
+  vign: [number, number, number, number]
+  grain: [number, number, number]
+  hslH: number[]
+  hslS: number[]
+  hslL: number[]
+  gradeS: [number, number, number]
+  gradeM: [number, number, number]
+  gradeH: [number, number, number]
+  gradeG: [number, number, number]
+  gradeMix: [number, number]
+  /* The radius the blur chain should be run at for clarity and dehaze, in the
+     same units the effects use — zero when neither is asked for, so the chain
+     is skipped entirely. */
+  blurRadius: number
+}
+
+const pct = (n: number) => n / 100
+const wheel = (w?: Wheel): [number, number, number] => [w?.h ?? 0, pct(w?.s ?? 0), pct(w?.l ?? 0)]
+
+export function devUniforms(d?: Develop): DevUniforms {
+  const clarity = pct(devOf(d, 'clarity'))
+  const dehaze = pct(devOf(d, 'dehaze'))
+  const hsl = d?.hsl
+  return {
+    wb: [pct(devOf(d, 'temp')), pct(devOf(d, 'tint'))],
+    tone: [devOf(d, 'exposure'), pct(devOf(d, 'contrast')), pct(devOf(d, 'highlights')), pct(devOf(d, 'shadows'))],
+    tone2: [pct(devOf(d, 'whites')), pct(devOf(d, 'blacks')), pct(devOf(d, 'texture')), clarity],
+    presence: [dehaze, pct(devOf(d, 'vibrance')), pct(devOf(d, 'saturation')), hasCurve(d) ? 1 : 0],
+    sharp: [pct(devOf(d, 'sharpen')), devOf(d, 'sharpenRadius'), pct(devOf(d, 'sharpenDetail')), pct(devOf(d, 'sharpenMask'))],
+    noise: [pct(devOf(d, 'noise')), pct(devOf(d, 'noiseDetail')), pct(devOf(d, 'noiseColour'))],
+    vign: [pct(devOf(d, 'vignette')), pct(devOf(d, 'vignetteMid')), pct(devOf(d, 'vignetteRound')), pct(devOf(d, 'vignetteFeather'))],
+    grain: [pct(devOf(d, 'grain')), pct(devOf(d, 'grainSize')), pct(devOf(d, 'grainRough'))],
+    hslH: hsl ? hsl.h.map(pct) : HSL_0.h,
+    hslS: hsl ? hsl.s.map(pct) : HSL_0.s,
+    hslL: hsl ? hsl.l.map(pct) : HSL_0.l,
+    gradeS: wheel(d?.gradeShadow),
+    gradeM: wheel(d?.gradeMid),
+    gradeH: wheel(d?.gradeHigh),
+    gradeG: wheel(d?.gradeGlobal),
+    gradeMix: [pct(devOf(d, 'gradeBlend')), pct(devOf(d, 'gradeBalance'))],
+    /* Clarity and dehaze are the only two that need a softened copy, so the
+       chain runs only for them and only as wide as the wider of the two asks. */
+    blurRadius: clarity || dehaze ? Math.max(Math.abs(clarity), Math.abs(dehaze)) * 22 + 6 : 0,
+  }
+}
