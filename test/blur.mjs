@@ -111,8 +111,9 @@ const tab = () => page.locator('.panel-tabs button', { hasText: 'Develop' }).fir
 const hideOverlay = async () => {
   const eye = page.locator('.mask-eye[data-on]')
   if (await eye.count()) {
+    const was = await fingerprint()
     await eye.first().click()
-    await page.waitForTimeout(800)
+    await settle(was)
   }
 }
 
@@ -123,25 +124,69 @@ const addBlur = async (name) => {
   await add.scrollIntoViewIfNeeded()
   await add.click()
   await page.waitForTimeout(200)
+  const was = await fingerprint()
   await page.locator('.masks .blurs .mask-kinds button', { hasText: name }).first().click()
-  await page.waitForTimeout(1100)
+  await settle(was)
   await hideOverlay()
-  await page.waitForTimeout(600)
+}
+
+/* What the card looks like right now, as one number. Used to wait for a
+   render rather than sleep through it: under load a shader pass can take
+   several seconds, and a number chosen in advance is a number that is too
+   small on a busy machine — which is the one kind of failure that shows up
+   only when the whole suite runs at once. */
+const fingerprint = () =>
+  page.evaluate(() => {
+    const card = document.querySelector('.card[data-kind="image"]')
+    const el = card?.querySelector('canvas.media') || card?.querySelector('img.media')
+    if (!el) return 'none'
+    const r = el.getBoundingClientRect()
+    const c = document.createElement('canvas')
+    c.width = 24
+    c.height = 24
+    const g = c.getContext('2d', { willReadFrequently: true })
+    try {
+      g.drawImage(el, 0, 0, 24, 24)
+    } catch {
+      return 'x'
+    }
+    const d = g.getImageData(0, 0, 24, 24).data
+    let h = 0
+    for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i]) | 0
+    return String(h)
+  })
+
+/* Waits until the picture has changed from what it was and then held still.
+   Returns false if it never changed, which the caller can report rather than
+   discover as a wrong number three checks later. */
+const settle = async (was) => {
+  const until = Date.now() + 12000
+  let last = null
+  while (Date.now() < until) {
+    const now = await fingerprint()
+    if (now !== was && now === last) return true
+    last = now
+    await page.waitForTimeout(160)
+  }
+  return false
 }
 
 const setMask = async (label, value) => {
   const box = page.locator('.mask-body .ctl', { hasText: new RegExp(`^${label}`) }).locator('input.ctl-num').first()
   await box.scrollIntoViewIfNeeded()
+  const was = await fingerprint()
   await box.fill(String(value))
   await box.press('Enter')
-  await page.waitForTimeout(800)
+  await settle(was)
 }
 
 const offAll = async () => {
   const on = page.locator('.mask-off[data-on]')
   const n = await on.count()
+  if (!n) return
+  const was = await fingerprint()
   for (let i = n - 1; i >= 0; i--) await on.nth(i).click()
-  await page.waitForTimeout(900)
+  await settle(was)
 }
 
 /* ---------- a picture with an edge everywhere in it ---------- */

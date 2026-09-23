@@ -257,13 +257,17 @@ await page.locator('.masks > .mask-add .mask-kinds button', { hasText: 'Radial g
 await page.waitForTimeout(900)
 const maskBox = page.locator('.mask-body .ctl', { hasText: /^Exposure/ }).locator('input.ctl-num').first()
 await maskBox.scrollIntoViewIfNeeded()
-await maskBox.fill('-2')
+await maskBox.fill('-4')
 await maskBox.press('Enter')
 await page.waitForTimeout(800)
 await page.locator('.mask-eye[data-on]').first().click()
 await page.waitForTimeout(600)
 
-/* Read off the card, like everything else here. */
+/* Read off the card, like everything else here — but averaged over a block
+   rather than taken from one pixel. The look being carried has a halftone in
+   it, so every pixel of these cards is either ink or paper and a single one
+   says nothing about the tone underneath. Thirty across is several dots, and
+   the average of those is the tone. */
 const pixelOf = (id, fx, fy) =>
   page.evaluate(({ cid, fx, fy }) => {
     const card = document.querySelector(`.card[data-id="${cid}"]`)
@@ -279,8 +283,18 @@ const pixelOf = (id, fx, fy) =>
     } catch {
       return null
     }
-    const d = g.getImageData(Math.round(c.width * fx), Math.round(c.height * fy), 1, 1).data
-    return [d[0], d[1], d[2]]
+    const n = 30
+    const x0 = Math.max(0, Math.min(c.width - n, Math.round(c.width * fx - n / 2)))
+    const y0 = Math.max(0, Math.min(c.height - n, Math.round(c.height * fy - n / 2)))
+    const d = g.getImageData(x0, y0, n, n).data
+    const sum = [0, 0, 0]
+    for (let i = 0; i < d.length; i += 4) {
+      sum[0] += d[i]
+      sum[1] += d[i + 1]
+      sum[2] += d[i + 2]
+    }
+    const px = d.length / 4
+    return sum.map((v) => Math.round(v / px))
   }, { cid: id, fx, fy })
 
 await tab('Looks').click()
@@ -293,23 +307,25 @@ await page.locator('.look-name input').fill('Graded')
 await page.locator('.look-name button', { hasText: 'Save' }).click()
 await page.waitForTimeout(700)
 
-const aCorner = await pixelOf(A, 0.12, 0.12)
-const aMiddle = await pixelOf(A, 0.5, 0.5)
 
 await select(B)
 await tab('Looks').click()
 await page.waitForTimeout(400)
-const bWas = await pixelOf(B, 0.12, 0.12)
+const bCornerWas = await pixelOf(B, 0.12, 0.12)
+const bMiddleWas = await pixelOf(B, 0.5, 0.5)
 await page.locator('.look-shot').first().click()
 await page.waitForTimeout(1800)
-const bNow = await pixelOf(B, 0.12, 0.12)
+const bCorner = await pixelOf(B, 0.12, 0.12)
 const bMiddle = await pixelOf(B, 0.5, 0.5)
-check('a look carries the develop onto another card', bNow[0] > bWas[0] + 20, `${bWas[0]} -> ${bNow[0]}`)
-/* The mask is a two-stop hole in the middle of a stop and a half up, so the
-   middle of the card has to be darker than the corner on both of them. That
-   it is true of A is the grade; that it is true of B is the look carrying it. */
-check('and the mask with it', bMiddle[0] < bNow[0] - 20,
-      `corner ${bNow[0]}, middle ${bMiddle[0]} — and A was ${aCorner[0]}/${aMiddle[0]}`)
+check('a look carries the develop onto another card', bCorner[0] > bCornerWas[0] + 20,
+      `the dark corner ${bCornerWas[0]} -> ${bCorner[0]}`)
+/* Two movements in opposite directions on one photograph, which is the one
+   thing a global develop cannot do: the corner comes up by the stop and a half
+   the look carries, and the disc in the middle goes down by the four stops the
+   look's mask takes out of it. */
+check('and the mask with it, which is the half a global develop cannot do',
+      bMiddle[0] < bMiddleWas[0] - 60,
+      `the disc ${bMiddleWas[0]} -> ${bMiddle[0]} while the corner went ${bCornerWas[0]} -> ${bCorner[0]}`)
 await tab('Develop').click()
 await page.waitForTimeout(400)
 check('and the other card now has the mask in its own list',
@@ -318,8 +334,8 @@ check('and the other card now has the mask in its own list',
 await page.keyboard.press('Control+z')
 await page.waitForTimeout(900)
 check('and putting a look on is still one step of undo',
-      Math.abs((await pixelOf(B, 0.12, 0.12))[0] - bWas[0]) <= 3,
-      `${bWas[0]} -> ${(await pixelOf(B, 0.12, 0.12))[0]}`)
+      Math.abs((await pixelOf(B, 0.12, 0.12))[0] - bCornerWas[0]) <= 3,
+      `${bCornerWas[0]} -> ${(await pixelOf(B, 0.12, 0.12))[0]}`)
 
 /* ---------- renaming ---------- */
 await select(A)

@@ -46,8 +46,16 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
 
   const w = it.w
   const h = it.h
-  const g = GRIP / z
-  const hit = HIT / z
+  /* The handles sit inside the card's frame, which is what keeps them on the
+   * picture when it is zoomed, moved, turned or flipped. The cost is that the
+   * frame's own scale is applied to them as well as to the photograph — so a
+   * picture zoomed to 1.6 had handles 1.6 times too big, and one zoomed out
+   * had handles nobody could hit. Divided back out here, along with the
+   * board's zoom, because both are questions about how well somebody can aim
+   * rather than about the picture. */
+  const cardZoom = Math.max(0.05, it.fx?.zoom || 1)
+  const g = GRIP / (z * cardZoom)
+  const hit = HIT / (z * cardZoom)
 
   /* Where the pointer is, in the picture's own nought-to-one. */
   const local = (e: { clientX: number; clientY: number }) => {
@@ -318,7 +326,11 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
 
   return (
     <div className="mask-art" ref={box} data-brush={brushAt >= 0 || undefined}>
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      {/* Stretched to the box rather than fitted into it: `local` reads the
+          pointer against the div, so a drawing that letterboxed itself inside
+          the same div would put every handle somewhere other than where it
+          can be grabbed. */}
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ overflow: 'visible' }}>
         {ground && (
           <rect
             className="mk-ground"

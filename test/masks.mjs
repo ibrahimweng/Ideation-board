@@ -130,6 +130,12 @@ const hideOverlay = async () => {
   }
 }
 
+const offAllMasks = async () => {
+  const on = page.locator('.mask-off[data-on]')
+  for (let i = (await on.count()) - 1; i >= 0; i--) await on.nth(i).click()
+  await page.waitForTimeout(900)
+}
+
 const addMask = async (name) => {
   await tab().click()
   await page.waitForTimeout(250)
@@ -431,6 +437,97 @@ await hideOverlay()
 await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
 await page.waitForTimeout(700)
 
+/* ---------- the handles, on a zoomed picture ----------
+ *
+ * The handles live inside the card's frame, which is what keeps them on the
+ * photograph when it is pushed about inside its card. The cost is that the
+ * frame's own zoom applies to them as well: a picture at 1.6 had handles half
+ * as big again as they should be, and a drag aimed at one landed beside it.
+ */
+await offAllMasks()
+await tab().click()
+await page.waitForTimeout(250)
+const zoomBox = page.locator('.fx-controls', { hasText: 'Frame' }).locator('.ctl', { hasText: /^Zoom/ }).locator('input.ctl-num').first()
+const hasZoom = (await zoomBox.count()) > 0
+if (hasZoom) {
+  await zoomBox.scrollIntoViewIfNeeded()
+  await zoomBox.fill('1.6')
+  await zoomBox.press('Enter')
+  await page.waitForTimeout(700)
+}
+check('the picture can be zoomed inside its card', hasZoom)
+await addMask('Radial gradient')
+const zArt = await page.locator('.mask-art').boundingBox()
+const grip = await page.locator('.mask-art .mk-radial .mk-grip').first().boundingBox()
+/* The middle handle is drawn at the middle of the frame, so where it is drawn
+   is a thing this can check without knowing anything about the transform. */
+check('and the middle handle is drawn in the middle of it',
+      Math.abs(grip.x + grip.width / 2 - (zArt.x + zArt.width / 2)) < 8 &&
+        Math.abs(grip.y + grip.height / 2 - (zArt.y + zArt.height / 2)) < 8,
+      `handle at ${Math.round(grip.x + grip.width / 2)},${Math.round(grip.y + grip.height / 2)} in a box centred on ${Math.round(zArt.x + zArt.width / 2)},${Math.round(zArt.y + zArt.height / 2)}`)
+/* And it is the size a handle should be on screen, not that size times the
+   card's zoom. Fourteen across at zoom one; the check allows a wide band
+   because what is being caught is a factor of 1.6, not a pixel. */
+check('and it is the size a handle is, not that size times the zoom',
+      grip.width > 8 && grip.width < 20, `${grip.width.toFixed(1)} across`)
+await offAllMasks()
+if (hasZoom) {
+  await zoomBox.scrollIntoViewIfNeeded()
+  await zoomBox.fill('1')
+  await zoomBox.press('Enter')
+  await page.waitForTimeout(600)
+}
+
+/* ---------- taking something out ----------
+ *
+ * Paint over the thing, say where the good pixels come from. Read on the blue
+ * square, which is the only saturated thing in the picture and so the only
+ * place where "these pixels came from somewhere else" is a number rather than
+ * a feeling.
+ */
+await offAllMasks()
+await addMask('Brush')
+const brushArt = await page.locator('.mask-art').boundingBox()
+/* A short stroke across the middle of the blue square. */
+await page.mouse.move(brushArt.x + brushArt.width * 0.84, brushArt.y + brushArt.height * 0.86)
+await page.mouse.down()
+for (let i = 1; i <= 8; i++) {
+  await page.mouse.move(brushArt.x + brushArt.width * (0.84 + i * 0.008), brushArt.y + brushArt.height * 0.86, { steps: 2 })
+}
+await page.mouse.up()
+await page.waitForTimeout(800)
+await hideOverlay()
+const blueBefore = await sample(0.86, 0.86)
+check('the brush is over the blue square', blueBefore[2] > blueBefore[0] + 80, JSON.stringify(blueBefore))
+
+await page.locator('.mask-body button', { hasText: 'Clone' }).first().click()
+await page.waitForTimeout(1000)
+const cloned = await sample(0.86, 0.86)
+check('cloning brings pixels in from somewhere else on the same picture',
+      Math.abs(cloned[0] - 128) <= 6 && Math.abs(cloned[2] - 128) <= 6, JSON.stringify(cloned))
+const untouched = await sample(0.94, 0.94)
+check('and only where the brush went', untouched[2] > untouched[0] + 80, JSON.stringify(untouched))
+fs.writeFileSync(path.join(OUT, 'masks-clone.png'), await page.screenshot())
+
+/* And heal is the same repair with the tone left alone — which is the whole
+   difference between the two and the reason both exist. Clone brought the grey
+   of the other place with it; heal takes only its texture, so the blue tone
+   stays. On a photograph that is what makes a patch stop looking like a patch;
+   on a flat blue square it is what makes the square stay blue, which is the
+   same statement and easier to read off a number. */
+await page.locator('.mask-body button', { hasText: 'Heal' }).first().click()
+await page.waitForTimeout(1100)
+const healed = await sample(0.86, 0.86)
+check('and heal is the same repair with the tone of where it lands kept',
+      healed && Math.abs(healed[2] - 220) < 25 && Math.abs(cloned[2] - 128) < 10,
+      `clone ${JSON.stringify(cloned)}, heal ${JSON.stringify(healed)}, from ${JSON.stringify(blueBefore)}`)
+await page.locator('.mask-body button', { hasText: 'No repair' }).click()
+await page.waitForTimeout(900)
+const unrepaired = await sample(0.86, 0.86)
+check('and taking the repair off puts the blue back',
+      unrepaired[2] > unrepaired[0] + 80, JSON.stringify(unrepaired))
+await offAllMasks()
+
 /* ---------- what is kept between one mask and the next ----------
  *
  * Eight bits a channel cannot hold a number above one, so a highlight pushed
@@ -439,12 +536,7 @@ await page.waitForTimeout(700)
  * same place is the plainest way to ask: through eight-bit buffers a mid grey
  * comes back at 98, through sixteen it comes back where it started.
  */
-const offAll = async () => {
-  const on = page.locator('.mask-off[data-on]')
-  for (let i = (await on.count()) - 1; i >= 0; i--) await on.nth(i).click()
-  await page.waitForTimeout(900)
-}
-await offAll()
+await offAllMasks()
 await addMask('The whole picture')
 await hideOverlay()
 await setMask('Exposure', 3)
@@ -456,7 +548,7 @@ await setMask('Exposure', -3)
 const back = await sample(0.5, 0.6)
 check('and the next mask can pull it back, because the buffer between them is deeper than the screen',
       Math.abs(back[0] - 128) <= 3, `128 -> ${blown[0]} -> ${back[0]}`)
-await offAll()
+await offAllMasks()
 
 /* The colour range back on, since the export below is read on the blue
    square it found. */

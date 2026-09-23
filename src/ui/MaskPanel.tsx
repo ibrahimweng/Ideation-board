@@ -180,7 +180,10 @@ function OneMask({
 
   const setRepair = (patch: Partial<Clone> | null) => {
     if (!patch) return onChange({ ...mask, clone: undefined }, true)
-    const cur: Clone = mask.clone || { ox: 0.12, oy: 0.0 }
+    /* Up and to the left by a fifth of the frame: far enough that the ring
+       saying where the pixels come from is not sitting under the thing being
+       taken out, and near enough that it is usually on the same surface. */
+    const cur: Clone = mask.clone || { ox: -0.2, oy: -0.2 }
     onChange({ ...mask, clone: { ...cur, ...patch } }, true)
   }
 

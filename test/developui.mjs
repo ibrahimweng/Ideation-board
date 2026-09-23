@@ -280,6 +280,88 @@ check('and the whole pipeline at its neutral gives the picture back untouched',
       `${JSON.stringify(through.map((p) => p && p[0]))} vs ${JSON.stringify(want)}`)
 await reset('Effects')
 
+/* ---------- the tone curve ----------
+ *
+ * The one control in the panel that is not a slider, and until now the one
+ * with nothing proving it reaches the picture. Press the middle of the line,
+ * drag it up, and the midtones have to come up with it while the ends stay
+ * where they are — which is the whole of what a curve is for and what
+ * separates it from an exposure slider.
+ */
+await panel('Tone curve')
+const curve = page.locator('.curve').first()
+check('the panel has a curve to drag', (await curve.count()) === 1)
+const cbox = await curve.boundingBox()
+const midWasC = await sample(0.5, 0.15)
+const discWasC = await sample(0.5, 0.5)
+const darkWasC = await sample(0.08, 0.08)
+/* Press at half way along and a little above the line, then drag up. Pressing
+   the line puts a point there and hands it to the same drag, so this is one
+   gesture rather than two. */
+await page.mouse.move(cbox.x + cbox.width * 0.5, cbox.y + cbox.height * 0.5)
+await page.mouse.down()
+await page.mouse.move(cbox.x + cbox.width * 0.5, cbox.y + cbox.height * 0.28, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(900)
+check('pressing the line puts a point on it', (await page.locator('.curve-pt').count()) === 3,
+      `${await page.locator('.curve-pt').count()} points`)
+const midNowC = await sample(0.5, 0.15)
+const discNowC = await sample(0.5, 0.5)
+const darkNowC = await sample(0.08, 0.08)
+check('lifting the middle of the curve lifts the midtones', midNowC[0] > midWasC[0] + 40,
+      `${midWasC[0]} -> ${midNowC[0]}`)
+/* And moves them far more than it moves the ends. Not "leaves the ends alone",
+   which would be a claim about x=0 and x=1 and not about a picture: a curve
+   through three points is a curve, so a highlight at 242 and a shadow at 28
+   both come up a little. What separates it from an exposure slider is the
+   shape — the middle moves several times as far as either end. */
+const dMid = Math.abs(midNowC[0] - midWasC[0])
+const dEnds = Math.max(Math.abs(discNowC[0] - discWasC[0]), Math.abs(darkNowC[0] - darkWasC[0]))
+check('and moves them several times as far as it moves either end',
+      dMid > dEnds * 3,
+      `middle ${midWasC[0]}->${midNowC[0]}, ends ${discWasC[0]}->${discNowC[0]} and ${darkWasC[0]}->${darkNowC[0]}`)
+fs.writeFileSync(path.join(OUT, 'develop-curve.png'), await page.screenshot())
+
+/* And dragging that point off the top takes it away again, which is how every
+   curve widget has worked for thirty years. */
+const pt = await page.locator('.curve-pt').nth(1).boundingBox()
+await page.mouse.move(pt.x + pt.width / 2, pt.y + pt.height / 2)
+await page.mouse.down()
+await page.mouse.move(pt.x + pt.width / 2, cbox.y - cbox.height * 0.3, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(900)
+check('and dragging it off the top takes it away', (await page.locator('.curve-pt').count()) === 2,
+      `${await page.locator('.curve-pt').count()} points`)
+const backC = await sample(0.5, 0.15)
+check('which puts the picture back', Math.abs(backC[0] - midWasC[0]) <= 3, `${midWasC[0]} -> ${backC[0]}`)
+
+/* ---------- the colour mixer ----------
+ *
+ * Eight bands of hue, each with its own hue, saturation and luminance. The
+ * claim to prove is that it is a mixer and not a global: pushing the reds has
+ * to move the red patch and leave the grey beside it alone. */
+await panel('Colour')
+const redWasM = await sample(0.85, 0.85)
+const greyWasM = await sample(0.5, 0.15)
+await page.locator('.dev-bands button').first().click()
+await page.waitForTimeout(300)
+await set('Luminance', 100)
+const redNowM = await sample(0.85, 0.85)
+const greyNowM = await sample(0.5, 0.15)
+check('the colour mixer moves the band it was pointed at', redNowM[0] > redWasM[0] + 15,
+      `${redWasM[0]} -> ${redNowM[0]}`)
+check('and leaves a grey alone, which has no hue to be in a band',
+      Math.abs(greyNowM[0] - greyWasM[0]) <= 3, `${greyWasM[0]} -> ${greyNowM[0]}`)
+await set('Luminance', 0)
+await set('Saturation', -100)
+const drained = await sample(0.85, 0.85)
+check('and taking the saturation out of one band drains that colour only',
+      Math.abs(drained[0] - drained[1]) < 24 && Math.abs((await sample(0.5, 0.15))[0] - greyWasM[0]) <= 3,
+      JSON.stringify(drained))
+await set('Saturation', 0)
+fs.writeFileSync(path.join(OUT, 'develop-mixer.png'), await page.screenshot())
+await reset('Colour')
+
 /* ---------- optics ----------
  *
  * Distortion is read as a straight line stopping being straight. The picture

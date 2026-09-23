@@ -294,9 +294,12 @@ await page.locator(`.card[data-id="${A}"]`).click()
 await page.waitForTimeout(400)
 await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(400)
+/* Scoped to the section it belongs to. The Develop tab has several hints on
+   it now — the develop panel's, the masks panel's — and "the first one" stopped
+   naming the one this check is about the moment a second existed. */
+const frameHint = page.locator('.fx-controls', { hasText: 'Frame' }).locator('.fx-hint').first()
 check('the panel says the gesture exists, since nothing else would',
-  /alt/i.test(await page.locator('.fx-hint').first().innerText()),
-  await page.locator('.fx-hint').first().innerText())
+  /alt/i.test(await frameHint.innerText()), await frameHint.innerText())
 
 const cursorOn = async (keys) => {
   for (const k of keys) await page.keyboard.down(k)
