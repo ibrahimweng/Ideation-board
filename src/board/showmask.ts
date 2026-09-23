@@ -42,6 +42,16 @@ export function hideMask(mask?: string) {
 
 export const shownMask = () => shown
 
+/* The panel has moved to another card. An overlay left behind on the card it
+ * was on is a red picture nobody can explain and nothing on screen can switch
+ * off, since the control for it is on a panel that is now about something
+ * else. */
+export function hideOtherCards(card: string) {
+  if (!shown || shown.card === card) return
+  shown = null
+  tell()
+}
+
 /* Which mask this card should draw instead of its picture, if any. */
 export const maskOn = (card: string) => (shown && shown.card === card ? shown.mask : undefined)
 

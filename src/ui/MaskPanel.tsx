@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Slider } from './Slider'
 import { DEV_0, devOf, rangeOf } from '../state/develop'
 import type { DevKey, Develop } from '../state/develop'
@@ -16,7 +16,7 @@ import {
   trimMaskDev,
 } from '../state/mask'
 import type { Blur, Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
-import { hideMask, showMask, useShowing } from '../board/showmask'
+import { hideMask, hideOtherCards, showMask, useShowing } from '../board/showmask'
 
 /* ---------------------------------------------------------------------------
  * The masks panel.
@@ -346,6 +346,12 @@ export function MaskPanel({
   const [adding, setAdding] = useState(false)
   const [blurring, setBlurring] = useState(false)
 
+  /* The panel is about this card now, so an overlay left on the last one goes.
+   * Its switch is on this panel, and this panel is no longer showing it. */
+  useEffect(() => {
+    hideOtherCards(card)
+  }, [card])
+
   const add = (kind: MaskKind) => {
     setAdding(false)
     const n = masks.filter((m) => m.parts[0]?.kind === kind).length + 1
@@ -384,7 +390,9 @@ export function MaskPanel({
             onOpen={() => setOpen((o) => (o === m.id ? null : m.id))}
             onChange={put}
             onDuplicate={() => {
-              const copy = { ...m, id: newMask('linear').id, name: `${m.name} copy` }
+              /* Copied all the way down: two masks that shared a parts array
+                 would be one mask wearing two names the moment either moved. */
+              const copy = { ...structuredClone(m), id: newMask('linear').id, name: `${m.name} copy` }
               onChange([...masks, copy], true)
               setOpen(copy.id)
             }}

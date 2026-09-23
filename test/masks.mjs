@@ -497,6 +497,47 @@ check('the exported file is the picture\u2019s own resolution', outBlue[3] >= 60
 check('and the masked edit is in it', outBlue[2] > 240, JSON.stringify(outBlue.slice(0, 3)))
 check('and only where the mask was', Math.abs(outGrey[0] - 128) <= 4, JSON.stringify(outGrey.slice(0, 3)))
 
+/* ---------- an overlay does not follow the panel ----------
+ *
+ * Its switch is on the panel, and the panel is about one card at a time. An
+ * overlay left on the card before is a red picture with no control anywhere on
+ * screen that turns it off. */
+/* Read by the card's own id from here on, because a second picture is about
+   to arrive and "the first image card" stops being a way to name one. */
+const first = await page.locator('.card[data-kind="image"]').first().getAttribute('data-id')
+const sampleOn = (cid, fx, fy) =>
+  page.evaluate(({ cid, fx, fy }) => {
+    const card = document.querySelector(`.card[data-id="${cid}"]`)
+    const el = card?.querySelector('canvas.media') || card?.querySelector('img.media')
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(r.width))
+    c.height = Math.max(1, Math.round(r.height))
+    const g = c.getContext('2d', { willReadFrequently: true })
+    try {
+      g.drawImage(el, 0, 0, c.width, c.height)
+    } catch {
+      return null
+    }
+    const d = g.getImageData(Math.round(c.width * fx), Math.round(c.height * fy), 1, 1).data
+    return [d[0], d[1], d[2]]
+  }, { cid, fx, fy })
+
+await page.locator('.mask-list .mask').nth(5).locator('.mask-eye').click()
+await page.waitForTimeout(800)
+const litUp = await sampleOn(first, 0.45, 0.75)
+check('a mask being shown is red on its card', litUp[0] > litUp[1] + 40, JSON.stringify(litUp))
+await drop({ x: 980, y: 380 })
+await page.waitForTimeout(1600)
+const two = await page.locator('.card[data-kind="image"]').count()
+check('a second picture arrives', two === 2, `${two}`)
+await page.locator('.card[data-kind="image"]').nth(1).click()
+await page.waitForTimeout(1200)
+const leftBehind = await sampleOn(first, 0.45, 0.75)
+check('and selecting it takes the overlay off the one before',
+      !!leftBehind && Math.abs(leftBehind[0] - leftBehind[1]) < 12, JSON.stringify(leftBehind))
+
 check('no page errors', errors.length === 0, errors.join(' | '))
 console.log(`\n${pass} passed, ${fail} failed`)
 await browser.close()
