@@ -1,3 +1,4 @@
+import { developed } from '../state/develop'
 import type { FxState } from '../engine/types'
 
 /* Tone adjustments ride on the compositor as a CSS filter rather than costing
@@ -26,5 +27,13 @@ export function frameCSS(fx: FxState): string {
   return t.join(' ')
 }
 
-export const hasEffect = (fx: FxState) => !!fx && fx.fxid !== 'none'
+/* Whether a card needs the shader at all.
+ *
+ * An effect on it, or a develop under it. A developed picture with no effect
+ * still has to go through the pipeline, because everything a develop does —
+ * exposure in linear light, a white balance, a curve — is arithmetic a CSS
+ * filter cannot express. A card with neither goes on being an <img> the
+ * browser draws for nothing, which is nearly every card on nearly every
+ * board. */
+export const hasEffect = (fx: FxState) => !!fx && (fx.fxid !== 'none' || developed(fx.dev))
 export const hasGrain = (fx: FxState) => !!fx && fx.grain > 0

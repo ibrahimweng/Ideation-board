@@ -314,9 +314,13 @@ about.
 The panel has three tabs:
 
 - Effect. Pick one of the 69 effects and adjust its own settings.
-- Adjust. Change exposure, contrast, saturation, warmth, blur and grain. You
-  can also zoom, move, rotate and flip the picture inside its card, and say how
-  it sits with the cards under it.
+- Develop. Everything that is done to the photograph itself, in Lightroom's
+  panels and Lightroom's order — white balance, tone, presence, a tone curve on
+  four channels, the colour mixer and colour grading, sharpening and noise,
+  vignette and grain. Then masks, which say where any of it happens, and the
+  blur gallery, which is the masks again. Under all of that, framing — zoom,
+  move, rotate and flip the picture inside its card — and how it sits with the
+  cards beneath it.
 - Looks. Save what you have arrived at and put it on other pictures.
 
 Every figure in the panel can be typed into as well as dragged, because a
@@ -356,7 +360,8 @@ frame you stopped on.
 A board of photographs is rarely a dozen separate decisions. It is usually one
 decision made a dozen times, and the Looks tab is where that decision is kept.
 
-Set an effect and a tone on one picture, open Looks and press "Save this look".
+Set an effect, a develop and a tone on one picture, open Looks and press "Save
+this look".
 It arrives in the grid below under a name taken from what it actually is —
 "Halftone mono grain" — which you can type over then or rename later by double
 clicking it. Every tile in the grid is a live render of the picture you have
@@ -474,9 +479,70 @@ This is not the same as stacking. Stacking is different effects one after
 another and has a section of its own below; repeating is one effect reading
 what it just drew.
 
+## Developing the photograph
+
+The Develop panel is the photograph before any effect is put on it, and it is
+a real one: every figure is worked out in linear light on the GPU, which is the
+difference between an exposure slider and a brightness slider. A stop of
+exposure is twice the light and lands a mid grey at 176 rather than at 255;
+contrast pivots on middle grey, which is 0.18 in linear light and not half way
+up the numbers; a white balance moves the colour and leaves the light where it
+was, which is why it can cool a picture as well as warm it.
+
+The panels are Lightroom's, under Lightroom's names, in Lightroom's order —
+which is not decoration. It is the order the arithmetic runs in and the order
+anybody who has developed a photograph works in: the white balance, then the
+exposure, then the ends of the range, then the feel of it, and only then the
+colour.
+
+The six settings that used to be the Adjust tab are still there, at the bottom,
+under the name Finish: they are CSS filters on the finished card, after the
+effect, and every board ever saved is wearing them. Nothing moves.
+
+## Where an edit happens
+
+Every slider above does the same thing to every pixel, which is how a
+photograph was edited before about 2004. The sky is too bright and the face is
+too dark, and those are two different edits.
+
+A mask is a place, and a set of develop parameters to apply there. The place is
+built out of parts — a linear gradient, a radial gradient, a brush, a range of
+colours, a range of brightnesses, a range of distances, or the whole picture —
+and the parts combine: the first one is the mask, and each one after it adds to
+what is there, subtracts itself from it, or keeps only the overlap. Which is
+the smallest set in which "the sky, but not the building in front of it" is a
+sentence you can say.
+
+Press **Show** on a mask and it is drawn in red over the picture, with its own
+handles on it: drag either end of a gradient, or its line to slide the whole
+thing; drag a radial's middle to move it, its ring to resize, the mark on the
+rim to turn it; drag to paint a brush and hold Alt to rub out; click to take a
+colour range's colour off the picture. The handles live inside the card's
+frame, so the same transform that zooms, turns and flips the picture moves them
+with it.
+
+A depth range reads the depth map wired into the card, which is the one the app
+already knows how to make.
+
+## Saying where the blur comes from
+
+Photoshop keeps five of these on a submenu — field, iris, tilt-shift, path,
+spin. Every one of them is the same two questions: how the blur is shaped, and
+where it happens, and the second question is a mask.
+
+So the panel offers four shapes. Defocus is what a lens out of focus does, and
+field, iris and tilt-shift are all it — they differ only in the mask. Spin
+turns around a point, zoom runs out from one, and motion runs along a line: the
+three that cannot be got by softening evenly.
+
+New blur gives you the five starting points, each with its mask already put
+where that kind of blur belongs. From there it is a mask like any other, which
+means anything that can be subtracted from a mask can be subtracted from the
+blur — a hole cut in a field blur is one more part.
+
 ## How a card sits with the ones under it
 
-Two settings on the Adjust tab are about the card and the board rather than
+Two settings on the Develop tab are about the card and the board rather than
 about the picture: how strong it is, and how it blends with what is beneath it.
 Eight modes rather than the sixteen a graphics program offers, because sixteen
 is a menu nobody reads — Normal, Multiply, Screen, Overlay, Darken, Lighten,

@@ -6,6 +6,7 @@ import { adjustCSS, hasEffect } from '../board/adjust'
 import { GRAIN_SVG, GRAIN_TILE } from '../board/grain'
 import { safeName } from '../store/fs'
 import { hasPixels, pixelKey } from './kinds'
+import { curveKeyOf } from './develop'
 
 /* ---------------------------------------------------------------------------
  * A card, as a picture you can hand to someone.
@@ -194,6 +195,12 @@ export async function renderCardPicture(
       /* And how many times each one runs, or a card that was repeated on the
          board would come out of the export having run once. */
       n: item.fx.n,
+      /* And what was done to the photograph under all of it — the exposure,
+         the curve, the masks. Left out, an export of a developed card hands
+         back the picture as it was imported, which is the one thing an export
+         must never do. */
+      dev: item.fx.dev,
+      curveKey: curveKeyOf(item.fx.dev),
       seed: seedFor(item.id),
       width: w,
       height: h,

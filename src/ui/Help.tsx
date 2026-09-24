@@ -207,9 +207,35 @@ function parts(): Part[] {
           </p>
           <p>
             Effects stack: up to four on one card, applied in the order you added them, each with
-            its own settings. <strong>Adjust</strong> is the ordinary brightness and contrast sort
-            of thing, and <strong>Looks</strong> saves whatever you have set up so you can put the
-            same treatment on something else later.
+            its own settings. <strong>Develop</strong> is the photograph itself, and{' '}
+            <strong>Looks</strong> saves whatever you have set up so you can put the same treatment
+            on something else later.
+          </p>
+          <p>
+            <strong>Develop</strong> is a real one: white balance, tone, presence, a tone curve on
+            four channels, the colour mixer and colour grading, sharpening and noise, vignette and
+            grain — worked out in linear light on the graphics card, which is the difference
+            between an exposure slider and a brightness slider. A stop of exposure is twice the
+            light; contrast pivots on middle grey rather than half way up the numbers; a white
+            balance moves the colour and leaves the light where it was, so it can cool a picture as
+            well as warm it. <strong>Finish</strong>, at the bottom, is the older brightness and
+            contrast sort of thing, applied to the finished card after the effect.
+          </p>
+          <p>
+            A <strong>mask</strong> says where any of that happens. Build one out of parts — a
+            linear gradient, an ellipse, a brush, a range of colours, a range of brightnesses, a
+            range of distances, or the whole picture — and each part after the first adds to it,
+            subtracts itself from it, or keeps only the overlap. Press <strong>Show</strong> and
+            the mask is drawn in red over the picture with its own handles on it: drag either end
+            of a gradient, or its line to slide the whole thing; drag an ellipse&rsquo;s middle to
+            move it and its ring to resize; drag to paint a brush and hold <K>Alt</K> to rub out;
+            click to take a colour range&rsquo;s colour off the picture.
+          </p>
+          <p>
+            <strong>New blur</strong> is the same thing again. Field, iris, tilt-shift, spin and
+            motion are five starting points, each with its mask already put where that kind of blur
+            belongs &mdash; so saying where the blur comes from is dragging a shape, and anything
+            you can subtract from a mask you can subtract from the blur.
           </p>
           <p>
             Every figure in the panel can be typed into as well as dragged, its name can be

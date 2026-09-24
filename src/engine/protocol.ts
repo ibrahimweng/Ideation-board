@@ -1,4 +1,4 @@
-import type { Params } from './types'
+import type { Develop, Params } from './types'
 
 /* Messages between the board and the render worker. Deliberately flat and
  * transferable-friendly: nothing here needs structured-clone of anything big
@@ -31,6 +31,10 @@ export interface RenderMsg {
   params: Params | null
   /* Repeats of the first effect. */
   n?: number
+  /* What was done to the photograph before any effect was put on it. */
+  dev?: Develop
+  showMask?: string
+  curveKey?: string
   width: number
   height: number
   seed: number
@@ -48,6 +52,9 @@ export interface RenderLiveMsg {
   stack?: { effectId: string; params: Params | null; n?: number }[]
   params: Params | null
   n?: number
+  dev?: Develop
+  showMask?: string
+  curveKey?: string
   width: number
   height: number
   seed: number

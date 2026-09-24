@@ -13,7 +13,7 @@
  * ------------------------------------------------------------------------- */
 
 import { Tier } from './types'
-import type { Params } from './types'
+import type { Develop, Params } from './types'
 
 export interface Job {
   id: string
@@ -24,6 +24,9 @@ export interface Job {
   stack?: { effectId: string; params: Params | null; n?: number }[]
   n?: number
   params: Params | null
+  dev?: Develop
+  curveKey?: string
+  showMask?: string
   width: number
   height: number
   seed: number

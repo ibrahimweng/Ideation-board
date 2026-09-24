@@ -17,6 +17,8 @@ import { startWriting, stopWriting, useWriting } from './writing'
 import { editNodes, hasNodes, useEditing } from './editing'
 import { useSourceReady } from './sources'
 import { usePlain } from './original'
+import { useShownMask } from './showmask'
+import { MaskArt } from './MaskArt'
 import { RichText } from './RichText'
 import { ShapeArt } from './ShapeArt'
 import { todoCount } from '../state/rich'
@@ -89,6 +91,12 @@ export const Card = memo(function Card({
   const moves = useMoves(it)
   /* Whether the compare key is being held over this card. */
   const plain = usePlain(id)
+  /* A mask being placed, drawn in red instead of the picture — unless the
+     compare key is down, which asks for the photograph and nothing else. Both
+     are read every render and the choice made after: a hook behind a condition
+     is a hook that is not there the moment the condition changes. */
+  const shown = useShownMask(id)
+  const showMask = plain ? undefined : shown
   /* A family that has to be fetched is fetched here, where every way a card
      can arrive set in one goes past: opened, undone, imported, pasted, or
      changed in the panel. Doing it in the panel alone would mean a board
@@ -119,7 +127,10 @@ export const Card = memo(function Card({
      shader, no tone, no grain, no framing. All four go together, because half
      a comparison is not one — the question being asked is what the picture
      looked like before any of this, not before some of it. */
-  const effected = hasEffect(fx) && canShade(it) && !plain
+  /* An overlay needs the shader whether or not anything has been developed:
+     the moment somebody adds a mask they want to see where it is, and at that
+     moment it has no parameters on it at all. */
+  const effected = (hasEffect(fx) || !!showMask) && canShade(it) && !plain
   const filter = plain ? '' : adjustCSS(fx)
   const frame = plain ? '' : frameCSS(fx)
   const grain = plain ? 0 : fx.grain
@@ -223,6 +234,8 @@ export const Card = memo(function Card({
                 n={fx.n}
                 params={fx.ep}
                 more={fx.more}
+                dev={plain ? undefined : fx.dev}
+                showMask={showMask}
                 seed={hashSeed(id)}
                 w={it.w}
                 h={it.h}
@@ -333,7 +346,8 @@ export const Card = memo(function Card({
           effectId={fx.fxid}
           n={fx.n}
           params={fx.ep}
-                more={fx.more}
+          more={fx.more}
+          dev={plain ? undefined : fx.dev}
           seed={hashSeed(id)}
           w={it.w}
           h={it.h}
@@ -367,6 +381,7 @@ export const Card = memo(function Card({
                 n={fx.n}
                 params={fx.ep}
                 more={fx.more}
+                dev={plain ? undefined : fx.dev}
                 seed={hashSeed(id)}
                 w={it.w}
                 h={it.h}
@@ -381,6 +396,8 @@ export const Card = memo(function Card({
                 n={fx.n}
                 params={fx.ep}
                 more={fx.more}
+                dev={plain ? undefined : fx.dev}
+                showMask={showMask}
                 seed={hashSeed(id)}
                 w={it.w}
                 h={it.h}
@@ -422,6 +439,8 @@ export const Card = memo(function Card({
                   n={fx.n}
                   params={fx.ep}
                   more={fx.more}
+                  dev={plain ? undefined : fx.dev}
+                  showMask={showMask}
                   seed={hashSeed(id)}
                   w={it.w}
                   h={it.h}
@@ -555,6 +574,11 @@ export const Card = memo(function Card({
               <span className="file-why">Made by a newer version of the app</span>
             </div>
           )}
+          {/* The mask's own handles, inside the frame so they are moved,
+              zoomed, turned and flipped by the same transform the picture is —
+              a handle that stayed put while the picture under it moved would
+              be pointing at the wrong thing. */}
+          {showMask && <MaskArt id={id} maskId={showMask} />}
         </div>
 
         {grain > 0 && (

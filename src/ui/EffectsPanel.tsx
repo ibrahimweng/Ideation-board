@@ -22,6 +22,8 @@ import { hasEffect } from '../board/adjust'
 import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 import { Slider } from './Slider'
+import { DevelopPanel, devPatch } from './DevelopPanel'
+import { MaskPanel } from './MaskPanel'
 import { TextTab } from './TextTab'
 import { ShapePanel } from './ShapePanel'
 import { unrasterise } from '../state/raster'
@@ -233,7 +235,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           Effect
         </button>
         <button data-on={tab === 'adjust' || undefined} onClick={() => onTab('adjust')}>
-          Adjust
+          Develop
         </button>
         <button data-on={tab === 'looks' || undefined} onClick={() => onTab('looks')}>
           Looks
@@ -480,9 +482,38 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
             </div>
           </section>
 
+          {/* Developing the photograph, before any effect is put on it. Every
+              panel below is Lightroom's, in Lightroom's order, which is also
+              the order the arithmetic runs in and the order anybody who has
+              developed a photograph works in. */}
+          {shadeable && (
+            <DevelopPanel
+              dev={fx.dev}
+              onChange={(patch, discrete) => patchFx({ dev: devPatch(fx.dev, patch) }, discrete)}
+              onReset={() => patchFx({ dev: undefined }, true)}
+            />
+          )}
+
+          {/* And where any of it happens. Below the develop panel because the
+              order on the screen is the order of the work: get the picture
+              right, then go and fix the two places it is still wrong. */}
+          {shadeable && primaryId && (
+            <MaskPanel
+              card={primaryId}
+              masks={fx.dev?.masks || []}
+              onChange={(masks, discrete) => patchFx({ dev: devPatch(fx.dev, { masks }) }, discrete)}
+            />
+          )}
+
           <section className="fx-controls">
-            <h4>Tone</h4>
-            <Slider label="Exposure" def={ADJUST_0.exp} min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
+            {/* Named for where it happens rather than for what it does. These
+                six ride on the compositor after the effect, which is where
+                they have always been and why a board saved with them does not
+                move; the develop panel above works on the photograph before
+                the effect ever sees it. */}
+            <h4>Finish</h4>
+            <p className="fx-hint">Applied to the finished card, after the effect.</p>
+            <Slider label="Brightness" def={ADJUST_0.exp} min={-100} max={100} step={1} value={fx.exp} onChange={(v) => patchFx({ exp: v, preset: 'custom' })} />
             <Slider label="Contrast" def={ADJUST_0.con} min={-100} max={100} step={1} value={fx.con} onChange={(v) => patchFx({ con: v, preset: 'custom' })} />
             <Slider label="Saturation" def={ADJUST_0.sat} min={0} max={200} step={1} value={fx.sat} onChange={(v) => patchFx({ sat: v, preset: 'custom' })} />
             <Slider label="Warmth" def={ADJUST_0.warm} min={-100} max={100} step={1} value={fx.warm} onChange={(v) => patchFx({ warm: v, preset: 'custom' })} />

@@ -357,7 +357,7 @@ await page.waitForTimeout(800)
 ok('panel: reset restores defaults', (await slider.inputValue()) === sv0, `back to ${await slider.inputValue()}`)
 
 // ---------- 12. adjust tab ----------
-await page.getByRole('button',{name:'Adjust',exact:true}).click()
+await page.getByRole('button',{name:'Develop',exact:true}).click()
 await page.waitForTimeout(500)
 ok('panel: Adjust tab opens', await page.locator('.preset-row').count() === 1)
 await page.getByRole('button',{name:'Noir',exact:true}).click()

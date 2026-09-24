@@ -298,9 +298,22 @@ const entries = await page.locator('.menu > button').allInnerTexts()
 check('a sketch card offers to roll again without opening it',
   entries.some((l) => l.includes('Roll again')), entries.map((l) => l.split('\n')[0]).join(' | '))
 await page.locator('.menu > button', { hasText: 'Roll again' }).click()
-await page.waitForTimeout(4000)
 
-const afterRoll = await look()
+/* Waited for rather than slept through. Rolling again runs the code, draws it
+   at the card's own size and hands the result back, and on a loaded machine
+   that takes as long as it takes — a number chosen in advance is a number that
+   is too small on a slow runner, which is the one kind of failure that shows
+   up on CI and never here. */
+const redrawn = async (was, ms = 25000) => {
+  const until = Date.now() + ms
+  let now = await look()
+  while (now && was && now.hash === was.hash && Date.now() < until) {
+    await page.waitForTimeout(250)
+    now = await look()
+  }
+  return now
+}
+const afterRoll = await redrawn(beforeRoll)
 check('and rolling it there really runs it',
   !!afterRoll && !!beforeRoll && afterRoll.hash !== beforeRoll.hash,
   `${beforeRoll?.hash} then ${afterRoll?.hash}`)

@@ -15,6 +15,7 @@ card.
 | File | What it does |
 | --- | --- |
 | `shaders.ts` | The vertex shader, the blur shader and the shared preamble |
+| `develop.ts` | The develop shader: the whole photographic pipeline in one fragment program, plus the mask field and the blur gallery |
 | `effects.ts` | The 69 effects, their settings and their shader code |
 | `isf.ts` | Translating an ISF shader into the shape `effects.ts` uses |
 | `isfEffects.ts` | The handful written as ISF, so the translator is exercised by the running board rather than only by its tests |
@@ -35,12 +36,45 @@ card.
 3. On each animation frame, the engine takes the best job it can and sends it to
    the worker. The best job is the one closest to the middle of the screen.
    Small draft renders always come before full size ones.
-4. The worker draws the effect and calls `transferToImageBitmap()`.
+4. The worker develops the photograph, then draws the effect on the result, and
+   calls `transferToImageBitmap()`.
 5. The page receives the bitmap and gives it to the card's canvas with
    `transferFromImageBitmap`. No pixels are copied.
 
 If a newer request has been made for the same card in the meantime, the older
 result is thrown away rather than shown.
+
+### Developing, and masks
+
+Developing runs before any effect, because developing is what is done to the
+photograph and an effect is a look put on the developed thing. It is one
+fragment program, `engine/develop.ts`, with the parameters in
+`state/develop.ts` and the masks in `state/mask.ts`.
+
+The whole of it is arithmetic in linear light: the real sRGB transfer function
+in and out, exposure as a power of two, contrast as a power law about 0.18,
+white balance as a gain vector divided by its own luminance. The six CSS
+filters the board used to draw its tone with are reproduced exactly, from the
+Filter Effects specification rather than from memory, and clamped between each
+of them — a browser clamps to 0..1 after every filter function, and collapsing
+the chain into one matrix put a bright cyan 68 levels of 255 out.
+
+Masks do not need a second shader. The photograph is developed into a buffer,
+then the same program runs again once per mask, each pass reading what the last
+one wrote and mixing its own develop in by the mask field. So a mask is one
+more full-screen draw, the develop buffers are made on the first masked card
+and never before, and an unmasked card — every card on every board that nobody
+is editing — takes the single pass it always took.
+
+Masks live on the develop record rather than beside it, which is why a saved
+look carries them, undo treats them as one edit, and every road that already
+carries a develop carries masks for free: the export, the poster, the exported
+page and the baked texture all go through `renderCardPicture`.
+
+A brush is the exception: strokes are geometry, and geometry a fragment shader
+would have to walk through for every pixel of every frame. They are painted
+into a 512-square single-channel picture by a 2D context, once, and kept until
+a stroke changes.
 
 ### Video
 

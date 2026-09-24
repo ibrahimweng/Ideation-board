@@ -1,6 +1,7 @@
 import { JobQueue, Heat } from './scheduler'
 import type { Job } from './scheduler'
 import { Tier, BUCKET, PROXY_CAP, FULL_CAP, VIDEO_CAP } from './types'
+import type { Develop } from '../state/develop'
 import type { Params } from './types'
 import { EFFECTS } from './effects'
 import { Renderer } from './gl'
@@ -27,6 +28,10 @@ export interface RenderRequest {
   stack?: { effectId: string; params: Params | null; n?: number }[]
   /* Repeats of the first effect. */
   n?: number
+  /* What was done to the photograph before any effect was put on it. */
+  dev?: Develop
+  curveKey?: string
+  showMask?: string
   /* CSS pixel size of the card's canvas. */
   cssW: number
   cssH: number
@@ -52,6 +57,9 @@ const jobFor = (req: RenderRequest, size: { w: number; h: number }, tier: Tier):
   stack: req.stack,
   params: req.params,
   n: req.n,
+  dev: req.dev,
+  curveKey: req.curveKey,
+  showMask: req.showMask,
   width: size.w,
   height: size.h,
   seed: req.seed,
@@ -271,6 +279,9 @@ export class FxEngine {
           stack: req.stack,
           params: req.params,
           n: req.n,
+          dev: req.dev,
+          curveKey: req.curveKey,
+          showMask: req.showMask,
           width: size.w,
           height: size.h,
           seed: req.seed,
@@ -292,6 +303,9 @@ export class FxEngine {
         stack: req.stack,
         params: req.params,
         n: req.n,
+        dev: req.dev,
+        curveKey: req.curveKey,
+        showMask: req.showMask,
         width: size.w,
         height: size.h,
         seed: req.seed,
@@ -321,6 +335,12 @@ export class FxEngine {
       params: Params | null
       stack?: { effectId: string; params: Params | null; n?: number }[]
       n?: number
+      /* What was done to the photograph. An export that left this out would
+         hand back the undeveloped picture, which is the one thing an export
+         must never do. */
+      dev?: Develop
+      curveKey?: string
+      showMask?: string
       seed: number
       width: number
       height: number
@@ -352,7 +372,7 @@ export class FxEngine {
         this.inflight++
         this.send(
           { t: 'live', id, jobId, bitmap: source, effectId: job.effectId, stack: job.stack, params: job.params,
-            n: job.n, width: job.width, height: job.height, seed: job.seed },
+            n: job.n, dev: job.dev, curveKey: job.curveKey, showMask: job.showMask, width: job.width, height: job.height, seed: job.seed },
           [source]
         )
         return
@@ -366,7 +386,8 @@ export class FxEngine {
       try {
         const okRender = r.render(source, source.width, source.height, null, {
           effectId: job.effectId,
-          stack: job.stack, params: job.params, n: job.n, width: job.width, height: job.height, seed: job.seed,
+          stack: job.stack, params: job.params, n: job.n, dev: job.dev, curveKey: job.curveKey, showMask: job.showMask,
+          width: job.width, height: job.height, seed: job.seed,
         })
         finish(okRender ? r.takeBitmap() : null)
       } catch {
@@ -432,6 +453,9 @@ export class FxEngine {
         stack: job.stack,
         params: job.params,
         n: job.n,
+        dev: job.dev,
+        curveKey: job.curveKey,
+        showMask: job.showMask,
         width: job.width,
         height: job.height,
         seed: job.seed,
@@ -451,6 +475,9 @@ export class FxEngine {
         stack: job.stack,
         params: job.params,
         n: job.n,
+        dev: job.dev,
+        curveKey: job.curveKey,
+        showMask: job.showMask,
         width: job.width,
         height: job.height,
         seed: job.seed,

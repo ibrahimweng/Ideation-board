@@ -192,7 +192,7 @@ const changed = await page.evaluate(
 check('and it is really a different picture', changed > 12, `${changed} apart per pixel`)
 
 /* ---------- with the tone turned down ---------- */
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(300)
 await page.locator('.preset-row button', { hasText: 'B&W' }).click()
 await page.waitForTimeout(1200)

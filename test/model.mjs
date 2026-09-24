@@ -265,7 +265,7 @@ if (!(await page.locator('.panel').count())) {
   await page.locator('.tool-mode').click()
   await page.waitForTimeout(600)
 }
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(600)
 
 check('the panel lists the materials', (await page.locator('.part').count()) === 2,
@@ -329,7 +329,7 @@ await page.waitForTimeout(1500)
 await page.locator(`.card[data-id="${solid}"]`).click()
 await page.waitForTimeout(600)
 if (!(await page.locator('.part').count())) {
-  await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+  await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
   await page.waitForTimeout(500)
 }
 check('and now the materials can be handed it',
@@ -471,9 +471,16 @@ check('at a size worth putting on a model', !!plain && plain.w >= 256, `${plain?
    on a material is to see the treatment on the thing. */
 await page.locator(`.card[data-id="${green}"]`).click()
 await page.waitForTimeout(500)
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(500)
-const sat = page.locator('.ctl').filter({ hasText: 'Saturation' }).locator('.ctl-num')
+/* Scoped to the section it belongs to. "Saturation" names a slider in the
+   develop panel as well now — the photograph's own — and an unqualified
+   locator stopped naming one control the moment there were two. */
+const sat = page
+  .locator('.fx-controls', { hasText: 'Finish' })
+  .locator('.ctl')
+  .filter({ hasText: 'Saturation' })
+  .locator('.ctl-num')
 await sat.fill('0')
 await sat.press('Enter')
 await page.waitForTimeout(1200)
@@ -481,7 +488,7 @@ await page.waitForTimeout(1200)
 await page.locator(`.card[data-id="${solid}"]`).click()
 await page.waitForTimeout(700)
 if (!(await page.locator('.part').count())) {
-  await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+  await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
   await page.waitForTimeout(500)
 }
 await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
@@ -516,7 +523,7 @@ await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
 await page.waitForTimeout(700)
 await page.locator('.fx-thumb', { hasText: 'Threshold' }).first().click()
 await page.waitForTimeout(2200)
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(700)
 
 check('and now there is something to treat it with',
@@ -651,7 +658,7 @@ await page.locator('.panel-tabs button', { hasText: 'Effect' }).click()
 await page.waitForTimeout(600)
 await page.locator('.fx-thumb', { hasText: 'Original' }).first().click()
 await page.waitForTimeout(1500)
-await page.locator('.panel-tabs button', { hasText: 'Adjust' }).click()
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).click()
 await page.waitForTimeout(700)
 await page.locator('.part').first().locator('button', { hasText: /Wear|Again/ }).click()
 await page.waitForTimeout(4000)
