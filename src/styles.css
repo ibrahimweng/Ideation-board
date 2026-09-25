@@ -3061,6 +3061,22 @@ body[data-pressing] .embed-frame { pointer-events: none; }
   border-color: var(--accent);
   color: var(--accent);
 }
+/* Picking up one of a mask's brushes. Quiet, and only there when a mask has
+   more than one to choose between. */
+.mask-hold {
+  margin: 2px 0 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mask-hold:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .mask-body {
   padding: 2px 8px 10px;
   border-top: 1px solid var(--line);

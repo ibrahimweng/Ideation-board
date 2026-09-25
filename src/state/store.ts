@@ -21,6 +21,7 @@ const NAMED: Record<Boolean4, string> = {
   exclude: 'Excluded',
 }
 import type { LookFx } from './looks'
+import type { Develop } from './develop'
 
 /* Ids are made here and never taken from a caller, so nothing outside can
  * hand the board two cards with the same one. */
@@ -801,7 +802,18 @@ export class BoardStore {
     if (!targets.length) return 0
     this.snapshot()
     for (const it of targets) {
-      this.put(it.id, { ...it, fx: { ...it.fx, ...look, ep: look.ep ? { ...look.ep } : null } })
+      /* The develop is named on its own rather than left to the spread. A look
+         that was saved or copied has been through JSON, which drops a key set
+         to undefined, so a plain look read back after a reload has no `dev` at
+         all and the spread would leave the card's own develop showing through
+         a look that was supposed to replace it. And it is cloned per card,
+         because masks are nested and two cards wearing one look must not be
+         holding the same array of them. */
+      const dev = look.dev ? (structuredClone(look.dev) as Develop) : undefined
+      this.put(it.id, {
+        ...it,
+        fx: { ...it.fx, ...look, dev, ep: look.ep ? { ...look.ep } : null, more: look.more?.map((l) => ({ ...l, ep: l.ep ? { ...l.ep } : null })) },
+      })
       this.pingItem(it.id)
     }
     this.touch()

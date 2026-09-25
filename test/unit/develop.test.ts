@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BANDS, DEV_0, HSL_0, RANGES, apply3, developed, devOf, fromLegacy, hueRotateMatrix,
-  CURVE_W, curveTable, devUniforms, evalCurve, hasCurve,
+  CURVE_W, curveKeyOf, curveTable, devUniforms, evalCurve, hasCurve,
   isFlatHSL, legacyStages, mul3, rangeOf, runStages, satMatrix, sepiaMatrix, toneOf, trimDev,
 } from '../../src/state/develop'
 import type { Develop, Mat3 } from '../../src/state/develop'
@@ -359,5 +359,22 @@ describe('what the shader is handed', () => {
   it('tells the shader there is a curve only when there is one', () => {
     expect(devUniforms({ curve: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }).presence[3]).toBe(0)
     expect(devUniforms({ curve: [{ x: 0, y: 0 }, { x: 0.3, y: 0.5 }, { x: 1, y: 1 }] }).presence[3]).toBe(1)
+  })
+
+  /* The renderer skips the table upload when the name of the curves has not
+     changed, and starts out holding the empty name to mean "nothing uploaded
+     yet". That only works while no real record can be called nothing — which
+     is a property of this function and is checked here rather than left as a
+     comment beside the renderer. */
+  it('gives every record a name, and only a record that is not there none', () => {
+    expect(curveKeyOf(undefined)).toBe('')
+    expect(curveKeyOf({})).not.toBe('')
+    expect(curveKeyOf({ exposure: 2 })).not.toBe('')
+    /* And the name follows the curves and nothing else, which is why moving
+       the exposure does not cost an upload. */
+    expect(curveKeyOf({ exposure: 2 })).toBe(curveKeyOf({ exposure: -1 }))
+    const bent = curveKeyOf({ curve: [{ x: 0, y: 0 }, { x: 0.3, y: 0.5 }, { x: 1, y: 1 }] })
+    expect(bent).not.toBe(curveKeyOf({}))
+    expect(bent).not.toBe(curveKeyOf({ curve: [{ x: 0, y: 0 }, { x: 0.3, y: 0.6 }, { x: 1, y: 1 }] }))
   })
 })

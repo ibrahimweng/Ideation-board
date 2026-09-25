@@ -137,6 +137,11 @@ const LookTile = memo(function LookTile({
               mediaKey={mediaKey}
               effectId={look.fx.fxid}
               params={look.fx.ep}
+              /* A look carries a develop and a stack, so its thumbnail shows
+                 them: a look saved off a developed card whose preview was the
+                 plain picture was a picture of the wrong thing. */
+              more={look.fx.more}
+              dev={look.fx.dev}
               seed={11}
               w={132}
               h={99}

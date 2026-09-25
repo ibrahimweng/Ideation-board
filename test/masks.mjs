@@ -414,6 +414,96 @@ fs.writeFileSync(path.join(OUT, 'masks-brush.png'), await page.screenshot())
 await page.locator('.mask-list .mask').nth(5).locator('.mask-off').click()
 await page.waitForTimeout(700)
 
+/* ---------- two brushes in one mask, one of them taking away ----------
+ *
+ * "This area, but not the bit in the middle of it" is two brushes: one adding
+ * and one subtracting. Every painted part used to be baked into one picture
+ * and every painted part read that same picture back, so the subtract took
+ * out exactly what the add put in and the mask covered nothing at all. A tile
+ * of the strip each is what makes the fold mean anything.
+ *
+ * Read at three places: under the wide stroke only, under both, and under
+ * neither. Before the fix the first two were both the untouched photograph. */
+await addMask('Brush')
+const wide = await page.locator('.mask-art').boundingBox()
+/* A broad band across the middle, painted with the mask's first brush. */
+await setMask('Size', 40)
+await page.mouse.move(wide.x + wide.width * 0.12, wide.y + wide.height * 0.5)
+await page.mouse.down()
+for (let i = 1; i <= 12; i++) {
+  await page.mouse.move(wide.x + wide.width * (0.12 + i * 0.062), wide.y + wide.height * 0.5, { steps: 2 })
+}
+await page.mouse.up()
+await page.waitForTimeout(900)
+
+/* And a second brush, subtracting, over the right-hand end of it. Adding a
+   brush puts it in your hand, so this drag paints the new part rather than
+   the one above. */
+const holder = page.locator('.mask[data-open]').first()
+await holder.locator('.mask-add > button', { hasText: 'Add to this mask' }).click()
+await page.waitForTimeout(250)
+await holder.locator('.mask-kinds button', { hasText: 'Brush' }).click()
+await page.waitForTimeout(700)
+check('a mask can hold a second brush', (await holder.locator('.mask-part').count()) === 2,
+      `${await holder.locator('.mask-part').count()} parts`)
+check('and the one just added is the one the picture paints with',
+      (await holder.locator('.mask-part').nth(1).locator('.mask-hold').count()) === 0 &&
+        (await holder.locator('.mask-part').nth(0).locator('.mask-hold').count()) === 1)
+await holder.locator('.mask-part').nth(1).locator('.mask-ops button', { hasText: 'Subtract' }).click()
+await page.waitForTimeout(400)
+
+const taker = await page.locator('.mask-art').boundingBox()
+await page.mouse.move(taker.x + taker.width * 0.72, taker.y + taker.height * 0.5)
+await page.mouse.down()
+for (let i = 1; i <= 8; i++) {
+  await page.mouse.move(taker.x + taker.width * (0.72 + i * 0.022), taker.y + taker.height * 0.5, { steps: 2 })
+}
+await page.mouse.up()
+await page.waitForTimeout(900)
+check('and the strokes land on the second brush, not the first',
+      /stroke/.test(await holder.locator('.mask-part').nth(1).locator('.panel-note').innerText()),
+      await holder.locator('.mask-part').nth(1).locator('.panel-note').innerText())
+
+await hideOverlay()
+await setMask('Exposure', -2)
+const onlyAdd = await sample(0.3, 0.5)
+const bothParts = await sample(0.8, 0.5)
+const neither = await sample(0.3, 0.12)
+check('the edit lands where only the adding brush painted', onlyAdd[0] < 110, `${onlyAdd[0]}`)
+/* The whole finding, in one number: where the subtracting brush went over the
+   adding one, the edit is off again — and it is off there and nowhere else. */
+check('and is taken away again where the subtracting brush went over it',
+      Math.abs(bothParts[0] - 128) <= 6, `${bothParts[0]}`)
+check('and never reached where neither of them painted', Math.abs(neither[0] - 225) <= 6, `${neither[0]}`)
+fs.writeFileSync(path.join(OUT, 'masks-two-brushes.png'), await page.screenshot())
+await page.locator('.mask[data-open]').first().locator('.mask-off').click()
+await page.waitForTimeout(700)
+
+/* ---------- a gradient's feather ----------
+ *
+ * The drag says where the fade runs; the feather says how much of that drag
+ * is fade. It was read for an ellipse and thrown away for a gradient, so the
+ * slider the panel offered on a linear part did nothing at all. */
+await addMask('Linear gradient')
+await hideOverlay()
+await setMask('Exposure', -2)
+/* Read three fifths of the way down the drag, which is where the two answers
+   are furthest apart: the default ramp is still giving a bit of the edit
+   there and a fade tightened to the middle has already finished. */
+const softEdge = await sample(0.5, 0.29)
+await setMask('Feather', 0)
+const hardEdge = await sample(0.5, 0.29)
+check('winding a gradient’s feather down tightens its fade',
+      Math.abs(softEdge[0] - hardEdge[0]) > 12, `${softEdge[0]} -> ${hardEdge[0]}`)
+/* And it tightens about the middle of the drag rather than sliding the whole
+   thing: the far end stays out and the near end stays in. */
+const stillIn = await sample(0.5, 0.06)
+const stillOut = await sample(0.5, 0.94)
+check('and leaves the two ends of the drag where they were',
+      stillIn[0] < 190 && Math.abs(stillOut[0] - 128) <= 4, `${stillIn[0]} / ${stillOut[0]}`)
+await page.locator('.mask[data-open]').first().locator('.mask-off').click()
+await page.waitForTimeout(700)
+
 /* ---------- the compare key, over a mask being shown ----------
  *
  * Holding it asks for the photograph and nothing else, which includes not the

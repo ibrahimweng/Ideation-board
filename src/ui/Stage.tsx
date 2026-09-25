@@ -90,6 +90,12 @@ export function Stage({ item, box, tag = 'present' }: { item: Item; box: { w: nu
                 effectId={fx.fxid}
                 n={fx.n}
                 params={fx.ep}
+                /* The stack and the develop as well as the first effect: what
+                   is presented has to be the card, and hasEffect counts a
+                   developed photograph as much as a shaded one. Without these
+                   a card with a develop on it came up here as the file. */
+                more={fx.more}
+                dev={fx.dev}
                 seed={11}
                 w={box.w}
                 h={box.h}

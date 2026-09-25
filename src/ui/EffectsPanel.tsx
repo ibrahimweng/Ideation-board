@@ -23,6 +23,7 @@ import { KEYS, nameFor, titleFor } from './shortcuts'
 import { IconEffects, IconEye, IconSearch } from './icons'
 import { Slider } from './Slider'
 import { DevelopPanel, devPatch } from './DevelopPanel'
+import type { Develop } from '../state/develop'
 import { MaskPanel } from './MaskPanel'
 import { TextTab } from './TextTab'
 import { ShapePanel } from './ShapePanel'
@@ -171,6 +172,22 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
       const cur = store.getItem(id)
       if (!cur) continue
       store.update(id, { fx: { ...cur.fx, ...patch } }, false)
+    }
+  }
+
+  /* The develop goes on each card from that card's own record, not from the
+   * one whose panel is on screen. Everything in this panel goes on every
+   * selected card, but a develop is a whole page of settings and a mask list,
+   * and writing the primary's page onto the rest would not be putting an
+   * exposure on them — it would be throwing their own develops away. So the
+   * patch is applied once per card, to what that card already had. The same
+   * reason editLayers below exists. */
+  const patchDev = (fn: (cur: Develop | undefined) => Develop | undefined, discrete = false) => {
+    store.beginGesture(discrete ? 0 : 600)
+    for (const id of ids) {
+      const cur = store.getItem(id)
+      if (!cur) continue
+      store.update(id, { fx: { ...cur.fx, dev: fn(cur.fx.dev) } }, false)
     }
   }
 
@@ -489,8 +506,8 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
           {shadeable && (
             <DevelopPanel
               dev={fx.dev}
-              onChange={(patch, discrete) => patchFx({ dev: devPatch(fx.dev, patch) }, discrete)}
-              onReset={() => patchFx({ dev: undefined }, true)}
+              onChange={(patch, discrete) => patchDev((cur) => devPatch(cur, patch), discrete)}
+              onReset={() => patchDev(() => undefined, true)}
             />
           )}
 
@@ -501,7 +518,7 @@ export function EffectsPanel({ tab, onTab, say }: Props) {
             <MaskPanel
               card={primaryId}
               masks={fx.dev?.masks || []}
-              onChange={(masks, discrete) => patchFx({ dev: devPatch(fx.dev, { masks }) }, discrete)}
+              onChange={(masks, discrete) => patchDev((cur) => devPatch(cur, { masks }), discrete)}
             />
           )}
 

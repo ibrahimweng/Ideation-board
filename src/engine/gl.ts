@@ -3,8 +3,8 @@ import { paintGlyphs } from './glyphs'
 import { BY_ID } from './effects'
 import { DEVELOP_FRAG } from './develop'
 import { REPEATS } from './types'
-import { CURVE_W, curveTable, devUniforms } from '../state/develop'
-import { BRUSH_W, brushKey, liveMasks, maskUniforms, paintBrush } from '../state/mask'
+import { CURVE_W, curveKeyOf, curveTable, devUniforms } from '../state/develop'
+import { BRUSH_W, brushKey, brushTiles, liveMasks, maskUniforms, paintBrush } from '../state/mask'
 import type { Develop } from '../state/develop'
 import type { Mask } from '../state/mask'
 import type { EffectSpec, Params } from './types'
@@ -167,6 +167,8 @@ export class Renderer {
   /* The four tone curves as a 256 by 4 table, re-uploaded only when the curve
      the card asks for is not the one already there. */
   private curveTex: WebGLTexture | null = null
+  /* No real key is empty — curveKeyOf writes four entries even for a record
+   * with no curves on it — so this means nothing has been uploaded yet. */
   private curveKey = ''
   private glyph!: WebGLTexture
   private fbo!: [FBO, FBO]
@@ -727,7 +729,13 @@ export class Renderer {
       ? this.blurChain(src, radius * (h / 420), w, h, cover)
       : { tex: src, sx: cover.sx, sy: cover.sy, ox: cover.ox, oy: cover.oy }
 
-    const curve = this.curveFor(dev, curveKey)
+    /* Keyed on the curves of the record this pass is actually drawing. A mask
+     * pass and the mask overlay had no key of their own and were handed the
+     * empty one, which matched whatever was uploaded last and skipped the
+     * upload: the second mask of a card drew through the first one's curve,
+     * and on a renderer that had drawn nothing yet the table was never
+     * uploaded at all. */
+    const curve = this.curveFor(dev, curveKey || curveKeyOf(dev))
 
     gl.useProgram(pr.p)
     if (pr.u.uFlip) gl.uniform1f(pr.u.uFlip, into ? -1 : 1)
@@ -803,6 +811,12 @@ export class Renderer {
       gl.bindTexture(gl.TEXTURE_2D, two ? two.tex : this.blankTex())
       if (pr.u.uDepth) gl.uniform1i(pr.u.uDepth, 4)
       if (pr.u.uDepthOn) gl.uniform2f(pr.u.uDepthOn, two ? 1 : 0, 0)
+      /* Cropped to fill the card the way the photograph is, and with its own
+       * numbers: the depth map is another card and need not be the same shape.
+       * Sampled at the picture's own uv it read the right distances off the
+       * wrong part of the frame whenever the two aspects disagreed. */
+      if (pr.u.uCover2) gl.uniform2f(pr.u.uCover2, two ? two.cover.sx : 1, two ? two.cover.sy : 1)
+      if (pr.u.uCoverOff2) gl.uniform2f(pr.u.uCoverOff2, two ? two.cover.ox : 0, two ? two.cover.oy : 0)
     } else if (pr.u.uMask) {
       gl.uniform4f(pr.u.uMask, 0, 0, 1, 0)
       if (pr.u.uBlurFx) gl.uniform4f(pr.u.uBlurFx, 0, 0, 0, 0)
@@ -817,6 +831,8 @@ export class Renderer {
       gl.bindTexture(gl.TEXTURE_2D, this.blankTex())
       if (pr.u.uDepth) gl.uniform1i(pr.u.uDepth, 4)
       if (pr.u.uDepthOn) gl.uniform2f(pr.u.uDepthOn, 0, 0)
+      if (pr.u.uCover2) gl.uniform2f(pr.u.uCover2, 1, 1)
+      if (pr.u.uCoverOff2) gl.uniform2f(pr.u.uCoverOff2, 0, 0)
     }
 
     this.draw()
@@ -847,9 +863,13 @@ export class Renderer {
     const gl = this.gl
     const key = brushKey(mask)
     if (this.brushTex && this.brushKeyed === key) return this.brushTex
-    if (!this.brushCv) {
+    /* One tile per part, stacked. Only as many as the mask actually paints in,
+     * so the ordinary mask with a single brush gets the square picture this
+     * always was and pays nothing for the ones it does not have. */
+    const tiles = Math.max(1, brushTiles(mask))
+    if (!this.brushCv || this.brushCv.height !== BRUSH_W * tiles) {
       try {
-        this.brushCv = new OffscreenCanvas(BRUSH_W, BRUSH_W)
+        this.brushCv = new OffscreenCanvas(BRUSH_W, BRUSH_W * tiles)
       } catch {
         return this.blankTex()
       }

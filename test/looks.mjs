@@ -363,6 +363,113 @@ check(
   (await page.locator('.look-paste').count()) === 1
 )
 
+/* ---------- a develop, on two cards at once ----------
+ *
+ * Everything in this panel goes on every selected card, and a develop is a
+ * whole page of settings and a list of masks. Putting the primary card's page
+ * onto the rest is not putting an exposure on them — it is throwing their own
+ * develops away, and the cards that lose theirs are the ones nobody is looking
+ * at. So the patch has to be applied once per card, to what that card already
+ * had. */
+const AA = (await ids())[0]
+const BB = (await ids())[1]
+
+const devTab = () => page.locator('.panel-tabs button', { hasText: 'Develop' }).first()
+const section = async (name) => {
+  await devTab().click()
+  await page.waitForTimeout(250)
+  const head = page.locator('.dev-sec .dev-head', { hasText: name }).first()
+  if (await head.count()) {
+    if ((await head.getAttribute('aria-expanded')) !== 'true') {
+      await head.click()
+      await page.waitForTimeout(200)
+    }
+  }
+}
+const setDev = async (label, value) => {
+  const box = page.locator('.develop .ctl', { hasText: new RegExp(`^${label}`) }).locator('input.ctl-num').first()
+  await box.scrollIntoViewIfNeeded()
+  await box.fill(String(value))
+  await box.press('Enter')
+  await page.waitForTimeout(600)
+}
+/* The box shows the figure with its unit on it once it has been left alone
+   — "1.50 EV" rather than "1.5" — so the number is read off the front of it
+   rather than cast whole. */
+const readDev = async (label) => {
+  const box = page.locator('.develop .ctl', { hasText: new RegExp(`^${label}`) }).locator('input.ctl-num').first()
+  await box.scrollIntoViewIfNeeded()
+  return parseFloat(await box.inputValue())
+}
+
+/* One number each, in two different sections, so that a card wearing the
+   other's record is obvious rather than arguable. */
+await select(AA)
+await section('Basic')
+await setDev('Contrast', 40)
+await select(BB)
+await section('Effects')
+await setDev('Amount', -60)
+await section('Basic')
+check('setup: two cards, developed differently',
+      (await readDev('Contrast')) === 0, `the second card's contrast is ${await readDev('Contrast')}`)
+
+await page.keyboard.press('Escape')
+await page.keyboard.press('Control+a')
+await page.waitForTimeout(400)
+await section('Basic')
+await setDev('Exposure', 2)
+
+await select(AA)
+await section('Basic')
+const aExp = await readDev('Exposure')
+const aCon = await readDev('Contrast')
+await select(BB)
+await section('Basic')
+const bExp = await readDev('Exposure')
+const bCon = await readDev('Contrast')
+await section('Effects')
+const bVig = await readDev('Amount')
+await select(AA)
+await section('Effects')
+const aVig = await readDev('Amount')
+
+check('a develop moved with several cards selected reaches all of them', aExp === 2 && bExp === 2,
+      `${aExp} and ${bExp}`)
+check('and leaves each card the rest of its own develop',
+      aCon === 40 && bCon === 0, `contrast ${aCon} on the one that had it, ${bCon} on the one that did not`)
+check('including the settings in a section nobody touched',
+      aVig === 0 && bVig === -60, `vignette ${aVig} and ${bVig}`)
+
+/* ---------- and a look that has no develop takes one off ----------
+ *
+ * A saved look has been through JSON, which drops a key set to undefined — so
+ * a look with no develop on it comes back with no `dev` key at all, and the
+ * spread that applies a look left the card's own develop sitting underneath a
+ * look that was supposed to replace it. Which is every look anybody ever
+ * saved, since they are all read back from the browser. */
+await select(BB)
+await tab('Looks').click()
+await page.waitForTimeout(400)
+/* The one saved at the top of this suite, before anything here had been
+   developed at all — and saved to the browser and read back since, which is
+   the whole point: that round trip is where the key went missing. */
+const plainLook = page.locator('.look').filter({ hasText: 'House style' }).first()
+check('the look saved before anything was developed is still on the shelf',
+      (await plainLook.count()) === 1, `${await page.locator('.look-grid .look').count()} looks`)
+await plainLook.locator('.look-shot').click()
+await page.waitForTimeout(1400)
+await section('Basic')
+check('a look with no develop on it takes the card’s develop off',
+      (await readDev('Exposure')) === 0, `${await readDev('Exposure')}`)
+await section('Effects')
+check('all of it, and not only the section that was on screen',
+      (await readDev('Amount')) === 0, `${await readDev('Amount')}`)
+check('and the card is not a developed card any more',
+      (await page.locator('.develop button', { hasText: 'Undevelop' }).count()) === 0)
+await tab('Looks').click()
+await page.waitForTimeout(400)
+
 /* ---------- and can be thrown away ---------- */
 for (let i = 0; i < 2; i++) {
   await page.locator('.look').first().hover()

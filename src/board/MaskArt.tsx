@@ -3,6 +3,7 @@ import { store, useItem, useViewport } from '../state/store'
 import { trimDev } from '../state/develop'
 import type { MaskPart, Stroke } from '../state/mask'
 import { holdPress } from './press'
+import { useBrushSlot } from './paintpart'
 
 /* ---------------------------------------------------------------------------
  * Putting a mask somewhere.
@@ -42,6 +43,9 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
   const box = useRef<HTMLDivElement>(null)
   const masks = it?.fx?.dev?.masks
   const mask = masks?.find((m) => m.id === maskId)
+  /* Before the early return, because a hook behind a condition is a hook that
+   * takes the board down the first time the condition changes. */
+  const brushAt = useBrushSlot(maskId, mask?.parts.map((p) => p.kind) || [])
   if (!it || !mask) return null
 
   const w = it.w
@@ -239,7 +243,11 @@ export function MaskArt({ id, maskId }: { id: string; maskId: string }) {
   }
 
   /* ---- painting, and picking a colour off the picture ---- */
-  const brushAt = mask.parts.findIndex((p) => p.kind === 'brush')
+  /* `brushAt` is worked out at the top: not simply the first brush, because a
+   * mask can hold several and the reason to hold several is that one of them
+   * takes away what another put down — so "the first one" would have meant
+   * the second could never be painted, and the part that subtracts would have
+   * stayed empty for ever. */
   const pickAt = mask.parts.findIndex((p) => p.kind === 'colour')
 
   const paint = (e: React.PointerEvent) => {

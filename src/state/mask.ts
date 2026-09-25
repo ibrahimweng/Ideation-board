@@ -327,6 +327,14 @@ export const KIND_CODE: Record<MaskKind, number> = {
 }
 const OP_CODE: Record<MaskOp, number> = { add: 0, sub: 1, int: 2 }
 
+/* A kind this version has never heard of — a board saved by a later one. Past
+ * every code the shader knows, so it falls through to the branch that covers
+ * nothing: an edit that has gone missing is a thing somebody can see and put
+ * back, and an edit smeared over the whole photograph is a thing they would
+ * have to work out. Zero would have been a linear gradient with no geometry,
+ * which is a full-strength ramp across the lot. */
+export const UNKNOWN_KIND = 99
+
 export interface MaskUniforms {
   n: number
   amount: number
@@ -351,11 +359,14 @@ const pct = (n: number) => n / 100
 
 export function maskUniforms(m: Mask): MaskUniforms {
   const parts = m.parts.slice(0, MAX_PARTS)
+  const tiles = brushTiles(m)
   const a: number[] = []
   const b: number[] = []
   const c: number[] = []
-  for (const p of parts) {
-    a.push(KIND_CODE[p.kind] ?? 0, OP_CODE[p.op || 'add'], p.inv ? 1 : 0, pct(p.feather ?? 50))
+  parts.forEach((p, slot) => {
+    /* A linear gradient's feather starts at the whole of the drag, because the
+       drag is the gradient; every other kind starts half soft. */
+    a.push(KIND_CODE[p.kind] ?? UNKNOWN_KIND, OP_CODE[p.op || 'add'], p.inv ? 1 : 0, pct(p.feather ?? (p.kind === 'linear' ? 100 : 50)))
     if (p.kind === 'linear') {
       b.push(p.x1 ?? 0.5, p.y1 ?? 0.05, p.x2 ?? 0.5, p.y2 ?? 0.45)
       c.push(0, 0, 0, 0)
@@ -368,11 +379,16 @@ export function maskUniforms(m: Mask): MaskUniforms {
     } else if (p.kind === 'luminance' || p.kind === 'depth') {
       b.push(pct(p.lo ?? 0), pct(p.hi ?? 100), pct(p.tol ?? 20), 0)
       c.push(0, 0, 0, 0)
+    } else if (p.kind === 'brush') {
+      /* Which tile of the baked strip this part's strokes are in, and how many
+         tiles there are to divide by. */
+      b.push(slot, Math.max(1, tiles), 0, 0)
+      c.push(0, 0, 0, 0)
     } else {
       b.push(0, 0, 0, 0)
       c.push(0, 0, 0, 0)
     }
-  }
+  })
   /* Padded out, because a uniform array is uploaded whole. */
   while (a.length < MAX_PARTS * 4) {
     a.push(0, 0, 0, 0)
@@ -417,14 +433,29 @@ export const BRUSH_W = 512
  * does not. */
 export function brushKey(m: Mask): string {
   const out: string[] = []
-  for (const p of m.parts) {
-    if (p.kind !== 'brush') continue
+  /* The slot as well as the strokes: the same strokes in a different part are
+     painted into a different tile of the strip, so a key that named only the
+     strokes would hand back the last bake with the tiles in the wrong places. */
+  m.parts.slice(0, MAX_PARTS).forEach((p, i) => {
+    if (p.kind !== 'brush') return
+    out.push(`@${i}`)
     for (const s of p.strokes || []) {
       out.push(`${s.size},${s.soft},${s.flow},${s.erase ? 1 : 0},${s.pts.length}:${s.pts.map((n) => n.toFixed(3)).join(',')}`)
     }
     out.push('|')
-  }
+  })
   return out.join(';')
+}
+
+/* How many tiles the strip needs: one for every part up to and including the
+ * last painted one. A mask whose only brush is its first part gets a single
+ * tile, which is the square texture this was before there were tiles at all. */
+export const brushTiles = (m: Mask): number => {
+  let n = 0
+  m.parts.slice(0, MAX_PARTS).forEach((p, i) => {
+    if (p.kind === 'brush') n = i + 1
+  })
+  return n
 }
 
 type Ctx2D = {
@@ -442,16 +473,36 @@ type Ctx2D = {
   fillStyle: string
   filter: string
   globalCompositeOperation: string
+  save(): void
+  restore(): void
+  rect(x: number, y: number, w: number, h: number): void
+  clip(): void
 }
 
-/* Paint the strokes of every brush part into a context that is `w` by `h`.
+/* Paint the strokes into a strip `w` wide and `h` tall per tile, one tile per
+ * part: part 0 at the top, part 1 under it, and so on down as far as the last
+ * painted part. One picture for the lot of them was the same picture read back
+ * for every part, so a mask that painted an area in and then painted a hole
+ * out of it with a second brush cancelled itself to nothing — both parts were
+ * reading the same strokes. A tile each is what makes the fold mean anything.
+ *
+ * Each tile is clipped to itself, so a soft stamp at the bottom of one cannot
+ * bleed into the top of the next, and an erase stroke rubs out its own part
+ * and not its neighbour's.
+ *
  * Kept apart from anything that knows what a canvas is, so the worker, the
  * main thread and a unit test can all drive it. */
 export function paintBrush(ctx: Ctx2D, m: Mask, w: number, h: number) {
-  ctx.clearRect(0, 0, w, h)
+  const tiles = Math.max(1, brushTiles(m))
+  ctx.clearRect(0, 0, w, h * tiles)
   const scale = Math.min(w, h)
-  for (const p of m.parts) {
-    if (p.kind !== 'brush') continue
+  m.parts.slice(0, MAX_PARTS).forEach((p, slot) => {
+    if (p.kind !== 'brush') return
+    const top = slot * h
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, top, w, h)
+    ctx.clip()
     for (const s of p.strokes || []) {
       if (s.pts.length < 2) continue
       /* Softness as a blur on the stamp rather than a gradient per stamp: one
@@ -468,17 +519,18 @@ export function paintBrush(ctx: Ctx2D, m: Mask, w: number, h: number) {
       ctx.lineJoin = 'round'
       ctx.lineWidth = r * 2
       ctx.beginPath()
-      ctx.moveTo(s.pts[0] * w, s.pts[1] * h)
+      ctx.moveTo(s.pts[0] * w, top + s.pts[1] * h)
       if (s.pts.length === 2) {
         /* A single tap is a dot, which a zero-length line would not draw. */
-        ctx.arc(s.pts[0] * w, s.pts[1] * h, r, 0, Math.PI * 2)
+        ctx.arc(s.pts[0] * w, top + s.pts[1] * h, r, 0, Math.PI * 2)
         ctx.fill()
       } else {
-        for (let i = 2; i < s.pts.length; i += 2) ctx.lineTo(s.pts[i] * w, s.pts[i + 1] * h)
+        for (let i = 2; i < s.pts.length; i += 2) ctx.lineTo(s.pts[i] * w, top + s.pts[i + 1] * h)
         ctx.stroke()
       }
     }
-  }
-  ctx.filter = 'none'
-  ctx.globalCompositeOperation = 'source-over'
+    ctx.filter = 'none'
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.restore()
+  })
 }

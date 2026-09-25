@@ -17,7 +17,7 @@ import path from 'node:path'
  * open internet, so it is kept apart from the rest. */
 const SUITES = [
   'ui', 'menu', 'search', 'sections', 'type', 'group', 'shapes', 'copies', 'notes', 'boards', 'wires', 'transfer',
-  'arrange', 'smart', 'measure', 'scrub', 'boolean', 'develop', 'developui', 'masks', 'blur', 'touch', 'access', 'looks', 'palette', 'present', 'decide', 'fit', 'drop', 'tabs', 'curate', 'compare',
+  'arrange', 'smart', 'measure', 'scrub', 'boolean', 'develop', 'developui', 'masks', 'depthmask', 'blur', 'touch', 'access', 'looks', 'palette', 'present', 'decide', 'fit', 'drop', 'tabs', 'curate', 'compare',
   'help', 'findall', 'sendable', 'finish', 'plate', 'dialogs', 'framing', 'layer', 'vary', 'pair', 'repeat', 'undoboards', 'undelete', 'nospace', 'mirror', 'context', 'ahead', 'draw', 'mcp', 'moving', 'embed', 'offline', 'reclaim', 'manyboards', 'stacked', 'big', 'pdf', 'audio', 'design', 'model', 'sketch', 'sound', 'depth',
   'png', 'poster', 'urlimage', 'aspect', 'video', 'smoke', 'effects', 'ascii',
 ]
