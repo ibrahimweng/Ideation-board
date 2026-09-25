@@ -1,9 +1,10 @@
 # Every push and every pull request, so nothing goes to main on the strength of
 # "it worked on my machine".
 #
-# Two jobs on purpose. The fast one — types, then some six hundred unit tests —
+# Two jobs on purpose. The fast one — types, then some thousand unit tests —
 # is done in well under a minute and catches most mistakes; the slow one drives
-# a real browser through all fifty-seven suites and takes about half an hour.
+# a real browser through all seventy-four suites and takes about three quarters
+# of an hour.
 # Splitting them means a typo is reported while you are still looking at the tab.
 name: CI
 

@@ -84,6 +84,11 @@ uniform vec2 uBlurAt;
    all, and whether to keep the tone of where they are going. */
 uniform vec4 uClone;
 uniform sampler2D uDepth;    /* a depth map, when one is wired in */
+/* Cropped to fill the card the way the photograph is. Its own numbers,
+   because the depth map is a different card and need not be the same shape:
+   without these a depth range read the right distances off the wrong part of
+   the picture the moment the two aspects disagreed. */
+uniform vec2 uCover2, uCoverOff2;
 uniform vec2 uDepthOn;       /* x: a depth map is bound. y: spare */
 
 in vec2 vUv;
@@ -335,7 +340,7 @@ vec3 applyGrading(vec3 c){
  * every pixel is sharpened, including the grain in a flat sky; wound up, only
  * the pixels that sit on an edge are, which is the difference between a
  * sharpened photograph and a noisy one. */
-vec3 sharpen(vec3 c, vec2 uv, float detail){
+vec3 sharpen(vec3 c, vec2 uv){
   if (uSharp.x < EPS) return c;
   vec2 px = uSharp.y / max(uRes, 1.0);
   float e = 0.0;
@@ -347,7 +352,56 @@ vec3 sharpen(vec3 c, vec2 uv, float detail){
   /* The edge mask, from the local gradient. */
   float g = abs(dFdx(lum(pic(uv)))) + abs(dFdy(lum(pic(uv))));
   float mask = mix(1.0, smoothstep(0.0, 0.03, g), uSharp.w);
-  return c + hp * uSharp.x * mask * mix(0.6, 1.6, uSharp.z) + detail * 0.0;
+  return c + hp * uSharp.x * mask * mix(0.6, 1.6, uSharp.z);
+}
+
+/* ---------- noise reduction ----------
+ *
+ * A bilateral average over five by five: the neighbours that look like this
+ * pixel are averaged into it and the ones that do not are an edge, so grain
+ * goes and the edge stays. Which is the whole difference between reducing
+ * noise and blurring.
+ *
+ * Luminance and colour are two sliders because they are two faults. Sensor
+ * grain is mostly luminance and can only be smoothed a little before the
+ * photograph turns to wax; the blotches a high ISO leaves are colour, and
+ * colour can be smoothed hard before anybody sees it go. Detail holds the
+ * edges: at nought the neighbourhood is averaged flat, wound up only the
+ * neighbours that really do match are let in.
+ *
+ * Twenty-five taps is not free, so it is not paid for unless it was asked
+ * for — and the two amounts are nought on every card that never opened the
+ * panel, which is all of them. */
+vec3 denoise(vec3 c, vec2 uv){
+  float amt = clamp(uNoise.x, 0.0, 1.0);
+  float col = clamp(uNoise.z, 0.0, 1.0);
+  if (amt < EPS && col < EPS) return c;
+  /* How far the neighbourhood reaches, which goes with how much was asked
+     for: a light reduction looks at the pixels next door, a heavy one has to
+     reach past the grain to find anything different from it. */
+  vec2 px = (1.0 + 2.0 * max(amt, col)) / max(uRes, 1.0);
+  /* How unlike this pixel a neighbour may be and still count. */
+  float sigma = mix(0.30, 0.02, clamp(uNoise.y, 0.0, 1.0));
+  float k = 1.0 / (sigma * sigma + EPS);
+  float lc = lum(c);
+  vec3 sum = c;
+  float wsum = 1.0;
+  for (int y = -2; y <= 2; y++){
+    for (int x = -2; x <= 2; x++){
+      if (x == 0 && y == 0) continue;
+      vec3 s = pic(uv + vec2(float(x), float(y)) * px);
+      float d = lum(s) - lc;
+      float w = exp(-d * d * k);
+      sum += s * w;
+      wsum += w;
+    }
+  }
+  vec3 avg = sum / max(wsum, EPS);
+  /* The colour slider moves the whole pixel towards the average and the
+     luminance slider then decides how much of the brightness came with it, so
+     smoothing the colour hard leaves the detail exactly where it was. */
+  vec3 out3 = mix(c, avg, col);
+  return out3 + (mix(lc, lum(avg), amt) - lum(out3));
 }
 
 /* ---------- where a mask is ----------
@@ -369,7 +423,14 @@ float lin(int i, vec2 uv){
   vec2 d = b - a;
   float len2 = max(dot(d, d), EPS);
   float t = dot(uv - a, d) / len2;
-  return 1.0 - smoothstep(0.0, 1.0, clamp(t, 0.0, 1.0));
+  /* And feather says how much of that drag is the fade. At one the whole
+     length of it ramps, which is the gradient you dragged and what a linear
+     mask has always done here; wound down, the fade tightens about the middle
+     of the drag until it is an edge. The narrow end is what you want against
+     a hard horizon, and there was no other way to ask for it. */
+  float f = max(uPartA[i].w, EPS);
+  t = clamp((t - 0.5) / f + 0.5, 0.0, 1.0);
+  return 1.0 - smoothstep(0.0, 1.0, t);
 }
 
 float rad(int i, vec2 uv){
@@ -418,14 +479,20 @@ float partAt(int i, vec2 uv, vec3 c){
   float f = 0.0;
   if (kind == 0) f = lin(i, uv);
   else if (kind == 1) f = rad(i, uv);
-  else if (kind == 2) f = texture(uBrush, uv).a;
+  /* The painted parts are baked into one strip, a tile per part: this part's
+     tile number and how many tiles there are. A mask can hold a brush that
+     paints an area in and a second that rubs a hole out of it, and they must
+     not be reading the same strokes. */
+  else if (kind == 2) f = texture(uBrush, vec2(uv.x, (clamp(uv.y, 0.0, 1.0) + uPartB[i].x) / max(uPartB[i].y, 1.0))).a;
   else if (kind == 3) f = colourRange(i, c);
   else if (kind == 4) f = band(clamp(lum(c), 0.0, 1.0), uPartB[i].x, uPartB[i].y, uPartB[i].z);
   else if (kind == 5){
     /* Without a depth map there is no answer, and covering the whole picture
        would be a worse one than covering none of it. */
     if (uDepthOn.x < 0.5) return 0.0;
-    float d = lum(texture(uDepth, uv).rgb);
+    /* Through the lens correction as well, so that what the mask calls far
+       away is where the corrected picture actually shows it. */
+    float d = lum(texture(uDepth, clamp(lens(uv) * uCover2 + uCoverOff2, 0.001, 0.999)).rgb);
     f = band(d, uPartB[i].x, uPartB[i].y, uPartB[i].z);
   }
   /* All of it. Worth having as a part of its own rather than as an ellipse
@@ -569,7 +636,7 @@ vec3 developed(vec3 c, vec2 uv){
   c = applyGrading(c);
 
   /* -------- detail -------- */
-  c = sharpen(c, uv, uNoise.y);
+  c = sharpen(c, uv);
   c = defringe(c, uv);
 
   /* -------- effects -------- */
@@ -625,7 +692,7 @@ void main(){
      the real colour, which is what the colour picker reads when somebody
      clicks the photograph to build a range out of it. */
   if (uMask.w > 0.5){
-    vec3 shown = developed(base, uv);
+    vec3 shown = developed(denoise(base, uv), uv);
     float mm = maskAt(uv, shown);
     float g = lum(shown);
     vec3 tint = mix(mix(vec3(g), shown, 0.25), vec3(0.94, 0.19, 0.24), 0.62);
@@ -638,6 +705,11 @@ void main(){
   /* Before the develop, because what is being repaired is the photograph and
      whatever this mask then does to it applies to the repair as well. */
   if (uClone.z > 0.5) c = cloned(uv);
+  /* Out here rather than inside developed(), because the noise has to be taken
+     off this pass's own pixel and left on everything the mask does not cover.
+     Inside it, base would have been denoised too and the reduction would have
+     spread over the whole photograph however small the mask was. */
+  c = denoise(c, uv);
 
   vec3 d = developed(c, uv);
   /* A mask pass lands only where the mask is; a global pass lands everywhere,

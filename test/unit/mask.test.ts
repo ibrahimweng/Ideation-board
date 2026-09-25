@@ -5,7 +5,9 @@ import {
   KIND_CODE,
   MASK_KEYS,
   MAX_PARTS,
+  UNKNOWN_KIND,
   brushKey,
+  brushTiles,
   liveMasks,
   maskEmpty,
   maskUniforms,
@@ -252,27 +254,140 @@ describe('the brush', () => {
     )
     expect(calls).toContain('op:destination-out')
     /* And puts it back, or everything drawn after it would rub out too. */
-    expect(calls[calls.length - 1]).toBe('op:source-over')
+    expect(calls.lastIndexOf('op:source-over')).toBeGreaterThan(calls.lastIndexOf('op:destination-out'))
   })
 
   it('leaves a mask with nothing painted as no place at all', () => {
     expect(maskEmpty({ ...newMask('brush') })).toBe(true)
     expect(maskEmpty(newMask('radial'))).toBe(false)
   })
+
+  /* ---- a tile per part ----
+   *
+   * Every painted part used to go into one picture, and every painted part
+   * read that one picture back. So a mask that brushed an area in and then
+   * brushed a hole out of it with a second part did neither: both parts asked
+   * the same strokes where they were, the subtract took out exactly what the
+   * add put in, and the mask covered nothing at all. */
+  it('counts a tile for every part up to the last painted one', () => {
+    expect(brushTiles(newMask('radial'))).toBe(0)
+    expect(brushTiles({ ...newMask('brush'), parts: [newPart('brush')] })).toBe(1)
+    /* A brush in the third slot needs three tiles even though the first two
+       are gradients: a part's tile is its own number, so the shader needs no
+       table to find it. */
+    expect(brushTiles({ ...newMask('radial'), parts: [newPart('radial'), newPart('linear'), newPart('brush')] })).toBe(3)
+    /* And never more than the mask can hold. */
+    expect(
+      brushTiles({
+        ...newMask('brush'),
+        parts: [newPart('brush'), newPart('brush'), newPart('brush'), newPart('brush'), newPart('brush')],
+      })
+    ).toBe(MAX_PARTS)
+  })
+
+  const twoBrushes = (): Mask => ({
+    ...newMask('brush'),
+    parts: [
+      { kind: 'brush', strokes: [stroke([0.2, 0.2, 0.6, 0.6])] },
+      { kind: 'brush', op: 'sub', strokes: [stroke([0.3, 0.3, 0.5, 0.5])] },
+    ],
+  })
+
+  it('tells each painted part which tile of the strip is its own', () => {
+    const u = maskUniforms(twoBrushes())
+    /* Part 0 reads tile 0 and part 1 reads tile 1, out of the two there are. */
+    expect(u.b.slice(0, 2)).toEqual([0, 2])
+    expect(u.b.slice(4, 6)).toEqual([1, 2])
+    /* And the one that takes away really is the one that takes away, which is
+       the thing that could not work while they shared a picture. */
+    expect(u.a[5]).toBe(1)
+  })
+
+  it('paints each part into its own tile and clips it there', () => {
+    const calls: string[] = []
+    const xy: number[][] = []
+    const ctx = fakeCtx(calls, xy)
+    paintBrush(ctx, twoBrushes(), 100, 100)
+    const where = (name: string) => calls.map((c, i) => [c, i] as const).filter(([c]) => c === name).map(([, i]) => xy[i])
+    /* Cleared over the whole strip, not only the first tile. */
+    expect(xy[0]).toEqual([0, 0, 100, 200])
+    /* One clip per part, each to its own hundred pixels. */
+    expect(where('rect')).toEqual([
+      [0, 0, 100, 100],
+      [0, 100, 100, 100],
+    ])
+    expect(calls.filter((c) => c === 'clip')).toHaveLength(2)
+    expect(calls.filter((c) => c === 'save')).toHaveLength(2)
+    expect(calls.filter((c) => c === 'restore')).toHaveLength(2)
+    /* And the second part's line is drawn a tile further down, which is the
+       whole point: it is a different picture from the first part's. */
+    expect(where('moveTo')).toEqual([
+      [20, 20],
+      [30, 130],
+    ])
+  })
+
+  it('keys the bake on which part a stroke is in, not only on the stroke', () => {
+    /* The same strokes in a different slot are a different picture, because
+       they are painted into a different tile. A key that named only the
+       strokes handed back the last bake with the tiles in the wrong places. */
+    const first: Mask = { ...newMask('brush'), parts: [{ kind: 'brush', strokes: [stroke([0.1, 0.1, 0.2, 0.2])] }] }
+    const second: Mask = {
+      ...newMask('brush'),
+      parts: [newPart('linear'), { kind: 'brush', strokes: [stroke([0.1, 0.1, 0.2, 0.2])] }],
+    }
+    expect(brushKey(second)).not.toBe(brushKey(first))
+  })
+})
+
+describe('what the shader is told about a part', () => {
+  it('starts a gradient feathered over the whole drag and an ellipse half soft', () => {
+    /* Two kinds, two numbers. A linear gradient is the drag somebody made, so
+       all of it fades; an ellipse has a hard middle and a soft edge. */
+    expect(maskUniforms({ ...newMask('linear'), parts: [newPart('linear')] }).a[3]).toBe(1)
+    expect(maskUniforms({ ...newMask('radial'), parts: [newPart('radial')] }).a[3]).toBe(0.5)
+    /* And a board saved before a gradient had a feather at all reads back as
+       the gradient it was drawn as. */
+    expect(maskUniforms({ ...newMask('linear'), parts: [{ kind: 'linear' }] }).a[3]).toBe(1)
+  })
+
+  it('sends a kind it has never heard of somewhere the shader covers nothing', () => {
+    /* A board saved by a later version. Zero was a linear gradient, and a
+       linear gradient with no geometry is a ramp at full strength across the
+       whole photograph — the loudest possible way to render an edit this
+       version does not know how to draw. */
+    const later: Mask = { ...newMask('whole'), parts: [{ kind: 'prism' as MaskKind }] }
+    expect(maskUniforms(later).a[0]).toBe(UNKNOWN_KIND)
+    expect(maskUniforms(later).a[0]).not.toBe(KIND_CODE.linear)
+    /* Past every code the shader knows how to draw, so it falls through to the
+       branch that answers nowhere. */
+    expect(UNKNOWN_KIND).toBeGreaterThan(Math.max(...Object.values(KIND_CODE)))
+  })
 })
 
 /* A 2D context that records what was asked of it. The real one needs a canvas,
  * and what is being checked here is the decisions rather than the pixels. */
-function fakeCtx(calls: string[]) {
-  const rec = (name: string) => () => void calls.push(name)
+function fakeCtx(calls: string[], xy: number[][] = []) {
+  /* Records where it was asked to draw as well as that it was asked, because
+     which tile of the strip a stroke landed in is a question about the y. The
+     two lists run in step, so xy[i] is where calls[i] happened. */
+  const at = (name: string) => (...a: number[]) => {
+    calls.push(name)
+    xy.push([...a])
+  }
+  const rec = (name: string) => at(name)
   return {
-    clearRect: rec('clearRect'),
+    clearRect: at('clearRect'),
     beginPath: rec('beginPath'),
-    moveTo: rec('moveTo'),
-    lineTo: rec('lineTo'),
-    arc: rec('arc'),
+    moveTo: at('moveTo'),
+    lineTo: at('lineTo'),
+    arc: at('arc'),
     stroke: rec('stroke'),
     fill: rec('fill'),
+    save: rec('save'),
+    restore: rec('restore'),
+    rect: at('rect'),
+    clip: rec('clip'),
     lineCap: '',
     lineJoin: '',
     lineWidth: 0,
@@ -281,6 +396,7 @@ function fakeCtx(calls: string[]) {
     filter: '',
     set globalCompositeOperation(v: string) {
       calls.push('op:' + v)
+      xy.push([])
     },
     get globalCompositeOperation() {
       return ''

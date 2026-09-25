@@ -133,6 +133,126 @@ const reset = async (section) => {
   }
 }
 
+/* A picture with noise ground into it, for the one section of the panel that
+   cannot be measured on anything flat. Mid grey on the left and bright on the
+   right, so there is a real edge for a denoise to keep; the grain is in small
+   blocks rather than single pixels so it survives the card drawing the
+   picture smaller than it is. The bottom band's noise is in the colour and
+   not in the brightness, which is the other slider's job and the fault a high
+   ISO actually leaves. */
+const dropNoisy = (at) =>
+  page.evaluate(async ({ at }) => {
+    const c = document.createElement('canvas')
+    c.width = 600
+    c.height = 600
+    const x = c.getContext('2d')
+    const img = x.createImageData(600, 600)
+    /* Its own dice, so the picture is the same one every run and a check that
+       fails means the code changed rather than the noise did. */
+    let s = 12345
+    const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)
+    const BLOCK = 6
+    const grain = []
+    for (let by = 0; by < 600 / BLOCK; by++) {
+      grain[by] = []
+      for (let bx = 0; bx < 600 / BLOCK; bx++) grain[by][bx] = [rnd(), rnd()]
+    }
+    for (let y = 0; y < 600; y++) {
+      for (let px = 0; px < 600; px++) {
+        const g = grain[Math.floor(y / BLOCK)][Math.floor(px / BLOCK)]
+        const base = px < 300 ? 110 : 190
+        let r, gr, b
+        if (y > 420) {
+          /* Colour noise: red and blue pulled apart, brightness left alone. */
+          const d = (g[0] - 0.5) * 90
+          r = base + d
+          gr = base
+          b = base - d
+        } else {
+          const d = (g[0] - 0.5) * 90
+          r = gr = b = base + d
+        }
+        const i = (y * 600 + px) * 4
+        img.data[i] = Math.max(0, Math.min(255, r))
+        img.data[i + 1] = Math.max(0, Math.min(255, gr))
+        img.data[i + 2] = Math.max(0, Math.min(255, b))
+        img.data[i + 3] = 255
+      }
+    }
+    x.putImageData(img, 0, 0)
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
+    const dt = new DataTransfer()
+    dt.items.add(new File([blob], 'noisy.png', { type: 'image/png' }))
+    const ev = new DragEvent('drop', { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y })
+    Object.defineProperty(ev, 'dataTransfer', { value: dt })
+    document.querySelector('.viewport').dispatchEvent(ev)
+  }, { at })
+
+/* A patch of the card, as a mean and a spread. Noise is the spread and tone is
+   the mean, so the two questions a denoise raises — did the grain go, and did
+   the picture stay where it was — are these two numbers. */
+const block = (fx, fy, half) =>
+  page.evaluate(async ({ fx, fy, half }) => {
+    const card = document.querySelector('.card[data-kind="image"]')
+    const el = card?.querySelector('canvas.media') || card?.querySelector('img.media')
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(r.width))
+    c.height = Math.max(1, Math.round(r.height))
+    const g = c.getContext('2d', { willReadFrequently: true })
+    try {
+      g.drawImage(el, 0, 0, c.width, c.height)
+    } catch {
+      return null
+    }
+    const cx = Math.round(c.width * fx)
+    const cy = Math.round(c.height * fy)
+    const x0 = Math.max(0, cx - half)
+    const y0 = Math.max(0, cy - half)
+    const w = Math.min(half * 2, c.width - x0)
+    const h = Math.min(half * 2, c.height - y0)
+    const d = g.getImageData(x0, y0, w, h).data
+    const out = []
+    for (let i = 0; i < d.length; i += 4) out.push([d[i], d[i + 1], d[i + 2]])
+    return out
+  }, { fx, fy, half })
+
+const stats = (v) => {
+  const mean = v.reduce((a, b) => a + b, 0) / v.length
+  return { mean, sd: Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length) }
+}
+
+/* How much the brightness varies inside a patch: the grain, as one number. */
+const spread = async (fx, fy) => stats((await block(fx, fy, 14)).map((p) => (p[0] + p[1] + p[2]) / 3))
+
+/* And how much red and blue disagree, which is what colour noise is and what
+   the luminance slider cannot see. */
+const chromaSpread = async (fx, fy) => stats((await block(fx, fy, 14)).map((p) => p[0] - p[2])).sd
+
+/* The step across the middle of the picture, which a blur would flatten and a
+   denoise must not. */
+const step = async () => {
+  const left = await spread(0.3, 0.3)
+  const right = await spread(0.7, 0.3)
+  return right.mean - left.mean
+}
+
+/* One slider inside one section, because the panel has more than one control
+   called Luminance and they are not the same slider. */
+const setIn = async (section, label, value) => {
+  const box = page
+    .locator('.dev-sec', { hasText: section })
+    .first()
+    .locator('.ctl', { hasText: new RegExp(`^${label}`) })
+    .locator('input.ctl-num')
+    .first()
+  await box.scrollIntoViewIfNeeded()
+  await box.fill(String(value))
+  await box.press('Enter')
+  await page.waitForTimeout(650)
+}
+
 /* ---------- a picture to develop ---------- */
 await drop({ x: 520, y: 380 })
 await page.waitForSelector('.card[data-kind="image"]', { timeout: 10000 })
@@ -335,6 +455,78 @@ check('and dragging it off the top takes it away', (await page.locator('.curve-p
 const backC = await sample(0.5, 0.15)
 check('which puts the picture back', Math.abs(backC[0] - midWasC[0]) <= 3, `${midWasC[0]} -> ${backC[0]}`)
 
+/* ---------- the curve keeps up with itself while a mask is being shown ----------
+ *
+ * The table the curve is drawn from is a texture upload, and an upload that
+ * costs nothing to skip is skipped by comparing what identifies the curves.
+ * The overlay had nothing identifying its own and was handed the empty name —
+ * which matched the empty one left behind by the pass before it, so the upload
+ * was skipped and the picture under a mask being built went on showing
+ * whatever curve was uploaded last, however far the curve was dragged. Which
+ * is the one moment somebody is most likely to be dragging it.
+ */
+await panel('Tone curve')
+const ovCurve = page.locator('.curve').first()
+await ovCurve.scrollIntoViewIfNeeded()
+await page.waitForTimeout(250)
+const ovBox = await ovCurve.boundingBox()
+await page.mouse.move(ovBox.x + ovBox.width * 0.5, ovBox.y + ovBox.height * 0.5)
+await page.mouse.down()
+await page.mouse.move(ovBox.x + ovBox.width * 0.5, ovBox.y + ovBox.height * 0.26, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(900)
+
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).first().click()
+await page.waitForTimeout(250)
+const ovAdd = page.locator('.masks > .mask-add > button', { hasText: 'New mask' })
+await ovAdd.scrollIntoViewIfNeeded()
+await ovAdd.click()
+await page.waitForTimeout(200)
+await page.locator('.masks > .mask-add .mask-kinds button', { hasText: 'Radial gradient' }).first().click()
+await page.waitForTimeout(1100)
+check('a mask to show while the curve is dragged', (await page.locator('.mask-eye[data-on]').count()) === 1,
+      `${await page.locator('.mask-eye[data-on]').count()} overlays up`)
+
+/* Flat grey, well outside the ellipse in the middle: the overlay shows the
+   developed photograph everywhere the mask is not, and that is the pixel the
+   curve has to reach. */
+const ovLifted = await sample(0.88, 0.1)
+await panel('Tone curve')
+/* Scrolled to first: the mask list under it has made the panel taller, and a
+   press aimed at a curve that has slid off the bottom lands on whatever is
+   over it. */
+await page.locator('.curve').first().scrollIntoViewIfNeeded()
+await page.waitForTimeout(250)
+const ovBox2 = await page.locator('.curve').first().boundingBox()
+/* The point in the middle, dragged from where it was lifted to well below the
+   line: the same midtone, the other way. */
+const ovPt = await page.locator('.curve-pt').nth(1).boundingBox()
+await page.mouse.move(ovPt.x + ovPt.width / 2, ovPt.y + ovPt.height / 2)
+await page.mouse.down()
+await page.mouse.move(ovBox2.x + ovBox2.width * 0.5, ovBox2.y + ovBox2.height * 0.82, { steps: 14 })
+await page.mouse.up()
+await page.waitForTimeout(1100)
+check('and the curve took the drag', (await page.locator('.curve-pt').count()) === 3,
+      `${await page.locator('.curve-pt').count()} points`)
+const ovPulled = await sample(0.88, 0.1)
+check('dragging the curve while a mask is shown reaches the picture under it',
+      ovLifted && ovPulled && ovLifted[0] - ovPulled[0] > 30,
+      `${ovLifted && ovLifted[0]} -> ${ovPulled && ovPulled[0]}`)
+fs.writeFileSync(path.join(OUT, 'develop-curve-overlay.png'), await page.screenshot())
+
+/* And away again, so what follows reads the photograph. */
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).first().click()
+await page.waitForTimeout(250)
+await page.locator('.mask-eye[data-on]').first().click()
+await page.waitForTimeout(600)
+await page.locator('.mask-off[data-on]').first().click()
+await page.waitForTimeout(700)
+await reset('Tone curve')
+await page.waitForTimeout(600)
+const ovBack = await sample(0.88, 0.1)
+check('and putting the curve back leaves the photograph as it arrived',
+      ovBack && Math.abs(ovBack[0] - 128) <= 4, `${ovBack && ovBack[0]}`)
+
 /* ---------- the colour mixer ----------
  *
  * Eight bands of hue, each with its own hue, saturation and luminance. The
@@ -435,6 +627,66 @@ await page.waitForTimeout(700)
 check('and taking it off puts the browser back in charge', (await drawnBy()) === 'img', await drawnBy())
 const after = await sample(0.5, 0.15)
 check('with the picture exactly as it arrived', after && Math.abs(after[0] - 128) <= 4, JSON.stringify(after))
+
+/* ---------- noise reduction ----------
+ *
+ * Three sliders that were wired the whole way — record, uniforms, a key of
+ * their own per mask — and read by the shader as `detail * 0.0`. They moved
+ * a number nobody ever looked at.
+ *
+ * Reducing noise cannot be measured on a flat grey, so this is a different
+ * picture: mid grey with noise ground into it in small blocks, a bright half
+ * so there is a real edge to keep, and a band of colour noise for the third
+ * slider. What is read is the spread inside a patch, which is what noise is,
+ * rather than any one pixel. */
+await page.locator('.card[data-kind="image"]').first().click()
+await page.keyboard.press('Backspace')
+await page.waitForTimeout(700)
+await dropNoisy({ x: 520, y: 380 })
+await page.waitForSelector('.card[data-kind="image"]', { timeout: 10000 })
+await page.waitForTimeout(1200)
+await page.locator('.card[data-kind="image"]').first().click()
+await page.waitForTimeout(400)
+
+const noisy = await spread(0.25, 0.3)
+check('the noisy picture really is noisy', noisy.sd > 9, `sd ${noisy.sd.toFixed(1)}`)
+const edgeWas = await step()
+check('and it has an edge across the middle of it', edgeWas > 40, `${edgeWas.toFixed(1)} levels`)
+
+await panel('Detail')
+await setIn('Detail', 'Luminance', 100)
+const smoothed = await spread(0.25, 0.3)
+check('luminance noise reduction takes the grain out',
+      smoothed.sd < noisy.sd * 0.7, `sd ${noisy.sd.toFixed(1)} -> ${smoothed.sd.toFixed(1)}`)
+check('and leaves the tone where it was, because it is an average and not a curve',
+      Math.abs(smoothed.mean - noisy.mean) < 6, `${noisy.mean.toFixed(1)} -> ${smoothed.mean.toFixed(1)}`)
+/* The whole difference between reducing noise and blurring: the edge stays. */
+const edgeNow = await step()
+check('and the edge survives it, which is what makes it a denoise and not a blur',
+      edgeNow > edgeWas * 0.8, `${edgeWas.toFixed(1)} -> ${edgeNow.toFixed(1)}`)
+
+/* Detail is what holds the edges: wound all the way down, only the neighbours
+   that really match are let in, so less of the grain goes. */
+await setIn('Detail', 'Preserve detail', 100)
+const fussy = await spread(0.25, 0.3)
+check('and preserving detail holds the neighbours back, so less of it goes',
+      fussy.sd > smoothed.sd + 1.5, `sd ${smoothed.sd.toFixed(1)} at 50, ${fussy.sd.toFixed(1)} at 100`)
+await setIn('Detail', 'Luminance', 0)
+await setIn('Detail', 'Preserve detail', 50)
+
+/* And colour, on the band that has colour noise in it rather than luminance
+   noise. Read as how far red and blue are from each other, which is what a
+   high ISO leaves behind and what the luminance slider cannot touch. */
+const blotchy = await chromaSpread(0.25, 0.8)
+await setIn('Detail', 'Colour', 100)
+const evened = await chromaSpread(0.25, 0.8)
+check('colour noise reduction takes the blotches out',
+      evened < blotchy * 0.75, `${blotchy.toFixed(1)} -> ${evened.toFixed(1)}`)
+await reset('Detail')
+const back = await spread(0.25, 0.3)
+check('and putting the section back leaves the photograph as it arrived',
+      Math.abs(back.sd - noisy.sd) < 2, `sd ${noisy.sd.toFixed(1)} -> ${back.sd.toFixed(1)}`)
+fs.writeFileSync(path.join(OUT, 'develop-noise.png'), await page.screenshot())
 
 check('no page errors', errors.length === 0, errors.join(' | '))
 console.log(`\n${pass} passed, ${fail} failed`)

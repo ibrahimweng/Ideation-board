@@ -521,8 +521,20 @@ colour range's colour off the picture. The handles live inside the card's
 frame, so the same transform that zooms, turns and flips the picture moves them
 with it.
 
+A mask can hold more than one brush, and usually wants to: "this area, but not
+the bit in the middle of it" is a brush that adds and a brush that takes away.
+A brush you have just added is the one the picture paints with; **Paint with
+this one** on any of the others takes it back.
+
+A gradient's **Feather** says how much of the drag is the fade. At the top the
+whole length of it ramps, which is the gradient you dragged; wound down, the
+fade tightens about the middle of the drag until it is an edge, which is what
+you want against a hard horizon.
+
 A depth range reads the depth map wired into the card, which is the one the app
-already knows how to make.
+already knows how to make — cropped to fill the card the same way the
+photograph is, so a square map wired into a wide picture reads the distances
+for the part of the frame that is actually on screen.
 
 ## Saying where the blur comes from
 
@@ -1782,10 +1794,11 @@ measurements show. `docs/ARCHITECTURE.md` explains how the code is laid out.
 ## Tests
 
 Two kinds. The fast ones are arithmetic and run in a few seconds; the slow ones
-are sixty-one suites driving a real browser, and take about half an hour.
+are seventy-four suites driving a real browser, and take about three quarters
+of an hour.
 
 ```bash
-npm test            # types, then 617 unit tests — a few seconds
+npm test            # types, then 972 unit tests — a few seconds
 npm run test:all    # the above, then a build, then every browser suite
 ```
 

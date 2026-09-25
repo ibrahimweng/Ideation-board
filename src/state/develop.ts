@@ -298,7 +298,10 @@ export const RANGES: Range[] = [
   { k: 'sharpenDetail', label: 'Detail', min: 0, max: 100, step: 1 },
   { k: 'sharpenMask', label: 'Masking', min: 0, max: 100, step: 1 },
   { k: 'noise', label: 'Luminance', min: 0, max: 100, step: 1 },
-  { k: 'noiseDetail', label: 'Detail', min: 0, max: 100, step: 1 },
+  /* Not 'Detail'. Sharpening has a slider of that name four rows above, in the
+     same section of the same panel, and two controls with one name are one
+     control as far as anybody reading the panel is concerned. */
+  { k: 'noiseDetail', label: 'Preserve detail', min: 0, max: 100, step: 1 },
   { k: 'noiseColour', label: 'Colour', min: 0, max: 100, step: 1 },
   { k: 'distortion', label: 'Distortion', min: -100, max: 100, step: 1 },
   { k: 'ca', label: 'Chromatic aberration', min: -100, max: 100, step: 1 },

@@ -3,6 +3,7 @@ import { store } from '../../src/state/store'
 import { FX_0 } from '../../src/engine/types'
 import type { Item } from '../../src/state/types'
 import type { ShapeSpec } from '../../src/state/shapes'
+import { newMask } from '../../src/state/mask'
 
 /* The board itself, without a browser around it. Lining cards up, spacing them
  * out, tidying them onto a grid, joining them, taking them away and putting
@@ -209,6 +210,46 @@ describe('applyLook', () => {
     expect(n).toBe(1)
     expect(byId('a').fx).toMatchObject({ fxid: 'halftone', sat: 0, grain: 40, zoom: 1.6 })
     expect(byId('b').fx.fxid).toBe('none')
+  })
+
+  /* A look carries a develop, and a look without one takes the develop off.
+   * Both halves of that were broken by the same thing: `dev: undefined` does
+   * not survive JSON, so a look saved or copied and read back after a reload
+   * had no `dev` key at all, and the spread that applies a look left the
+   * card's own develop sitting underneath it. */
+  const plainLook = () => ({
+    fxid: 'none', ep: null, exp: 0, con: 0, sat: 100, warm: 0, blur: 0, grain: 0, op: 100, mix: 'normal',
+    preset: 'none' as const,
+  })
+
+  it('takes the develop off a card when the look has none', () => {
+    const a = add({ id: 'a', kind: 'image', fx: { ...FX_0, dev: { exposure: 1.5 } } })
+    store.applyLook([a.id], plainLook())
+    expect(byId('a').fx.dev).toBeUndefined()
+  })
+
+  it('takes it off even when the key went missing down a JSON round trip', () => {
+    /* Which is every look that was saved to the browser or put on the
+       clipboard, so it is the ordinary case rather than the awkward one. */
+    const a = add({ id: 'a', kind: 'image', fx: { ...FX_0, dev: { exposure: 1.5 } } })
+    const saved = JSON.parse(JSON.stringify({ ...plainLook(), dev: undefined }))
+    expect('dev' in saved).toBe(false)
+    store.applyLook([a.id], saved)
+    expect(byId('a').fx.dev).toBeUndefined()
+  })
+
+  it('gives each card its own copy of the develop and its masks', () => {
+    /* Two cards wearing one look must not be holding one array of masks: a
+       drag on either would move the other's. */
+    const a = add({ id: 'a', kind: 'image' })
+    const b = add({ id: 'b', kind: 'image' })
+    const look = { ...plainLook(), dev: { exposure: 1, masks: [newMask('radial')] } }
+    store.applyLook([a.id, b.id], look)
+    expect(byId('a').fx.dev?.exposure).toBe(1)
+    expect(byId('b').fx.dev?.masks).toHaveLength(1)
+    expect(byId('a').fx.dev).not.toBe(byId('b').fx.dev)
+    expect(byId('a').fx.dev!.masks).not.toBe(byId('b').fx.dev!.masks)
+    expect(byId('a').fx.dev!.masks![0]).not.toBe(look.dev.masks[0])
   })
 })
 

@@ -74,7 +74,7 @@ const cardAt = (kind) =>
     const c = document.querySelector(`.card[data-kind="${k}"]`)
     if (!c) return null
     const r = c.getBoundingClientRect()
-    return { x: Math.round(r.x + 60), y: Math.round(r.y + 20) }
+    return { x: Math.round(r.x + 60), y: Math.round(r.y + 20), id: c.dataset.id }
   }, kind)
 
 await drop({ x: 260, y: 150 })
@@ -169,6 +169,83 @@ check('the order is the one on the board', first.includes('260'), first)
 await page.keyboard.press('Escape')
 await page.waitForTimeout(600)
 check('Escape leaves it', (await page.locator('.present').count()) === 0)
+
+/* ---------- a developed card presents as itself ----------
+ *
+ * Presenting gates on whether the card is wearing anything, and a developed
+ * photograph counts: developing is the treatment on every card that has no
+ * effect on it at all. The gate learned that and the canvas it puts up did
+ * not — it was handed the first effect and nothing else — so a card developed
+ * two stops came up on the wall as the file, which is the one place anybody
+ * would notice and the last place they could do anything about it.
+ */
+await page.keyboard.press('Escape')
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.waitForTimeout(300)
+const devCard = await cardAt('image')
+await page.mouse.click(devCard.x, devCard.y)
+await page.waitForTimeout(500)
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).first().click()
+await page.waitForTimeout(400)
+const expBox = page.locator('.develop .ctl', { hasText: /^Exposure/ }).locator('input.ctl-num').first()
+await expBox.scrollIntoViewIfNeeded()
+await expBox.fill('-2.5')
+await expBox.press('Enter')
+await page.waitForTimeout(1000)
+
+/* Off the board first, so what is compared is the same picture drawn twice
+   rather than a card against a slide. */
+const onBoard = await page.evaluate((id) => {
+  const card = document.querySelector(`.card[data-id="${id}"]`)
+  const el = card?.querySelector('canvas.media') || card?.querySelector('img.media')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  const c = document.createElement('canvas')
+  c.width = Math.max(1, Math.round(r.width))
+  c.height = Math.max(1, Math.round(r.height))
+  const g = c.getContext('2d', { willReadFrequently: true })
+  try { g.drawImage(el, 0, 0, c.width, c.height) } catch { return null }
+  const d = g.getImageData(Math.round(c.width * 0.5), Math.round(c.height * 0.5), 1, 1).data
+  return [d[0], d[1], d[2]]
+}, devCard.id)
+/* Down rather than up, so the figure lands in the middle of the range instead
+   of clipping at white, where an undeveloped picture and a developed one would
+   read the same. */
+check('setup: two and a half stops down shows on the card', onBoard && onBoard[0] < 150, JSON.stringify(onBoard))
+
+await page.keyboard.press('Escape')
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.keyboard.press('p')
+await page.waitForTimeout(1400)
+check('the board presents', (await page.locator('.present').count()) === 1)
+const onWall = await page.evaluate(() => {
+  const el = document.querySelector('.present-media')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  const c = document.createElement('canvas')
+  c.width = Math.max(1, Math.round(r.width))
+  c.height = Math.max(1, Math.round(r.height))
+  const g = c.getContext('2d', { willReadFrequently: true })
+  try { g.drawImage(el, 0, 0, c.width, c.height) } catch { return null }
+  const d = g.getImageData(Math.round(c.width * 0.5), Math.round(c.height * 0.5), 1, 1).data
+  return { px: [d[0], d[1], d[2]], tag: el.tagName }
+})
+check('and the developed card is developed on the wall too',
+      onWall && Math.abs(onWall.px[0] - onBoard[0]) <= 8,
+      onWall ? `${JSON.stringify(onWall.px)} on a ${onWall.tag} against ${JSON.stringify(onBoard)}` : 'nothing shown')
+fs.writeFileSync(path.join(OUT, 'present-developed.png'), await page.screenshot())
+await page.keyboard.press('Escape')
+await page.waitForTimeout(500)
+/* And off again, so the checks below read the board they were written for. */
+await page.mouse.click(devCard.x, devCard.y)
+await page.waitForTimeout(400)
+await page.locator('.panel-tabs button', { hasText: 'Develop' }).first().click()
+await page.waitForTimeout(300)
+await page.locator('.develop button', { hasText: 'Undevelop' }).first().click()
+await page.waitForTimeout(700)
+await page.keyboard.press('Escape')
+await page.evaluate(() => document.activeElement?.blur?.())
+await page.waitForTimeout(300)
 
 /* A selection of more than one shows only those. */
 await page.evaluate(() => document.activeElement?.blur?.())

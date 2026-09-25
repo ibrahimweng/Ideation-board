@@ -17,6 +17,7 @@ import {
 } from '../state/mask'
 import type { Blur, Clone, Mask, MaskKind, MaskOp, MaskPart } from '../state/mask'
 import { hideMask, hideOtherCards, showMask, useShowing } from '../board/showmask'
+import { dropBrush, holdBrush, useBrushSlot } from '../board/paintpart'
 
 /* ---------------------------------------------------------------------------
  * The masks panel.
@@ -54,7 +55,17 @@ function OpPicker({ value, onChange }: { value: MaskOp; onChange: (op: MaskOp) =
 /* The controls a part of each kind needs, and nothing else. A luminance range
  * has no centre and a radial gradient has no tolerance, and showing either the
  * greyed-out other is how a panel becomes a form. */
-function PartControls({ part, onChange }: { part: MaskPart; onChange: (p: Partial<MaskPart>) => void }) {
+function PartControls({
+  part,
+  onChange,
+  onHold,
+  held,
+}: {
+  part: MaskPart
+  onChange: (p: Partial<MaskPart>) => void
+  onHold?: () => void
+  held?: boolean
+}) {
   const k = part.kind
   if (k === 'linear' || k === 'radial') {
     return (
@@ -69,7 +80,11 @@ function PartControls({ part, onChange }: { part: MaskPart; onChange: (p: Partia
             <Slider label="Angle" min={-180} max={180} step={1} def={0} unit="°" value={part.rot ?? 0} onChange={(v) => onChange({ rot: v })} />
           </>
         )}
-        <Slider label="Feather" min={0} max={100} step={1} def={50} value={part.feather ?? 50} onChange={(v) => onChange({ feather: v })} />
+        {/* A gradient's fade starts as the whole of the drag, an ellipse's as
+            half its radius — the two kinds want different numbers and have
+            always been drawn that way. */}
+        <Slider label="Feather" min={0} max={100} step={1} def={k === 'linear' ? 100 : 50}
+                value={part.feather ?? (k === 'linear' ? 100 : 50)} onChange={(v) => onChange({ feather: v })} />
         <p className="panel-note">Drag it on the picture itself.</p>
       </>
     )
@@ -89,8 +104,16 @@ function PartControls({ part, onChange }: { part: MaskPart; onChange: (p: Partia
         <Slider label="Flow" min={5} max={100} step={1} def={100} value={last?.flow ?? 100} onChange={(v) => onChange({ strokes: bumpBrush(strokes, { flow: v }) })} />
         <p className="panel-note">
           {drawn.length ? `${drawn.length} ${drawn.length === 1 ? 'stroke' : 'strokes'}. ` : 'Nothing painted yet. '}
-          Paint on the picture; hold Alt to rub out.
+          {held ? 'Paint on the picture; hold Alt to rub out.' : 'Another brush has the picture.'}
         </p>
+        {/* Only when there is something to choose between. A mask with one
+            brush has it in hand by default, and a button saying so would be a
+            control that is always on. */}
+        {onHold && !held && (
+          <button className="mask-hold" onClick={onHold}>
+            Paint with this one
+          </button>
+        )}
         {drawn.length > 0 && (
           <button
             className="ghost"
@@ -168,6 +191,8 @@ function OneMask({
   onDuplicate: () => void
 }) {
   const showing = useShowing(mask.id)
+  const brushAt = useBrushSlot(mask.id, mask.parts.map((p) => p.kind))
+  const brushes = mask.parts.filter((p) => p.kind === 'brush').length
   const [addOpen, setAddOpen] = useState(false)
 
   const setPart = (i: number, patch: Partial<MaskPart>) =>
@@ -175,6 +200,10 @@ function OneMask({
 
   const addPart = (kind: MaskKind) => {
     setAddOpen(false)
+    /* A brush somebody has just added is the brush in their hand: adding one
+       is asking to paint with it. Going back to an earlier one is the rarer
+       move, so that is the one that costs a click. */
+    if (kind === 'brush') holdBrush(mask.id, mask.parts.length)
     onChange({ ...mask, parts: [...mask.parts, newPart(kind, 'add')] }, true)
   }
 
@@ -265,7 +294,12 @@ function OneMask({
                   </button>
                 )}
               </div>
-              <PartControls part={p} onChange={(patch) => setPart(i, patch)} />
+              <PartControls
+                part={p}
+                onChange={(patch) => setPart(i, patch)}
+                held={i === brushAt}
+                onHold={brushes > 1 ? () => holdBrush(mask.id, i) : undefined}
+              />
             </div>
           ))}
 
@@ -450,6 +484,7 @@ export function MaskPanel({
             }}
             onDrop={() => {
               hideMask(m.id)
+              dropBrush(m.id)
               const left = masks.filter((k) => k.id !== m.id)
               onChange(left.length ? left : undefined, true)
             }}
